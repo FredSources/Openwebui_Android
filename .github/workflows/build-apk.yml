@@ -55,6 +55,9 @@ jobs:
           git clone --quiet https://github.com/searxng/searxng.git vendor/searxng
           git -C vendor/searxng checkout -q a30b2d47492ab46ae82ce25ee62a31626565cf67
 
+      - name: Sources Open WebUI amont (wheel PyPI)
+        run: bash scripts/fetch_src.sh
+
       - name: Adaptation CI x86_64 (aapt2 natif, pas de qemu)
         run: sed -i '/aapt2FromMavenOverride/d' gradle.properties
 

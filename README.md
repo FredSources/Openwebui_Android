@@ -26,7 +26,7 @@ Le **LLM reste distant** : Ollama ou API OpenAI-compatible sur ton PC/serveur.
 | `src/` | Code Python embarqué (Open WebUI patché + SearXNG + shims) |
 | `app/` | Projet Android (Java + Chaquopy) |
 | `wheels/` | Wheels Rust cross-buildés (pydantic-core, jiter) |
-| `scripts/` | `env.sh`, `prepare_src.py`, `setup-sdk.sh`, `build-wheels.sh`, `build.sh`, `smoke.sh` |
+| `scripts/` | `env.sh`, `fetch_src.sh`, `prepare_src.py`, `setup-sdk.sh`, `build-wheels.sh`, `build.sh`, `smoke.sh` |
 | `dist/` | APK produits |
 
 **Isolation** : tout vit dans ce dossier (SDK, Gradle, Rust, NDK, venv).

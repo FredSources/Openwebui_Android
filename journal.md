@@ -523,6 +523,22 @@ exécution de la CI « build sur tag » → Release GitHub avec APK debug + rele
 Les secrets de signature (`KEYSTORE_*`) n'étant pas encore posés, l'APK release
 est signé avec la clé debug (re-signable dès que les secrets sont injectés).
 
+## 2026-11-07 — CI : échec v1.0.0 diagnostiqué et corrigé
+
+**Échec du premier build tag `v1.0.0`** : `prepare_src.py` exigeait
+`vendor/unpacked/open_webui` (wheel amont) — or `vendor/` n'est pas versionné et
+aucun script ne le reconstruisait en CI (`fetch_src.sh` était référencé mais
+n'existait pas). Correctifs :
+- `scripts/fetch_src.sh` créé (télécharge le wheel `open-webui==0.13.0` depuis
+  PyPI et l'extrait dans `vendor/unpacked/`) ;
+- workflow : étape « Sources Open WebUI amont » ajoutée ;
+- `build.sh` : création de `.tmp`/`.pip-cache` absents d'un checkout neuf.
+
+**Signature cohérente dès la 1.0.0** : les secrets `KEYSTORE_*` sont injectés AVANT
+le re-tag, pour que la première release publique sorte déjà signée avec la clé de
+release définitive (jamais la clé debug) — sinon Android refuserait les mises à jour
+ultérieures (signature différente).
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

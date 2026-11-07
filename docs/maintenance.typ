@@ -216,7 +216,27 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P10], [`frontend/.../nodes/*.js`], [ajout de `embedded-searxng` à la liste des providers],
   [P11], [`tools/builtin.py` + `utils/tools.py`], [outil `compile_typst` et son enregistrement],
   [P12], [`utils/tools.py`], [`features.get('web_search', True)` : les outils internet (`search_web` = `embedded-searxng`, `fetch_url`) sont exposés même quand le modèle ne déclare pas la capacité dans ses métadonnées],
+  [P13], [`frontend/` (données)], [allègement : suppression des *source maps*, de `pyodide/` et `wasm/` (169 Mo) — ML navigateur et Python-navigateur désactivés, conformes à la règle « pas de calcul local » ; gain majeur de démarrage et de taille APK],
+  [P14], [`routers/auths.py`, `routers/utils.py`, `routers/configs.py`], [imports différés : `ldap3` (1,7 s), `black` (0,9 s), `MCPClient`/`mcp` (~1-2 s) n'exécutent plus au démarrage — importés à l'usage],
 )
+
+== Performances de démarrage
+
+Le démarrage combine : extraction des données Python par Chaquopy (proportionnelle
+à la taille de `app.imy`), l'import d'Open WebUI (≈ 30 s sur le CPU de l'appareil,
+graph amont large), puis le lifespan (migrations, init). Optimisations en place :
+
+- P13 : le frontend embarqué est allégé (248 → 85 Mo) ;
+- P14 : imports coûteux différés ;
+- *SearXNG ne démarre plus en parallèle* : `_warm_up_then_searxng` attend que
+  `/health` réponde avant de lancer la recherche web (fini la contention CPU
+  sur l'écran de chargement) ;
+- l'écran de démarrage affiche l'étape réelle (`data/startup-status.txt`),
+  ce qui rend tout blocage visible et diagnostiquable.
+
+Si un démarrage redevient long : comparer la taille de `app.imy` dans l'APK
+(zéro écart zip attendu), vérifier `startup-status.txt` (via `adb shell run-as`),
+et profiler avec `python -X importtime` (voir @sec-iso).
 
 #tip-box[
   Si un patch échoue (`PATCH EN ÉCHEC : motif introuvable`), c'est que le code

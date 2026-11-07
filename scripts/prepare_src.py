@@ -614,6 +614,89 @@ def write_local_vector_db() -> None:
     PATCHES.append(("LocalVectorDB (SQLite+numpy)", "écrit"))
 
 
+def slim_frontend() -> None:
+    """P13 — allège le frontend embarqué (gain de démarrage + taille APK).
+
+    Supprimé : source maps (debug), pyodide (interpréteur Python DANS le
+    navigateur), wasm (ONNX Runtime Web = ML navigateur). Ces deux derniers
+    contredisent la règle « pas de calcul local » et pèsent ~82 Mo ; les
+    source maps sont inutiles en production (~83 Mo).
+    """
+    import shutil
+
+    front = DST / "frontend"
+    if not front.is_dir():
+        return
+    freed = 0
+    for f in front.rglob("*.map"):
+        freed += f.stat().st_size
+        f.unlink()
+    for name in ("pyodide", "wasm"):
+        d = front / name
+        if d.is_dir():
+            freed += sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
+            shutil.rmtree(d)
+    log(f"  P13 frontend allégé : {freed / 1e6:.0f} Mo retirés (maps, pyodide, wasm)")
+    PATCHES.append(("frontend allégé (maps/pyodide/wasm)", f"-{freed / 1e6:.0f} Mo"))
+
+
+def patch_lazy_imports() -> None:
+    """P14 — imports coûteux différés (ldap3, black, MCP/boto3 au besoin)."""
+    # black : utilisé par un seul endpoint (format_code) → import local
+    replace_once(
+        DST / "routers" / "utils.py",
+        "import black\n",
+        "# P14 : black importé en lazy (utilisé par format_code uniquement)\n",
+        "P14a black retiré du top-level",
+    )
+    replace_once(
+        DST / "routers" / "utils.py",
+        "async def format_code(form_data: CodeForm, user=Depends(get_admin_user)):",
+        "async def format_code(form_data: CodeForm, user=Depends(get_admin_user)):\n"
+        "    import black  # P14 : import lazy (évité au démarrage)",
+        "P14b black importé dans format_code",
+    )
+    # MCP client (mcp_types/httpx2/jsonschema ~1-2 s) : importé par configs.py
+    # mais utilisé dans une seule branche → import local
+    replace_once(
+        DST / "routers" / "configs.py",
+        "from open_webui.utils.mcp.client import MCPClient\n",
+        "# P14 : MCPClient importé en lazy (coûteux : mcp/httpx2/jsonschema)\n",
+        "P14c MCPClient retiré du top-level",
+    )
+    replace_once(
+        DST / "routers" / "configs.py",
+        "                    client = MCPClient()",
+        "                    from open_webui.utils.mcp.client import MCPClient  # P14\n"
+        "                    client = MCPClient()",
+        "P14d MCPClient importé à l'usage",
+    )
+    # ldap3 (~1,7 s) : uniquement dans extract_group_cn_from_dn / ldap_auth
+    replace_once(
+        DST / "routers" / "auths.py",
+        "from ldap3 import NONE, Connection, Server, Tls\n"
+        "from ldap3.utils.conv import escape_filter_chars\n"
+        "from ldap3.utils.dn import parse_dn\n",
+        "# P14 : ldap3 importé en lazy (authentification LDAP uniquement)\n",
+        "P14e ldap3 retiré du top-level",
+    )
+    replace_once(
+        DST / "routers" / "auths.py",
+        "    for attr_type, attr_value, _ in parse_dn(group_dn):",
+        "    from ldap3.utils.dn import parse_dn  # P14 : import lazy\n"
+        "    for attr_type, attr_value, _ in parse_dn(group_dn):",
+        "P14f parse_dn importé dans extract_group_cn_from_dn",
+    )
+    replace_once(
+        DST / "routers" / "auths.py",
+        "        raise HTTPException(400, detail='LDAP authentication is not enabled')\n",
+        "        raise HTTPException(400, detail='LDAP authentication is not enabled')\n"
+        "    from ldap3 import NONE, Connection, Server, Tls  # P14 : imports lazy\n"
+        "    from ldap3.utils.conv import escape_filter_chars\n",
+        "P14g ldap3 importé dans ldap_auth",
+    )
+
+
 def copy_tree() -> None:
     if not VENDOR.is_dir():
         raise SystemExit(f"Sources introuvables : {VENDOR} (lancer d'abord scripts/fetch_src.sh)")
@@ -648,6 +731,8 @@ def main() -> int:
     patch_typst_tool()
     write_null_vector_db()
     write_local_vector_db()
+    slim_frontend()
+    patch_lazy_imports()
     write_stubs(args.with_native_pycrdt)
     log(f"terminé : {len(PATCHES)} opération(s)")
     return 0

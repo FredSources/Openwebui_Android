@@ -171,11 +171,27 @@ public class MainActivity extends Activity {
                 if (up) {
                     webView.loadUrl(APP_URL);
                 } else {
-                    loadingText.setText(getString(R.string.loading));
+                    // affiche l'étape de démarrage réelle (data/startup-status.txt)
+                    loadingText.setText(readStartupStatus());
                     mainHandler.postDelayed(() -> loadWhenReady(attempt + 1), RETRY_DELAY_MS);
                 }
             });
         });
+    }
+
+    /** Étape de démarrage écrite par android_main.py (diagnostic + feedback). */
+    private String readStartupStatus() {
+        try {
+            java.io.File f = new java.io.File(getFilesDir(), "data/startup-status.txt");
+            java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(f));
+            String line = r.readLine();
+            r.close();
+            if (line != null && !line.isEmpty()) {
+                return line;
+            }
+        } catch (Exception ignored) {
+        }
+        return getString(R.string.loading);
     }
 
     private boolean isServerUp() {

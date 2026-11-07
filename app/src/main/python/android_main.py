@@ -11,6 +11,7 @@ import logging
 import os
 import secrets
 import threading
+import time
 from pathlib import Path
 
 log = logging.getLogger("android_main")
@@ -48,7 +49,15 @@ def _load_env_file(data_dir: Path) -> None:
         log.warning("lecture de %s impossible : %s", env_file, exc)
 
 
-def _prepare_env() -> None:
+def _set_status(data_dir: Path, message: str) -> None:
+    """Écrit l'étape de démarrage courante (affichée par MainActivity)."""
+    try:
+        (data_dir / 'startup-status.txt').write_text(message, encoding='utf-8')
+    except Exception:
+        pass
+
+
+def _prepare_env() -> Path:
     """Variables d'environnement Open WebUI pour Android (avant tout import du package)."""
     import open_webui  # noqa: F401  (le paquet doit être localisable)
     pkg_dir = Path(open_webui.__file__).parent
@@ -91,6 +100,7 @@ def _prepare_env() -> None:
 
     # SearXNG embarqué : réglages locaux (clé secrète propre à l'appareil)
     _ensure_searxng_settings(data_dir)
+    return data_dir
 
     # Point d'entrée LLM distant — modifiable via l'appli (Réglages → Connexions)
     os.environ.setdefault("OLLAMA_BASE_URL", os.environ.get("OLLAMA_BASE_URL", ""))
@@ -206,14 +216,42 @@ def _start_searxng() -> None:
     threading.Thread(target=run, name="searxng", daemon=True).start()
 
 
+def _warm_up_then_searxng(data_dir: Path, port: int) -> None:
+    """Attend qu'Open WebUI réponde, puis lance SearXNG (recherche web).
+
+    SearXNG est lourd à importer (tous ses moteurs) : le démarrer en parallèle
+    d'Open WebUI rallongeait l'écran de chargement (contention CPU). On le lance
+    donc APRÈS que le serveur principal a répondu — la recherche web est prête
+    en quelques secondes, sans bloquer l'ouverture de l'UI.
+    """
+    import urllib.request
+
+    url = f'http://127.0.0.1:{port}/health'
+    for _ in range(120):
+        try:
+            with urllib.request.urlopen(url, timeout=1) as resp:
+                if resp.status == 200:
+                    break
+        except Exception:
+            pass
+        time.sleep(1)
+    _set_status(data_dir, 'Préparation de la recherche web…')
+    try:
+        _start_searxng()
+        _set_status(data_dir, 'Prêt')
+    except Exception as exc:
+        log.warning('SearXNG non démarré : %s', exc)
+        _set_status(data_dir, 'Prêt (sans recherche web)')
+
+
 def start_server(port: int = APP_PORT) -> int:
     """Lance uvicorn dans un thread daemon. Retourne le port. Idempotent."""
     global _started
     with _lock:
         if _started:
             return port
-        _prepare_env()
-        _start_searxng()  # recherche web « embeded-searxng » (SearXNG local)
+        data_dir = _prepare_env()
+        _set_status(data_dir, "Démarrage du serveur Open WebUI…")
 
         def run() -> None:
             import uvicorn
@@ -231,5 +269,14 @@ def start_server(port: int = APP_PORT) -> int:
         t = threading.Thread(target=run, name="openwebui-server", daemon=True)
         t.start()
         _started = True
+
+        # Recherche web : démarrée une fois Open WebUI prêt (cf. _warm_up_then_searxng)
+        threading.Thread(
+            target=_warm_up_then_searxng,
+            args=(data_dir, port),
+            name="openwebui-warmup",
+            daemon=True,
+        ).start()
+
         log.info("serveur Open WebUI lancé sur 127.0.0.1:%s", port)
         return port

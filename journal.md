@@ -316,6 +316,29 @@ Lire ce fichier avant chaque session ; y ajouter chaque action.
   suivi de la recompilation des PDF ; c'est un livrable au même titre que l'APK.
   Appliquée immédiatement : `docs/maintenance.typ` complété avec P12.
 
+## 2026-11-07 — Session 9 (performance de démarrage)
+
+- **Retour utilisateur** : « le démarrage est maintenant très long », puis
+  « ça bloque sur démarrage du serveur Open WebUI » — et « avant tes dernières
+  modifications le temps était correct » → régression introduite par les
+  dernières livraisons, pas par le code amont.
+- **Mesures** (import de `open_webui.main` profilé avec `-X importtime`, sur le
+  CPU de l'appareil) : **35,5 s** à l'import ; centres de coût : `env` 2,2 s,
+  `ldap3` 1,7 s, `boto3` 1,4 s, `black` 0,9 s, `mcp_types` ~0,9 s. + contention
+  CPU : SearXNG importait **en parallèle** du démarrage d'Open WebUI.
+  + le frontend embarqué (248 Mo) alourdissait l'extraction à chaque MAJ.
+- **Correctifs** :
+  - P13 : frontend allégé de **169 Mo** (source maps, `pyodide/`, `wasm/` —
+    ML navigateur interdit par la règle « pas de calcul local »). 248 → 85 Mo ;
+  - P14 : imports différés (`ldap3` dans les fonctions LDAP, `black` dans
+    `format_code`, `MCPClient` dans sa branche) : import **35,5 → 32,1 s** ;
+  - `android_main` : `_warm_up_then_searxng` démarre SearXNG **après** la
+    réponse de `/health` (fin de contention) ;
+  - `MainActivity` + `android_main._set_status` : l'écran de chargement affiche
+    l'étape réelle (`data/startup-status.txt`) — diagnostic intégré.
+- **Résultat mesuré** : `/health` en **29 s** (vs ~35 s + contention avant),
+  SearXNG se réchauffe en arrière-plan, APK attendu ≈ 130 Mo.
+
 ## Décisions cumulées (suite)
 
 | # | Décision | Motif |

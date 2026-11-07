@@ -23,6 +23,7 @@
 /.xdg-cache/
 /.tmp/
 /.data-test/
+/.data-fresh/
 /.home-test/
 __pycache__/
 *.pyc

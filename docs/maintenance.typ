@@ -1,0 +1,359 @@
+#import "@preview/ilm:2.1.0": *
+#import "helpers.typ": *
+#import "@preview/merman:0.3.0": show-mermaid-blocks
+
+#set text(lang: "fr")
+#set heading(numbering: "1.1")
+#set par(justify: true)
+#show figure.where(kind: table): set block(breakable: true)
+#show raw.where(lang: "mermaid"): show-mermaid-blocks(width: 100%, document-context: true)
+
+#show: ilm.with(
+  title: [Maintenance de l'application Open WebUI Android],
+  authors: "Équipe projet openwebui-android",
+  date: datetime.today(),
+  date-format: "[day padding:none]/[month padding:none]/[year]",
+  abstract: [Guide de maintenance, de portage et de mise à jour de l'APK *Open WebUI Android* : application autonome embarquant le serveur Open WebUI (Python), SearXNG et une base vectorielle locale, affichés dans une WebView. Ce document décrit l'architecture, les actions de portage, les ajouts par rapport au code amont, les patchs appliqués, les procédures de mise à jour d'Open WebUI et des composants, ainsi que le dépannage et la règle d'isolation de l'environnement de build.],
+  table-of-contents: outline(title: "Sommaire"),
+)
+
+= Objet du document
+
+Ce document s'adresse à la personne chargée de *maintenir* l'application
+Open WebUI Android après la livraison initiale. Il couvre trois besoins :
+
++ *Comprendre* ce que contient l'APK et pourquoi le code diffère d'Open WebUI amont ;
++ *Mettre à jour* Open WebUI lui-même ou l'un de ses composants (Python, wheels
+  natifs, SearXNG, chaîne de build) ;
++ *Diagnostiquer* les pannes connues sans refaire l'analyse d'origine.
+
+#note-box[
+  Toute intervention doit être tracée dans `journal.md` (horodatage UTC, décisions
+  numérotées D1-D15+) et les patchs amont documentés dans `PATCHES.md`.
+]
+
+= Architecture de l'application
+
+L'APK est une application Android native minimale (Java) qui héberge deux
+serveurs Python dans un interpréteur *Chaquopy*, et affiche le tout dans une
+WebView pointant sur `http://127.0.0.1:8080`.
+
+```mermaid
+flowchart LR
+  subgraph APK["APK - appareil Android"]
+    W[WebView] --> OW[open_webui - uvicorn - port 8080]
+    W --> SX[SearXNG - wsgiref - port 8888]
+    OW --> VDB[(LocalVectorDB SQLite + numpy)]
+    OW --> DB[(webui.db SQLite)]
+    AS[AndroidSpeech] -.-> W
+  end
+  subgraph DIST["Services distants"]
+    LLM[LLM - Ollama ou API OpenAI]
+    EMB[API d'embeddings]
+    SRC[Moteurs de recherche web]
+  end
+  OW --> LLM
+  OW --> EMB
+  SX --> SRC
+```
+
+#table(
+  columns: (1.1fr, 2.4fr),
+  [*Couche*], [*Contenu*],
+  [Application Java], [`MainActivity` (WebView, permissions, purge cache), `ServerService` (notification avant-plan), `AndroidSpeech` (reconnaissance vocale native)],
+  [Runtime Python], [Chaquopy : CPython 3.13 embarqué, ABI `arm64-v8a`, `minSdk 24`],
+  [Backend], [Open WebUI 0.13.0 *patché* (FastAPI + uvicorn + SQLite) dans `src/open_webui/`],
+  [Frontend], [UI SvelteKit compilée, livrée dans le wheel amont (`open_webui/frontend/`)],
+  [Recherche web], [SearXNG figé sur un commit 2026-08-28 (`src/searx/`), instance locale port 8888],
+  [RAG], [Embeddings *par API* (obligatoire) + base vectorielle *locale* `LocalVectorDB`],
+  [Wheels natifs], [7 wheels cross-buildés dans `wheels/` (cf. @sec-wheels)],
+  [Données], [Stockage privé Android : `files/data/` (base SQLite, uploads, vecteurs)],
+)
+
+= Dépôt de développement
+
+Tout le développement est *auto-portant* : SDK Android, Gradle, Rust, NDK, JDK,
+qemu et Python vivent dans le dépôt (règle d'isolation, @sec-iso).
+
+#table(
+  columns: (1.6fr, 2.4fr),
+  [*Chemin*], [*Rôle*],
+  [`AGENTS.md`], [Objectif, périmètre, décisions, règle d'isolation],
+  [`journal.md`], [Historique horodaté des actions et décisions (D1-D15)],
+  [`PATCHES.md`], [Catalogue des modifications du code Open WebUI amont],
+  [`todo.md`], [Suivi des tâches par phase],
+  [`requirements-min.txt`], [Dépendances Python embarquées, avec justifications de pin],
+  [`vendor/unpacked/`], [Wheel Open WebUI *pristine* (source des patchs)],
+  [`vendor/searxng/`], [Dépôt SearXNG figé sur un commit précis],
+  [`src/`], [Sources embarquées : `open_webui/` patché, `searx/`, shims `tiktoken`/`pycrdt`],
+  [`scripts/prepare_src.py`], [Générateur de `src/` : copie pristine + patchs idempotents],
+  [`scripts/build-wheels.sh`], [Cross-build Rust des wheels natifs Android],
+  [`scripts/build.sh`], [Build complet de l'APK (SDK, wheels, Gradle)],
+  [`scripts/smoke.sh`], [Test de fumée hôte : démarrage réel du serveur],
+  [`scripts/env.sh`], [Ancrage d'isolation (variables d'environnement)],
+  [`app/`], [Module Android (Java, manifeste, Chaquopy, ressources)],
+  [`wheels/`], [Wheels Android produits (`*_android_24_arm64_v8a.whl`)],
+  [`dist/`], [APK livrés (`app-debug.apk`)],
+  [`docs/`], [Ce document (`maintenance.typ`, `maintenance.pdf`)],
+)
+
+= Portage Android — actions effectuées
+
+Cette section est le *mémoire du portage*. Chaque item est un problème réel
+rencontré et sa solution, dans l'ordre chronologique.
+
+== Phase A — Sources et cadrage
+
+- Récupération des sources Open WebUI 0.13.0 *via le wheel PyPI* (le wheel
+  contient le frontend déjà compilé : aucun build npm nécessaire). Piège : le
+  wheel porte `Requires-Python <3.13` — téléchargé avec un Python 3.12 portable.
+- Cible *Python 3.13* (les wheels Android du dépôt Chaquopy existent en cp313).
+  Le blocage `<3.13` amont vient de `pydub`/`audioop` (retiré de la stdlib en
+  3.13) : neutralisé par le patch P5.
+- SearXNG figé sur le commit `a30b2d4749` (2026-08-28) : dernier état *avant*
+  la migration vers `curl_cffi` (natif inembarquable).
+
+== Phase B — Patchs du code amont
+
+- Développement de `scripts/prepare_src.py` : chaque modification du code amont
+  est un *motif texte* remplaçable, vérifié, rejouable et explicitement documenté
+  (P1-P11, cf. @sec-patches). Un patch dont le motif a disparu *échoue fort*
+  (pas de modification silencieuse).
+- Shims embarqués : `tiktoken` (comptage approximatif), `pycrdt` (collab
+  dégradée), `NullVectorDB`, `LocalVectorDB`.
+
+== Phase C — Chaîne Android
+
+#table(
+  columns: (1.2fr, 2.8fr),
+  [*Problème*], [*Solution retenue*],
+  [JDK système sans `javac` (JRE)], [JDK Temurin 21 portable dans `tools/jdk/`, `JAVA_HOME` ancré dans les scripts],
+  [Gradle/AGP], [Gradle 8.10.2 + AGP 8.7.3 + Chaquopy 17.2 (`python { version '3.13' }`, `buildPython` = venv du projet)],
+  [SDK Android], [cmdline-tools + platform-34 + build-tools 34, installés dans `android-sdk/`],
+  [Packaging AGP incrémental (zipflinger) qui accumule les anciennes copies de `app.imy` (APK de 193 à 303 Mo)], [`build.sh` supprime `build/outputs|intermediates/apk` avant chaque packaging],
+)
+
+== Phase D — Cross-build des wheels natifs <sec-wheels>
+
+Les paquets Rust/C absents du dépôt de wheels Android sont *cross-buildés* vers
+`aarch64-linux-android` avec la recette suivante (`scripts/build-wheels.sh`) :
+
++ Python Android précompilé (artefact Maven `com.chaquo.python:python`) fournit
+  `libpython3.13.so` et les en-têtes (`PYO3_CROSS_LIB_DIR`) ;
++ le NDK officiel ne fournissant que des binaires *x86_64*, le compilateur est le
+  *clang hôte* (aarch64) pointé sur le *sysroot du NDK* (wrappers `tools/ndk-cc/`) ;
++ `libunwind.a` copié dans `tools/ndk-cc/lib/` (absent du NDK) pour le link ;
++ suffixe des modules : `-gnu.so` renommé `-android.so` (sinon l'import Android
+  ne trouve pas le module) ; version des wheels corrigée quand setuptools-scm
+  produit `0.0.0` (`scripts/fix-wheel-version.py`).
+
+#table(
+  columns: (1.2fr, 1fr, 1.8fr),
+  [*Wheel*], [*Build*], [*Raison de sa présence*],
+  [`pydantic_core`], [maturin], [requis par pydantic v2 (cœur d'Open WebUI)],
+  [`jiter`], [maturin], [requis par le SDK `openai`],
+  [`uuid_utils`], [maturin], [requis par `langchain-core`],
+  [`orjson`], [maturin], [requis par `langsmith` (JSON rapide)],
+  [`rpds_py`], [maturin], [requis par `jsonschema` (via `mcp`)],
+  [`msgspec`], [setuptools], [requis par SearXNG (`_core.c` compilé avec les en-têtes du Python cible)],
+  [`typst`], [maturin], [compilateur Typst embarqué (outil `compile_typst`)],
+)
+
+== Phase E — Outils Android x86_64
+
+Les outils officiels `aapt2` et `zipalign` sont des ELF *x86-64*. Ils tournent
+via *qemu-user-static* (Debian 12) avec un mini-sysroot amd64 (`libc6` +
+`libgcc-s1`, liens `lib64`) : wrappers `tools/wrappers/`, branchés par la
+propriété Gradle `android.aapt2FromMavenOverride` et le remplacement de
+`zipalign` dans les build-tools (original conservé en `zipalign.bin`).
+
+== Phase F — Pièges spécifiques
+
+#table(
+  columns: (1.4fr, 2.6fr),
+  [*Piège*], [*Correctif*],
+  [`primp` (Rust) refuse le cross-build en API 24 : `getentropy` n'existe qu'à partir d'API 28], [abandon de `ddgs`/`primp` — remplacé par SearXNG embarqué],
+  [Stt local `faster-whisper` (ctranslate2) inembarquable], [STT par API ou *dictée native* (shim `SpeechRecognition` → `SpeechRecognizer`)],
+  [« no speech » : le `MediaRecorder` de l'UI monopolisait le micro], [flux `getUserMedia` remplacé par un flux silencieux en mode STT « web » + relances automatiques de l'écoute],
+  [UI périmée après mise à jour (cache WebView)], [purge `clearCache(true)` à chaque changement de `versionCode` (D13)],
+  [APK parle de « pas d'internet » alors que la recherche fonctionne], [cause : ancien serveur de test resté vivant ; message d'erreur enrichi avec le moteur lu (P9b)],
+  [Commandes `fuser`/`pkill` inefficaces sous proot (tuent leur propre shell ou ne trouvent rien)], [toujours tuer par *PID* ; à ne jamais réutiliser dans les scripts],
+  [Lecture SQLite `mode=ro` faussée par le WAL], [toujours ouvrir en écriture pour lire l'état à jour],
+)
+
+= Ajouts par rapport à Open WebUI amont
+
+#table(
+  columns: (1.3fr, 1.2fr, 1.5fr),
+  [*Ajout*], [*Composants*], [*Détail*],
+  [Base vectorielle locale `LocalVectorDB`], [`src/open_webui/retrieval/vector/dbs/local.py`], [SQLite + numpy, force brute vectorisée, score cosinus dans [0,1], filtres [\$eq]/[\$in] — `VECTOR_DB=local` par défaut],
+  [Provider *embedded-searxng*], [P9/P9b/P10 + `src/searx/`], [instance SearXNG locale port 8888, réglages générés avec clé secrète propre à l'appareil],
+  [Dictée vocale native], [`AndroidSpeech.java` + shim JS], [API `SpeechRecognition` du web → `SpeechRecognizer` Android (souvent hors-ligne) ; relances anti « no speech » ; arbitrage du micro],
+  [Outil *compile\_typst*], [P11 + wheel `typst`], [compile un document `.typ` en PDF, l'enregistre dans les fichiers de l'utilisateur, affichable via `display_file`],
+  [Purge cache WebView], [`MainActivity`], [à chaque `versionCode` (D13), `version_code` incrémenté par `build.sh`],
+  [Foreground service], [`ServerService.java`], [le serveur survit au passage en arrière-plan],
+  [Fichier de configuration `data/openwebui.env`], [`android_main.py`], [variables `KEY=VALUE` chargées au démarrage, sans rebuild],
+  [Notification de permission contextuelle], [`MainActivity`], [demande micro/caméra à l'appel `getUserMedia`, pas seulement au lancement],
+)
+
+= Patchs du code amont <sec-patches>
+
+Tous les patchs sont générés par `scripts/prepare_src.py` (idempotent). Le
+document de référence est `PATCHES.md` ; résumé opérationnel :
+
+#table(
+  columns: (0.5fr, 1.5fr, 2fr),
+  [*N°*], [*Cible*], [*Rôle*],
+  [P1], [`config.py`], [`VECTOR_DB=local` par défaut],
+  [P2], [`retrieval/vector/type.py`], [types `NONE` et `LOCAL`],
+  [P3], [`retrieval/vector/factory.py`], [aiguillage `LOCAL`/`NONE` vers les backends embarqués],
+  [P4], [`tools/knowledge_fs.py`], [repli `re2` → `re`],
+  [P5], [`routers/audio/__init__.py`], [`pydub` optionnel (`audioop` absent de la stdlib 3.13)],
+  [P6], [`storage/provider.py`], [SDK Azure/GCS optionnels (protobuf/grpcio absents)],
+  [P7a-c], [`routers/audio/__init__.py`], [STT/TTS locaux → erreur 503 explicite],
+  [P8], [`config.py`], [moteur STT par défaut « web » (dictée native)],
+  [P9/P9b], [`routers/retrieval.py`], [provider `embedded-searxng` + message d'erreur portant le moteur lu],
+  [P10], [`frontend/.../nodes/*.js`], [ajout de `embedded-searxng` à la liste des providers],
+  [P11], [`tools/builtin.py` + `utils/tools.py`], [outil `compile_typst` et son enregistrement],
+)
+
+#tip-box[
+  Si un patch échoue (`PATCH EN ÉCHEC : motif introuvable`), c'est que le code
+  amont a changé à cet endroit : ouvrir le fichier concerné dans
+  `vendor/unpacked/`, adapter le *motif* dans `prepare_src.py`, recompiler.
+  Ne jamais éditer `src/` à la main : il est régénéré à chaque appel.
+]
+
+= Mise à jour d'Open WebUI
+
+#table(
+  columns: (0.5fr, 2.5fr),
+  [1.], [Récupérer la nouvelle version : `tools/python312/bin/python3.12 -m pip download open-webui --no-deps -d vendor/wheel` puis décompresser le wheel dans `vendor/unpacked/` (écraser l'ancien *pristine*).],
+  [2.], [Examiner le nouveau `requirements-slim.txt` et le `METADATA` : nouvelles dépendances ? natives ? versions Python ?],
+  [3.], [Rejouer `scripts/prepare_src.py` : chaque patch qui échoue signale un changement amont à intégrer à la main. Mettre à jour `PATCHES.md`.],
+  [4.], [Adapter `requirements-min.txt` : tout nouveau paquet *natif* doit être (a) présent dans le dépôt de wheels Chaquopy (`https://chaquo.com/pypi-13.1/`), ou (b) cross-buildé via `build-wheels.sh`, ou (c) remplacé par un repli documenté. Vérifier les plafonds connus : `numpy≤1.26.2`, `cryptography≤42.0.8`, `bcrypt≤3.2.2`, `argon2-cffi` = 23.1.0, `authlib≤1.6.4`, `joserfc≤1.5.0`.],
+  [5.], [Test de fumée hôte : `scripts/smoke.sh` puis vérifier `/health`, la connexion, la recherche web et SearXNG (`/search?q=test&format=json`).],
+  [6.], [Build : `bash scripts/build.sh` → `dist/app-debug.apk`, contrôle de taille (écart zip < 10 Ko) et du `badging`.],
+  [7.], [Test appareil (chat, dictée, recherche, upload document avec embeddings, Typst) puis mise à jour de `journal.md`, `PATCHES.md`, `todo.md`, et du `versionName`.],
+)
+
+#alert-box[
+  Ne jamais sauter l'étape 5 : la majorité des régressions (imports supprimés,
+  signatures changées, nouvelles dépendances natives) se voient au démarrage du
+  serveur bien avant le build Android — et coûtent 45 minutes de build en moins.
+]
+
+= Mise à jour des composants <sec-composants>
+
+#table(
+  columns: (1.2fr, 1.2fr, 1.6fr),
+  [*Composant*], [*Emplacement*], [*Procédure*],
+  [Wheels Rust/C], [`wheels/` via `scripts/build-wheels.sh`], [ajouter/modifier la version dans le bloc `for spec` (sdists dans `downloads/sdists/`), relancer le script. `pydantic_core` suit la version exigée par `pydantic` ; `jiter` suit `openai` ; `msgspec` suit SearXNG.],
+  [SearXNG], [`vendor/searxng/`], [re-cloner puis `git checkout <nouveau-commit>` — *vérifier avant* que `requirements.txt` ne contient ni `curl_cffi`, ni `fasttext`, ni `uvloop`, ni version de `msgspec` incompatible ; rejouer `prepare_src.py`.],
+  [Chaquopy], [`build.gradle` (plugin) + `tools/python312`], [mettre à jour le plugin et le `python { version }` ; `buildPython` doit avoir le même *major.minor* que la cible.],
+  [AGP / Gradle], [`build.gradle` / `scripts/setup-sdk.sh`], [paire AGP-Gradle compatible ; redécompresser Gradle dans `tools/gradle/`.],
+  [SDK Android / NDK], [`android-sdk/`, `tools/android-ndk/`], [relancer `setup-sdk.sh` (platform/build-tools) ; le NDK ne sert qu'au *sysroot* pour le cross-build Rust.],
+  [qemu + sysroot amd64], [`tools/qemu/`], [à changer seulement si les outils `aapt2`/`zipalign` changent de glibc ; le sysroot vient des `.deb` Debian (`libc6`, `libgcc-s1`).],
+  [JDK], [`tools/jdk/`], [remplacer le contenu ; `JAVA_HOME` est ancré dans `env.sh`/`build.sh`.],
+  [Open WebUI], [`vendor/unpacked/` + `src/`], [procédure dédiée : section précédente.],
+)
+
+= Construire l'APK
+
+```bash
+source scripts/env.sh            # ancrage d'isolation (INDISPENSABLE)
+bash scripts/build.sh            # → dist/app-debug.apk (debug)
+bash scripts/build.sh assembleRelease   # variante release (keystore requis)
+```
+
+Le `versionCode` est incrémenté automatiquement (`fichier version_code`) :
+c'est lui qui déclenche la purge du cache WebView au premier lancement de la
+nouvelle version. Un build propre ne doit jamais laisser l'APK grossir de plus
+d'une dizaine de Mo sans explication : l'écart `taille du fichier − somme des
+entrées zip` doit rester de l'ordre de 8 Ko.
+
+= Configuration sur l'appareil
+
+#table(
+  columns: (1.6fr, 2.4fr),
+  [*Chemin (stockage privé de l'app)*], [*Contenu*],
+  [`files/data/webui.db`], [base applicative (utilisateurs, chats, réglages)],
+  [`files/data/uploads/`], [fichiers téléversés, nommés `{uuid}_{nom d'origine}`],
+  [`files/data/vector_db/local_vectors.sqlite3`], [vecteurs RAG locaux],
+  [`files/data/searxng-settings.yml`], [réglages SearXNG (clé secrète générée) ],
+  [`files/data/openwebui.env`], [variables d'environnement optionnelles (`KEY=VALUE`) ],
+)
+
+Réglages essentiels depuis l'UI : *Admin → Documents* (moteur d'embedding distant
++ clé), *Admin → Audio* (STT « web » pour la dictée), *Admin → Recherche web*
+(moteur `embedded-searxng`), et activation de la capacité `web_search` du modèle
+(*Admin → Modèles*), sans laquelle l'assistant n'a aucun outil web.
+
+= Dépannage rapide
+
+#table(
+  columns: (1.4fr, 1.6fr, 1fr),
+  [*Symptôme*], [*Cause probable*], [*Correctif*],
+  [L'UI affiche une ancienne version], [cache WebView], [réinstaller + forcer l'arrêt / vider le cache ; normalement automatique via le `versionCode`],
+  [« no speech » à la dictée], [micro occupé ou permissions], [accorder micro/caméra ; l'app relance déjà l'écoute 3 fois],
+  [Recherche web vide], [moteurs amont bloqués (IP datacenter) ou moteur mal configuré], [vérifier `Admin → Recherche web` ; le message d'erreur porte désormais le moteur lu],
+  [RAG inactif au téléversement], [pas d'API d'embeddings configurée], [configurer *Admin → Documents* (embeddings distants obligatoires)],
+  [Build pip : `from versions: none`], [paquet natif absent du dépôt Android], [cross-build (maturin/setuptools) ou retirer la dépendance — cf. @sec-composants],
+  [Build pip : conflit `numpy`/`grpcio-tools`], [dépendance exigeant des versions natives supérieures], [pinner une version amont antérieure compatible],
+  [L'APK grossit anormalement], [packaging incrémental], [`build.sh` nettoie déjà ; vérifier qu'on ne passe pas par un autre script],
+  [Le serveur ne démarre pas sur l'appareil], [exception d'import], [lire logcat (`adb logcat | grep python`) ; cause fréquente : nouvelle dépendance non embarquée],
+)
+
+= Règle d'isolation de l'environnement <sec-iso>
+
+*Tout* doit rester dans le répertoire du projet : SDK, Gradle, Rust, NDK, JDK,
+qemu, caches, venv. Aucune installation globale, aucune écriture dans le
+répertoire personnel de l'utilisateur. Les scripts exportent les variables
+(`ANDROID_HOME`, `GRADLE_USER_HOME`, `CARGO_HOME`, `RUSTUP_HOME`,
+`JAVA_HOME`, `XDG_CACHE_HOME`, `TMPDIR`) ; `scripts/env.sh` est la porte
+d'entrée unique.
+
+#alert-box[
+  Leçon du projet : `rustup-init` ajoute une ligne dans `~/.profile` *même* avec
+  `CARGO_HOME` déplacé — toujours passer par `--no-modify-path`. De même, un
+  `cargo` lancé hors `env.sh` recrée `~/.cargo`. Toute commande manuelle Rust,
+  pip ou Gradle doit être précédée de `source scripts/env.sh`.
+]
+
+#tip-box[
+  Pour vérifier l'absence de pollution : `find ~ -maxdepth 1 -newermt <date>` en
+  dehors du projet ; et relire `journal.md` qui trace les incidents passés.
+]
+
+= Annexes
+
+== Versions verrouillées à la livraison initiale
+
+#table(
+  columns: (1.2fr, 1fr),
+  [*Composant*], [*Version*],
+  [Open WebUI], [0.13.0],
+  [Python cible (Chaquopy)], [3.13],
+  [Chaquopy / AGP / Gradle], [17.2.0 / 8.7.3 / 8.10.2],
+  [SearXNG], [commit `a30b2d4749` (2026-08-28)],
+  [typst / msgspec], [0.15.2 / 0.21.1],
+  [pydantic / pydantic-core], [2.13.4 / 2.46.4],
+  [SDK Android / build-tools], [platform 34 / 34.0.0],
+  [NDK (sysroot)], [r27c],
+)
+
+== Commandes utiles
+
+#code-box("bash scripts/build.sh          # build complet
+bash scripts/build-wheels.sh  # wheels Rust uniquement
+bash scripts/prepare_src.py   # régénérer src/ (patchs)
+bash scripts/smoke.sh         # test de fumée hôte
+adb install -r dist/app-debug.apk")
+
+== Pistes d'évolution
+
+- Mise à jour in-app de l'APK (GitHub Releases) ;
+- profils multiples de configuration (`openwebui.env` prêt) ;
+- base vectorielle locale : passage à un index ANN (hnswlib) si les volumes
+  dépassent 100 000 fragments ;
+- signature release et publication (Play Store non visé).

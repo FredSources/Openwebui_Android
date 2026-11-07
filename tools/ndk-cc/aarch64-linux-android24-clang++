@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Même wrapper que aarch64-linux-android24-clang, en mode C++.
+PROJ="$(cd "$(dirname "$0")/../.." && pwd)"
+SYSROOT="$PROJ/tools/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+exec /data/data/com.termux/files/usr/bin/clang++ \
+  --target=aarch64-linux-android24 \
+  --sysroot="$SYSROOT" \
+  -fuse-ld=lld \
+  "$@"

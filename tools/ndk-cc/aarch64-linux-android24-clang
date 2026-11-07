@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Wrapper de compilation croisée : clang hôte (aarch64) + sysroot du NDK Android.
+# Le NDK officiel ne fournit que des binaires x86_64 : sur une machine aarch64,
+# on réutilise le clang/lld du système avec le sysroot (headers + libs bionic)
+# du NDK — équivalent exact du driver aarch64-linux-android24-clang du NDK.
+PROJ="$(cd "$(dirname "$0")/../.." && pwd)"
+SYSROOT="$PROJ/tools/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+EXTRA=""
+# -fuse-ld=lld seulement pour les commandes de link (sinon warning -Werror chez
+# certaines crates, ex. aws-lc-sys)
+link=1
+for a in "$@"; do
+  case "$a" in
+    -c|-E|-S|-M|-MM) link=0 ;;
+  esac
+done
+[ "$link" = 1 ] && EXTRA="-fuse-ld=lld"
+exec /data/data/com.termux/files/usr/bin/clang \
+  --target=aarch64-linux-android24 \
+  --sysroot="$SYSROOT" \
+  $EXTRA \
+  "$@"

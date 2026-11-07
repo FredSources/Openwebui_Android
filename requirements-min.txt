@@ -1,0 +1,143 @@
+# requirements-min.txt — Open WebUI 0.13.0 « sans RAG », pour Android (Chaquopy)
+# Base : requirements-slim.txt du wheel open_webui-0.13.0, avec :
+#   [RAG]        = supprimé (demande : « enlevant juste le RAG »)
+#   [ANDROID]    = supprimé car indisponible sur Android (natif absent du dépôt Chaquopy)
+#   [PIN-REPO]   = version calée sur le dépôt de wheels Android de Chaquopy
+#   [WHEEL-LOCAL] = fourni dans wheels/ (cross-build maturin, voir scripts/build-wheels.sh)
+# Tout le reste suit les pins officielles du requirements-slim.txt d'open-webui.
+
+# ---------- Cœur web ----------
+typer==0.25.1
+fastapi==0.136.3
+uvicorn==0.54.0              # [ANDROID] sans [standard] : uvloop/httptools/watchfiles non dispo
+pydantic==2.13.4             # [WHEEL-LOCAL] dépend de pydantic-core ci-dessous
+pydantic-core==2.46.4        # [WHEEL-LOCAL] cross-buildé (Rust→Android), voir scripts/build-wheels.sh
+python-multipart==0.0.32
+itsdangerous==2.2.0
+starlette-compress==1.7.1
+python-mimeparse==2.0.0
+
+# ---------- Auth / sessions ----------
+python-socketio==5.16.2
+cryptography==42.0.8         # [PIN-REPO] slim: 48.0.1
+pyotp==2.9.0
+qrcode==8.2
+bcrypt==3.2.2                # [PIN-REPO] slim: 5.0.0
+argon2-cffi==23.1.0          # [PIN-REPO] versions Android dispo : 21.2.0, 21.3.0, 23.1.0, 25.1.0
+argon2-cffi-bindings==21.2.0 # [PIN-REPO]
+cffi==1.17.1                 # [PIN-REPO]
+PyJWT[crypto]==2.13.0
+authlib==1.6.4               # [PIN-REPO] 1.7+ tire joserfc>=1.6 (→ cryptography>=45, hors Android)
+joserfc==1.5.0               # [PIN-REPO] 1.6+ exige cryptography>=45 (plafond Android : 42.0.8)
+
+# ---------- HTTP / réseau ----------
+requests==2.34.2
+regex==2024.9.11             # [PIN-REPO] slim: 2026.5.9
+aiohttp==3.10.10             # [PIN-REPO] slim: 3.14.5 (« do not update to 3.13.3 » — 3.10 OK)
+multidict==6.1.0             # [PIN-REPO]
+yarl==1.16.0                 # [PIN-REPO]
+frozenlist==1.4.1            # [PIN-REPO]
+aiosignal==1.4.0
+aiocache==0.12.3
+aiofiles==25.1.0
+Brotli                       # [PIN-REPO] version la plus récente du dépôt Android
+httpx[brotli,http2,socks]==0.28.1   # [ANDROID] sans zstd/cli
+httpx2==2.16.0
+starsessions[redis]==2.2.1
+redis==8.0.1                 # [ANDROID] hiredis retiré (natif absent)
+
+# ---------- Base de données applicative (SQLite) ----------
+sqlalchemy[asyncio]==2.0.50
+greenlet==3.1.1              # [PIN-REPO]
+aiosqlite==0.22.1
+alembic==1.18.4
+# [RAG/ANDROID] psycopg[binary], psycopg2-binary, pgvector : supprimés (pas de PostgreSQL)
+
+# ---------- Divers ----------
+python-dateutil==2.9.0.post0
+pytz==2026.2
+loguru==0.7.3
+asgiref==3.11.1
+PyYAML==6.0.3                # [PIN-REPO]
+MarkupSafe==3.0.3            # [PIN-REPO]
+
+# ---------- IA (API distantes uniquement) ----------
+# [WHEEL-LOCAL] jiter (Rust) requis par openai — cross-buildé dans wheels/
+jiter==0.10.0
+orjson==3.11.9               # [WHEEL-LOCAL] requis par langsmith — cross-buildé
+openai==2.29.0
+mcp==2.3.0
+langchain-core==1.4.8
+langchain-classic==1.0.7
+langchain-text-splitters==1.1.2
+# [RAG] tiktoken : remplacé par un shim pure-Python (src/tiktoken.py)
+# [RAG] sentence-transformers / torch / transformers / chromadb / onnxruntime : supprimés
+# [ANDROID] faster-whisper : supprimé (STT local → utiliser une API distante)
+
+# ---------- Recherche web intégrée ----------
+# SearXNG est embarqué (src/searx/) et servi sur 127.0.0.1:8888 — provider
+# « embeded-searxng » (cf. PATCHES.md P9/P10). ddgs/primp retirés : le natif
+# Rust aws-lc-sys de primp ne cross-build pas en API 24 (getentropy = API 28+).
+
+# ---------- SearXNG embarqué (commit a30b2d4749, pré-curl_cffi) ----------
+babel==2.18.0
+flask==3.1.3
+flask-babel==4.0.0
+jinja2==3.1.6
+pygments==2.21.0
+httpx-socks[asyncio]==0.13.1
+sniffio==1.3.1
+valkey==6.1.1
+markdown-it-py==4.2.0
+msgspec==0.21.1             # [WHEEL-LOCAL] C ext cross-buildée (setuptools + clang)
+isodate==0.7.2
+whitenoise==6.12.0
+typst==0.15.2               # [WHEEL-LOCAL] compilateur Typst .typ → PDF (maturin/Rust)
+
+# ---------- RAG : embeddings DISTANTS + base vectorielle LOCALE ----------
+# Exigence : la plateforme ne calcule pas d'embeddings → embeddings par API
+# (openai / ollama / azure_openai, configurables dans Admin → Documents).
+# Le STOCKAGE vectoriel est local (backend maison SQLite + numpy, aucun natif) :
+#   VECTOR_DB=local (défaut) → DATA_DIR/vector_db/local_vectors.sqlite3
+#   VECTOR_DB=none  → RAG éteint
+# Les bases distantes (qdrant, elasticsearch…) demandent des clients supplémentaires
+# (grpcio-tools / protobuf sous Android) : non fournies par défaut.
+
+# ---------- Documents / parsing (pièces jointes, hors RAG) ----------
+fake-useragent==2.2.0
+
+# ---------- Documents / parsing (pièces jointes, hors RAG) ----------
+fake-useragent==2.2.0
+ftfy==6.3.1
+chardet==7.4.3
+Markdown==3.10.2
+beautifulsoup4==4.14.3
+lxml==5.3.0                  # [PIN-REPO] slim: 6.1.1
+validators==0.35.0
+psutil==7.1.3                # [PIN-REPO] slim: 7.2.2
+Pillow==11.0.0               # [PIN-REPO] slim: 13.0.0
+numpy==1.26.2                # [PIN-REPO] slim: 2.4.6 (cosine scoring : API stable)
+rank-bm25==0.2.2
+black==26.5.1
+youtube-transcript-api==1.2.4
+docx2txt==0.9
+pypdf==6.21.2
+python-docx==1.2.0
+python-pptx==1.0.2
+openpyxl==3.1.5
+xlrd==2.0.2
+pyxlsb==1.0.10
+
+# ---------- Stockage / annuaire (conservés tels quels) ----------
+boto3==1.42.62
+azure-ai-documentintelligence==1.0.2
+azure-identity==1.25.3
+azure-search-documents==12.0.0
+ldap3==2.9.1
+
+# ---------- Supprimés explicitement ----------
+# [RAG]      chromadb, sentence-transformers, torch, transformers, accelerate,
+#            onnxruntime, colbert-ai, einops, sentencepiece, pgvector
+# [ANDROID]  google-re2 (→ shim `re`), pycrdt (→ stub ou wheel locale),
+#            soundfile, pycares/aiodns, hiredis,
+#            opentelemetry-* + googleapis-common-protos (ENABLE_OTEL=false)

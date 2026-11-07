@@ -1,0 +1,64 @@
+// app/build.gradle — module applicatif (Chaquopy = Python embarqué)
+plugins {
+    id 'com.android.application'
+    id 'com.chaquo.python'
+}
+
+android {
+    namespace 'org.openwebui.android'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'org.openwebui.android'
+        minSdk 24
+        targetSdk 34
+        // versionCode incrémenté à chaque build (scripts/build.sh, -Pvcode) :
+        // MainActivity s'en sert pour purger le cache WebView quand l'UI change
+        def vcodeStr = project.hasProperty('vcode') ? project.property('vcode') : '1'
+        versionCode vcodeStr.toString().toInteger()
+        versionName '0.2.0'
+
+        // Python = composant natif : arm64-v8a couvre tous les téléphones récents
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+
+        python {
+            // doit correspondre au major.minor de buildPython
+            version '3.13'
+            // python 3.13 du projet (isolation : rien hors du dépôt)
+            buildPython "${rootDir}/.venv313/bin/python3"
+
+            pip {
+                // wheels Android cross-buildés localement (pydantic-core, jiter)
+                options '--find-links', "${rootDir}/wheels"
+                install '-r', "${rootDir}/requirements-min.txt"
+            }
+        }
+    }
+
+    // Sources Python : notre copie patchée (src/open_webui) + shims (tiktoken, pycrdt)
+    sourceSets {
+        main {
+            python.srcDirs = ['src/main/python', "${rootDir}/src"]
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    packaging {
+        jniLibs {
+            // extraire les .so sur le système de fichiers (ctypes / page size 16 Ko)
+            useLegacyPackaging = true
+        }
+    }
+}

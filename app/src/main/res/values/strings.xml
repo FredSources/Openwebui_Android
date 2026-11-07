@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Open WebUI</string>
+    <string name="service_channel">Serveur Open WebUI</string>
+    <string name="service_notification">Open WebUI est en cours d\'exécution sur cet appareil</string>
+    <string name="loading">Démarrage du serveur Open WebUI…</string>
+</resources>

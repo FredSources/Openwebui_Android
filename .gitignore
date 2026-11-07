@@ -1,0 +1,41 @@
+# ===========================================================================
+# .gitignore — OpenWebUI Android
+# Principe : le dépôt contient le PROJET (sources, scripts, docs, wheels,
+# wrappers). Tout ce qui est téléchargeable ou reconstruit par
+# scripts/setup-env.sh est exclu — voir docs/environnement.pdf.
+# ===========================================================================
+
+# --- Environnement reconstruit par scripts/setup-env.sh ---
+/android-sdk/
+/tools/*
+!/tools/ndk-cc/
+!/tools/wrappers/
+/downloads/
+/vendor/
+/.venv313/
+/.venv/
+
+# --- Caches et espaces temporaires ---
+/.gradle-cache/
+/.pip-cache/
+/.uv-cache/
+/.npm-cache/
+/.xdg-cache/
+/.tmp/
+/.data-test/
+/.home-test/
+__pycache__/
+*.pyc
+
+# --- Générés (prepare_src.py, Gradle) ---
+/src/
+/app/build/
+/build/
+/.gradle/
+
+# --- Livrables rebuildables (forcer : git add -f dist/app-debug.apk) ---
+/dist/
+/docs/*.txt
+
+# --- Divers ---
+*.log

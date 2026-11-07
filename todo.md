@@ -1,0 +1,79 @@
+# todo.md — Tâches du projet OpenWebUI Android
+
+Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloqué
+
+## Phase 0 — Cadrage et environnement
+
+- [x] Créer le répertoire projet `/root/openwebui-android` + `git init`
+- [x] Reconnaissance environnement (JDK 21, Python 3.13.5, Node 24, 8 cœurs, 110 Go libres)
+- [x] Vérifier l'accès réseau (PyPI, GitHub, dl.google.com) — OK
+- [x] Rédiger `AGENTS.md` (objectif), `todo.md`, `journal.md`
+- [x] Récupérer les sources Open WebUI dans `vendor/` — wheel `open_webui-0.13.0`
+      obtenu via le **python3.12 du projet** (le wheel exige `<3.13`, l'hôte 3.13
+      ne pouvait pas le télécharger : cf. journal D6)
+- [x] **Isolation (D5)** : `scripts/env.sh` ancre tout le projet dans `$PROJ`
+- [x] Supprimer le dossier vide `vendor/wheel/` (reste du `pip download` échoué)
+- [x] Installer **Python 3.12 portable** dans `tools/python312/` (copie `/opt/uv-python/`)
+- [x] Version cible figée : **Open WebUI 0.13.0** (journal D6) — cible Python 3.13 (D7)
+
+## Phase 1 — Backend « sans RAG »
+
+- [x] Récupérer `open_webui/` (wheel 0.13.0 extrait dans `vendor/unpacked/`)
+- [x] Frontend **déjà compilé** dans le wheel (`open_webui/frontend/`) — pas de npm
+- [x] Produire `requirements-min.txt` = slim − RAG − natifs absents d'Android (pins repo)
+- [x] Stub `NullVectorDB` + shims `tiktoken`/`pycrdt` + patchs P1-P6
+      (`scripts/prepare_src.py`, documentés dans `PATCHES.md`)
+- [x] Test de fumée locale : `uvicorn` démarre, `/health` répond, signin → JWT ✅
+
+## Phase 2 — Projet Android (Chaquopy)
+
+- [x] Squelette Gradle : `settings.gradle` (AGP 8.7.3), `build.gradle`, `app/build.gradle`
+- [x] Plugin Chaquopy 17.2, `python { version '3.13' }`, buildPython = `.venv313`,
+      `abiFilters arm64-v8a`, pip `--find-links wheels/`
+- [x] `AndroidManifest.xml` : PyApplication, permissions, networkSecurityConfig
+- [x] `MainActivity.java` : WebView (JS, DOM, upload, micro/caméra), retry /health
+- [x] `android_main.py` : env vars, clé secrète persistée, thread uvicorn idempotent
+- [x] `ServerService.java` : foreground service + notification
+- [x] Ressources : icônes (générées Pillow), thème, chaînes
+
+## Phase 3 — Build
+
+- [x] Android SDK + Gradle dans le projet (`scripts/setup-sdk.sh`) — OK
+- [x] Wheels Rust cross-buildés : pydantic-core, jiter, uuid_utils, orjson, rpds_py
+      (`scripts/build-wheels.sh`, tags `android_24_arm64_v8a`)
+- [x] JDK portable Temurin 21 (`tools/jdk/`) — le JDK système n'a pas `javac` (D10)
+- [x] Outils x86_64 (aapt2, zipalign) exécutés via qemu-user-static + wrappers (D9)
+- [x] `scripts/build.sh` : build APK debug de bout en bout
+- [x] **APK produit : `dist/app-debug.apk`** — contenu vérifié
+      (badging, libs natives, archives Python Chaquopy)
+- [x] Wheels Rust : pydantic_core, jiter, uuid_utils, orjson, rpds_py,
+      msgspec (setuptools), **typst** — 7 wheels `android_24_arm64_v8a`
+- [x] Purge cache WebView par versionCode (D13) — `version_code` auto-incrémenté
+- [x] Recherche web `embedded-searxng` validée de bout en bout (HTTP → SearXNG)
+- [x] Dictée native (shim SpeechRecognition + relances + arbitrage micro)
+- [x] Outil `compile_typst` (.typ → PDF) embarqué (D14)
+
+## Phase 4 — Test appareil
+
+- [ ] Installation sur téléphone/tablette (`adb install` ou fichier)
+- [ ] Premier lancement : création de compte, connexion à Ollama distant
+- [ ] Vérifier : chat en streaming, upload de fichier, micro (dictée), coupure réseau
+- [ ] Tenue en arrière-plan (foreground service), relance après reboot
+- [ ] Mesurer taille APK, RAM et temps de démarrage (1er lancement : extraction)
+
+## Phase 5 — Finition
+
+- [ ] APK release signé (keystore dédié, consigné au journal)
+- [x] `README.md` : prérequis, build, installation, configuration serveur LLM
+- [ ] Notice de licence BSD-3 d'Open WebUI incluse dans l'app
+- [ ] Nettoyage : `git tag` de la version livrée
+
+## Idées / hors périmètre pour l'instant
+
+- [x] **SearXNG embarqué** — fait : vendor figé `a30b2d4749` (pré-curl_cffi),
+      `msgspec` cross-buildé, provider **`embedded-searxng`** (P9/P10), instance
+      locale `127.0.0.1:8888`, moteur de recherche web par défaut.
+- [ ] SearXNG « voie B » : documenter un SearXNG distant comme alternative
+- [ ] Mode « Connecter à un serveur » en plus du mode local (comme SprintGPT)
+- [ ] Mise à jour in-app de l'APK via GitHub Releases
+- [ ] Widget Android « nouveau chat »

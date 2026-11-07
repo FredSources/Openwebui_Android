@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# zipalign (x86_64) exécuté via qemu-user statique — machine aarch64 (cf. journal D9).
+# Ce script remplace android-sdk/build-tools/34.0.0/zipalign (le vrai binaire
+# est conservé en zipalign.bin).
+PROJ="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../.." && pwd)"
+exec "$PROJ/tools/qemu/qemu-x86_64-static" \
+  -L "$PROJ/tools/qemu/sysroot-x86_64" \
+  "$PROJ/android-sdk/build-tools/34.0.0/zipalign.bin" "$@"

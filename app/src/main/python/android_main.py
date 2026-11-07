@@ -1,0 +1,235 @@
+"""android_main.py — point d'entrée Python de l'APK (appelé par MainActivity).
+
+Prépare l'environnement (données dans le stockage privé de l'app, clé secrète
+persistée, chemins du frontend embarqué) puis lance le serveur Open WebUI dans
+un thread daemon sur 127.0.0.1. Idempotent : plusieurs appels ne lancent
+qu'un seul serveur.
+"""
+from __future__ import annotations
+
+import logging
+import os
+import secrets
+import threading
+from pathlib import Path
+
+log = logging.getLogger("android_main")
+
+_lock = threading.Lock()
+_started = False
+
+APP_PORT = 8080
+
+
+def _load_env_file(data_dir: Path) -> None:
+    """Charge `data/openwebui.env` (KEY=VALUE) AVANT l'import d'open_webui.
+
+    Sert à configurer le RAG par services distants sans rebuilder l'APK, ex. :
+        VECTOR_DB=qdrant
+        QDRANT_URI=https://xxx.cloud.qdrant.io
+        QDRANT_API_KEY=...
+        RAG_EMBEDDING_ENGINE=openai
+        RAG_OPENAI_API_BASE_URL=https://api.openai.com/v1
+        RAG_OPENAI_API_KEY=sk-...
+    Les valeurs déjà présentes dans l'environnement ne sont pas écrasées.
+    """
+    env_file = data_dir / "openwebui.env"
+    if not env_file.exists():
+        return
+    try:
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            os.environ.setdefault(key.strip(), value.strip())
+        log.info("variables chargées depuis %s", env_file)
+    except Exception as exc:
+        log.warning("lecture de %s impossible : %s", env_file, exc)
+
+
+def _prepare_env() -> None:
+    """Variables d'environnement Open WebUI pour Android (avant tout import du package)."""
+    import open_webui  # noqa: F401  (le paquet doit être localisable)
+    pkg_dir = Path(open_webui.__file__).parent
+
+    home = os.environ.get("HOME") or str(pkg_dir.parent)
+    data_dir = Path(home) / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    # configuration utilisateur (RAG distant, etc.) — avant toute lecture d'env
+    _load_env_file(data_dir)
+
+    os.environ.setdefault("DATA_DIR", str(data_dir))
+    os.environ.setdefault("FRONTEND_BUILD_DIR", str(pkg_dir / "frontend"))
+    os.environ.setdefault("STATIC_DIR", str(pkg_dir / "static"))
+    os.environ.setdefault("USE_CUDA_DOCKER", "false")
+    os.environ.setdefault("ENABLE_OTEL", "false")
+    os.environ.setdefault("ANONYMIZED_TELEMETRY", "false")
+    os.environ.setdefault("DO_NOT_TRACK", "true")
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+
+    # Clé secrète : générée une fois, persistée (sessions, chiffrement OAuth)
+    secret_file = data_dir / "webui_secret_key"
+    if not secret_file.exists() or secret_file.stat().st_size == 0:
+        secret_file.write_text(secrets.token_urlsafe(48))
+    os.environ.setdefault("WEBUI_SECRET_KEY", secret_file.read_text().strip())
+
+    # Dictée : moteur STT « web » par défaut (→ SpeechRecognition, branché sur le
+    # moteur vocal natif Android par le shim JS de MainActivity). L'utilisateur
+    # peut basculer sur un STT distant dans Réglages → Audio.
+    os.environ.setdefault("AUDIO_STT_ENGINE", "web")
+    _force_config_value(data_dir, "audio.stt.engine", "web")
+
+    # Recherche web : provider « embedded-searxng » (SearXNG local embarqué).
+    # also_replace : migration de l'ancienne typo « embeded-searxng ».
+    os.environ.setdefault("WEB_SEARCH_ENGINE", "embedded-searxng")
+    _force_config_value(
+        data_dir, "web.search.engine", "embedded-searxng",
+        also_replace=("embeded-searxng",),
+    )
+
+    # SearXNG embarqué : réglages locaux (clé secrète propre à l'appareil)
+    _ensure_searxng_settings(data_dir)
+
+    # Point d'entrée LLM distant — modifiable via l'appli (Réglages → Connexions)
+    os.environ.setdefault("OLLAMA_BASE_URL", os.environ.get("OLLAMA_BASE_URL", ""))
+    os.environ.setdefault("ENABLE_OLLAMA_API", os.environ.get("ENABLE_OLLAMA_API", "true"))
+
+
+def _force_config_value(data_dir: Path, key: str, value: str, also_replace: tuple = ()) -> None:
+    """Force une valeur de config en base si la clé est absente, vide, ou obsolète.
+
+    Les réglages sont stockés dans la table `config` (JSON) : les valeurs déjà
+    semées ('') ne sont pas remplacées par la simple variable d'environnement.
+    `also_replace` liste les anciennes valeurs à migrer (ex. typo « embeded »).
+    Écrit en SQLite direct, avant le démarrage du serveur (pas de course).
+    """
+    import json
+    import sqlite3
+    import time
+
+    db_path = data_dir / "webui.db"
+    if not db_path.exists():
+        return  # premier lancement : la seed prendra la valeur d'env
+    try:
+        con = sqlite3.connect(db_path, timeout=5)
+        try:
+            row = con.execute("SELECT value FROM config WHERE key=?", (key,)).fetchone()
+            current = None
+            if row is not None:
+                try:
+                    current = json.loads(row[0])
+                except Exception:
+                    current = row[0]
+            if not current or current in also_replace:
+                now = int(time.time())
+                if row is None:
+                    con.execute(
+                        "INSERT INTO config (key, value, updated_at) VALUES (?, ?, ?)",
+                        (key, json.dumps(value), now),
+                    )
+                else:
+                    con.execute(
+                        "UPDATE config SET value=?, updated_at=? WHERE key=?",
+                        (json.dumps(value), now, key),
+                    )
+                con.commit()
+                if current in also_replace:
+                    log.info("config %s migré : %r → %r", key, current, value)
+                else:
+                    log.info("config %s forcé à %r", key, value)
+        finally:
+            con.close()
+    except Exception as exc:  # table absente, DB verrouillée… : non bloquant
+        log.warning("force config %s impossible : %s", key, exc)
+
+
+SEARXNG_PORT = 8888
+
+SEARXNG_SETTINGS_TEMPLATE = """\
+# Généré par android_main.py — instance SearXNG embarquée (locale, privée).
+use_default_settings: true
+server:
+  secret_key: "{secret}"
+  bind_address: "127.0.0.1"
+  port: {port}
+  limiter: false
+  public_instance: false
+search:
+  formats:
+    - html
+    - json
+"""
+
+
+def _ensure_searxng_settings(data_dir: Path) -> Path:
+    """Écrit les réglages SearXNG de l'appareil (clé secrète propre à l'app)."""
+    import secrets as _secrets
+
+    path = data_dir / "searxng-settings.yml"
+    if not path.exists():
+        path.write_text(
+            SEARXNG_SETTINGS_TEMPLATE.format(secret=_secrets.token_urlsafe(32), port=SEARXNG_PORT),
+            encoding="utf-8",
+        )
+        log.info("réglages SearXNG générés : %s", path)
+    os.environ.setdefault("SEARXNG_SETTINGS_PATH", str(path))
+    return path
+
+
+def _start_searxng() -> None:
+    """Lance l'instance SearXNG embarquée sur 127.0.0.1:8888 (thread daemon)."""
+
+    def run() -> None:
+        try:
+            from socketserver import ThreadingMixIn
+            from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
+
+            class ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
+                daemon_threads = True
+
+            from searx.webapp import application
+
+            httpd = make_server(
+                "127.0.0.1",
+                SEARXNG_PORT,
+                application,
+                server_class=ThreadingWSGIServer,
+                handler_class=WSGIRequestHandler,
+            )
+            log.info("SearXNG embarqué sur http://127.0.0.1:%s", SEARXNG_PORT)
+            httpd.serve_forever()
+        except Exception as exc:
+            log.exception("SearXNG embarqué indisponible : %s", exc)
+
+    threading.Thread(target=run, name="searxng", daemon=True).start()
+
+
+def start_server(port: int = APP_PORT) -> int:
+    """Lance uvicorn dans un thread daemon. Retourne le port. Idempotent."""
+    global _started
+    with _lock:
+        if _started:
+            return port
+        _prepare_env()
+        _start_searxng()  # recherche web « embeded-searxng » (SearXNG local)
+
+        def run() -> None:
+            import uvicorn
+            from open_webui.main import app
+
+            config = uvicorn.Config(
+                app,
+                host="127.0.0.1",
+                port=port,
+                log_level="warning",
+                access_log=False,
+            )
+            uvicorn.Server(config).run()
+
+        t = threading.Thread(target=run, name="openwebui-server", daemon=True)
+        t.start()
+        _started = True
+        log.info("serveur Open WebUI lancé sur 127.0.0.1:%s", port)
+        return port

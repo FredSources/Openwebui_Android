@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# aapt2 (x86_64) exécuté via qemu-user statique — machine aarch64 (cf. journal D9).
+# Branché via la propriété Gradle : android.aapt2FromMavenOverride
+PROJ="$(cd "$(dirname "$0")/../.." && pwd)"
+exec "$PROJ/tools/qemu/qemu-x86_64-static" \
+  -L "$PROJ/tools/qemu/sysroot-x86_64" \
+  "$PROJ/tools/qemu/aapt2-x86_64" "$@"

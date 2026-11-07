@@ -539,6 +539,12 @@ le re-tag, pour que la première release publique sorte déjà signée avec la c
 release définitive (jamais la clé debug) — sinon Android refuserait les mises à jour
 ultérieures (signature différente).
 
+**Résultat** : la run `v1.0.0` aboutit (4 min 39 s) après un second correctif —
+`fetch_src.sh` doit passer `--ignore-requires-python` (le wheel amont porte
+`Requires-Python <3.13`, cap pydub/audioop de D7). Release `v1.0.0` publiée avec
+`app-debug.apk` + `app-release.apk`, ce dernier signé avec la clé de release
+(branche keystore prise, sans repli debug).
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

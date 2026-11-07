@@ -103,10 +103,14 @@ public class MainActivity extends Activity {
             "window.webkitSpeechRecognition=SpeechRecognition;" +
             "})();";
     private static final long RETRY_DELAY_MS = 1000;
-    private static final int MAX_RETRIES = 120; // ~2 min (1er lancement : extraction assets)
+    private static final int MAX_RETRIES = 900; // ~15 min : le 1er lancement extrait les ressources
 
     private WebView webView;
     private TextView loadingText;
+    private TextView progressLabel;
+    private TextView errorText;
+    private View loadingPanel;
+    private android.widget.ProgressBar progressBar;
     private ValueCallback<Uri[]> filePathCallback;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -116,6 +120,10 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         loadingText = findViewById(R.id.loading_text);
+        progressBar = findViewById(R.id.progress_bar);
+        progressLabel = findViewById(R.id.progress_label);
+        errorText = findViewById(R.id.error_text);
+        loadingPanel = findViewById(R.id.loading_panel);
         webView = findViewById(R.id.webview);
         setupWebView();
 
@@ -151,47 +159,192 @@ public class MainActivity extends Activity {
 
     private void startPythonServer() {
         try {
+            writeStatus(3, "Préparation de l'interface…");
+            prepareFrontend();
+            writeStatus(45, "Démarrage du serveur Open WebUI…");
             Python py = Python.getInstance();
             py.getModule("android_main").callAttr("start_server", 8080);
         } catch (Exception e) {
-            mainHandler.post(() -> loadingText.setText("Erreur Python : " + e.getMessage()));
+            writeStatus(100, "Erreur : " + e);
+            mainHandler.post(() -> showError("Erreur Python : " + e.getMessage()));
             return;
         }
         mainHandler.post(() -> loadWhenReady(0));
     }
 
+    /** Affiche une erreur bloquante sur l'écran de démarrage. */
+    private void showError(String message) {
+        errorText.setText(message);
+        errorText.setVisibility(View.VISIBLE);
+    }
+
+    /**
+     * Écrit l'étape courante au format « PCT|message » (fichier lu par
+     * MainActivity et par android_main.py — diagnostic intégré).
+     */
+    private void writeStatus(int percent, String message) {
+        try {
+            java.io.File f = new java.io.File(getFilesDir(), "data/startup-status.txt");
+            f.getParentFile().mkdirs();
+            java.io.FileWriter w = new java.io.FileWriter(f);
+            w.write(percent + "|" + message);
+            w.close();
+        } catch (Exception ignored) {
+        }
+        mainHandler.post(() -> {
+            progressBar.setProgress(percent);
+            loadingText.setText(message);
+            progressLabel.setText(percent + " %");
+        });
+    }
+
+    /**
+     * Extrait les assets du frontend (src-assets → assets/) dans filesDir/frontend,
+     * une fois par versionCode. Le frontend est trop volumineux pour rester dans
+     * les assets Python (extrait à l'import, pendant le démarrage du serveur).
+     */
+    private void prepareFrontend() {
+        java.io.File target = new java.io.File(getFilesDir(), "frontend");
+        java.io.File marker = new java.io.File(getFilesDir(), "frontend.version");
+        long current;
+        try {
+            android.content.pm.PackageManager pm = getPackageManager();
+            current = android.os.Build.VERSION.SDK_INT >= 28
+                    ? pm.getPackageInfo(getPackageName(), 0).getLongVersionCode()
+                    : pm.getPackageInfo(getPackageName(), 0).versionCode;
+        } catch (Exception e) {
+            current = -1;
+        }
+        try {
+            if (target.isDirectory() && marker.exists()) {
+                java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(marker));
+                String v = r.readLine();
+                r.close();
+                if (v != null && v.equals(String.valueOf(current))) {
+                    return; // déjà extrait pour cette version
+                }
+            }
+            deleteRecursive(target);
+            final int total = Math.max(1, countAssets("frontend"));
+            final int[] done = {0};
+            copyAssetFolder(getAssets(), "frontend", target, done, total);
+            java.io.FileWriter w = new java.io.FileWriter(marker);
+            w.write(String.valueOf(current));
+            w.close();
+        } catch (Exception e) {
+            writeStatus(100, "Erreur d'extraction de l'interface : " + e);
+        }
+    }
+
+    /** Nombre de fichiers d'un dossier d'assets (pour la barre de progression). */
+    private int countAssets(String path) throws java.io.IOException {
+        String[] list = getAssets().list(path);
+        if (list == null || list.length == 0) {
+            return 1;
+        }
+        int n = 0;
+        for (String child : list) {
+            n += countAssets(path + "/" + child);
+        }
+        return n;
+    }
+
+    private void copyAssetFolder(android.content.res.AssetManager am, String path,
+                                 java.io.File out, int[] done, int total)
+            throws java.io.IOException {
+        String[] list = am.list(path);
+        if (list == null || list.length == 0) {
+            java.io.InputStream in = am.open(path);
+            out.getParentFile().mkdirs();
+            java.io.OutputStream os = new java.io.FileOutputStream(out);
+            byte[] buf = new byte[65536];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                os.write(buf, 0, n);
+            }
+            os.close();
+            in.close();
+            done[0]++;
+            if (done[0] % 100 == 0 || done[0] == total) {
+                int pct = 3 + (int) (37.0 * done[0] / total);
+                writeStatus(pct, "Extraction de l'interface… (" + done[0] + "/" + total + " fichiers)");
+            }
+            return;
+        }
+        out.mkdirs();
+        for (String child : list) {
+            copyAssetFolder(am, path + "/" + child, new java.io.File(out, child), done, total);
+        }
+    }
+
+    private void deleteRecursive(java.io.File f) {
+        if (f.isDirectory()) {
+            for (java.io.File c : f.listFiles()) {
+                deleteRecursive(c);
+            }
+        }
+        f.delete();
+    }
+
     private void loadWhenReady(int attempt) {
         if (attempt > MAX_RETRIES) {
-            loadingText.setText("Le serveur ne démarre pas. Redémarrez l'application.");
+            showError("Le serveur ne démarre pas après " + (MAX_RETRIES) + " s. Redémarrez l'application.");
             return;
         }
         executor.execute(() -> {
             boolean up = isServerUp();
             mainHandler.post(() -> {
                 if (up) {
+                    progressBar.setProgress(100);
+                    progressLabel.setText("100 %");
                     webView.loadUrl(APP_URL);
                 } else {
-                    // affiche l'étape de démarrage réelle (data/startup-status.txt)
-                    loadingText.setText(readStartupStatus());
+                    updateProgressFromStatus(attempt);
                     mainHandler.postDelayed(() -> loadWhenReady(attempt + 1), RETRY_DELAY_MS);
                 }
             });
         });
     }
 
-    /** Étape de démarrage écrite par android_main.py (diagnostic + feedback). */
-    private String readStartupStatus() {
+    /**
+     * Lit data/startup-status.txt (format « PCT|message », écrit par MainActivity
+     * et par android_main.py) et met à jour la barre, le commentaire et la zone
+     * d'erreur. Le PCT vient du serveur (étapes Python) ou, à défaut, d'une
+     * progression assistée par le temps pendant l'import.
+     */
+    private void updateProgressFromStatus(int attempt) {
+        int pct = -1;
+        String msg = null;
         try {
             java.io.File f = new java.io.File(getFilesDir(), "data/startup-status.txt");
             java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(f));
             String line = r.readLine();
             r.close();
             if (line != null && !line.isEmpty()) {
-                return line;
+                int sep = line.indexOf('|');
+                if (sep > 0) {
+                    try {
+                        pct = Integer.parseInt(line.substring(0, sep).trim());
+                    } catch (NumberFormatException ignored) {
+                    }
+                    msg = line.substring(sep + 1);
+                } else {
+                    msg = line;
+                }
             }
         } catch (Exception ignored) {
         }
-        return getString(R.string.loading);
+        if (msg == null || msg.isEmpty()) {
+            msg = getString(R.string.loading);
+        }
+        boolean failed = msg.startsWith("Erreur");
+        int shown = pct >= 0 ? pct : Math.min(45 + attempt / 2, 92);
+        progressBar.setProgress(shown);
+        loadingText.setText(failed ? getString(R.string.loading) : msg);
+        progressLabel.setText(shown + " % · " + attempt + " s");
+        if (failed) {
+            showError(msg);
+        }
     }
 
     private boolean isServerUp() {
@@ -266,7 +419,7 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView v, String url) {
                 v.evaluateJavascript(SPEECH_POLYFILL, null);
-                loadingText.setVisibility(View.GONE);
+                loadingPanel.setVisibility(View.GONE);
                 webView.setVisibility(View.VISIBLE);
             }
         });

@@ -191,6 +191,7 @@ propriété Gradle `android.aapt2FromMavenOverride` et le remplacement de
   [Dictée vocale native], [`AndroidSpeech.java` + shim JS], [API `SpeechRecognition` du web → `SpeechRecognizer` Android (souvent hors-ligne) ; relances anti « no speech » ; arbitrage du micro],
   [Outil *compile\_typst*], [P11 + wheel `typst`], [compile un document `.typ` en PDF, l'enregistre dans les fichiers de l'utilisateur, affichable via `display_file`],
   [Purge cache WebView], [`MainActivity`], [à chaque `versionCode` (D13), `version_code` incrémenté par `build.sh`],
+  [Écran de démarrage avec **barre de progression**], [`MainActivity` + `android_main.py`], [pourcentage réel (extraction des assets comptée fichier par fichier, étapes Python via `data/startup-status.txt` au format `PCT|message`), commentaires d'étape, compteur de secondes, et **messages d'erreur en rouge** en cas d'échec (import Python fautif, extraction…) — un blocage est visible et diagnostiquable],
   [Foreground service], [`ServerService.java`], [le serveur survit au passage en arrière-plan],
   [Fichier de configuration `data/openwebui.env`], [`android_main.py`], [variables `KEY=VALUE` chargées au démarrage, sans rebuild],
   [Notification de permission contextuelle], [`MainActivity`], [demande micro/caméra à l'appel `getUserMedia`, pas seulement au lancement],
@@ -218,25 +219,35 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P12], [`utils/tools.py`], [`features.get('web_search', True)` : les outils internet (`search_web` = `embedded-searxng`, `fetch_url`) sont exposés même quand le modèle ne déclare pas la capacité dans ses métadonnées],
   [P13], [`frontend/` (données)], [allègement : suppression des *source maps*, de `pyodide/` et `wasm/` (169 Mo) — ML navigateur et Python-navigateur désactivés, conformes à la règle « pas de calcul local » ; gain majeur de démarrage et de taille APK],
   [P14], [`routers/auths.py`, `routers/utils.py`, `routers/configs.py`], [imports différés : `ldap3` (1,7 s), `black` (0,9 s), `MCPClient`/`mcp` (~1-2 s) n'exécutent plus au démarrage — importés à l'usage],
+  [P15], [`src/` → `src-assets/`], [le frontend sort des *assets Python* (extrait à l'import par Chaquopy) pour devenir des *assets Android*, extraits une fois par version par `MainActivity` avec progression ; `app.imy` et l'import Python s'effondrent],
 )
 
 == Performances de démarrage
 
-Le démarrage combine : extraction des données Python par Chaquopy (proportionnelle
-à la taille de `app.imy`), l'import d'Open WebUI (≈ 30 s sur le CPU de l'appareil,
-graph amont large), puis le lifespan (migrations, init). Optimisations en place :
+Le démarrage combine : extraction des données Python par Chaquopy, l'import
+d'Open WebUI, puis le lifespan (migrations, init). Trois optimisations
+successives, mesurées sur le CPU de l'appareil (temps jusqu'à `/health`) :
 
-- P13 : le frontend embarqué est allégé (248 → 85 Mo) ;
-- P14 : imports coûteux différés ;
-- *SearXNG ne démarre plus en parallèle* : `_warm_up_then_searxng` attend que
-  `/health` réponde avant de lancer la recherche web (fini la contention CPU
-  sur l'écran de chargement) ;
-- l'écran de démarrage affiche l'étape réelle (`data/startup-status.txt`),
-  ce qui rend tout blocage visible et diagnostiquable.
+#table(
+  columns: (1.2fr, 1fr, 1fr),
+  [*Étape*], [*Avant*], [*Après*],
+  [Import du serveur (mesuré)], [35,5 s], [≈ 11 s],
+  [Taille du paquet Python `src/open_webui`], [264 Mo], [9,9 Mo],
+  [Taille APK], [245 Mo], [≈ 150 Mo],
+)
 
-Si un démarrage redevient long : comparer la taille de `app.imy` dans l'APK
-(zéro écart zip attendu), vérifier `startup-status.txt` (via `adb shell run-as`),
-et profiler avec `python -X importtime` (voir @sec-iso).
+- P13 : frontend allégé (248 → 85 Mo : source maps, `pyodide/`, `wasm/`) ;
+- P14 : imports coûteux différés (`ldap3`, `black`, `MCPClient`) ;
+- P15 : le frontend est extrait **par Java, une fois par version** (avec message
+  « Préparation de l'interface »), plus par l'import Python à chaque lancement ;
+- SearXNG démarre **après** `/health` (pas de contention sur l'écran d'attente) ;
+- l'écran de démarrage affiche l'étape réelle + un compteur de secondes
+  (`data/startup-status.txt`) ; les **erreurs d'import du serveur y sont
+  écrites** — un blocage devient donc lisible, pas silencieux.
+
+Si un démarrage redevient long : lire l'écran (étape + compteur) ; si le texte
+mentionne une erreur, c'est l'import Python fautive (manque de dépendance) ;
+sinon, vérifier `adb logcat | grep python`.
 
 #tip-box[
   Si un patch échoue (`PATCH EN ÉCHEC : motif introuvable`), c'est que le code

@@ -49,10 +49,12 @@ def _load_env_file(data_dir: Path) -> None:
         log.warning("lecture de %s impossible : %s", env_file, exc)
 
 
-def _set_status(data_dir: Path, message: str) -> None:
-    """Écrit l'étape de démarrage courante (affichée par MainActivity)."""
+def _set_status(data_dir: Path, message: str, progress: int | None = None) -> None:
+    """Écrit l'étape courante au format « PCT|message » (barre de progression UI)."""
     try:
-        (data_dir / 'startup-status.txt').write_text(message, encoding='utf-8')
+        (data_dir / 'startup-status.txt').write_text(
+            f'{progress if progress is not None else "?"}|{message}', encoding='utf-8'
+        )
     except Exception:
         pass
 
@@ -70,7 +72,13 @@ def _prepare_env() -> Path:
     _load_env_file(data_dir)
 
     os.environ.setdefault("DATA_DIR", str(data_dir))
-    os.environ.setdefault("FRONTEND_BUILD_DIR", str(pkg_dir / "frontend"))
+    # Frontend : extrait par MainActivity dans $HOME/frontend (assets, versionné) ;
+    # repli sur le paquet Python pour les tests hôte.
+    extracted = Path(home) / "frontend"
+    os.environ.setdefault(
+        "FRONTEND_BUILD_DIR",
+        str(extracted if extracted.is_dir() else pkg_dir / "frontend"),
+    )
     os.environ.setdefault("STATIC_DIR", str(pkg_dir / "static"))
     os.environ.setdefault("USE_CUDA_DOCKER", "false")
     os.environ.setdefault("ENABLE_OTEL", "false")
@@ -235,13 +243,13 @@ def _warm_up_then_searxng(data_dir: Path, port: int) -> None:
         except Exception:
             pass
         time.sleep(1)
-    _set_status(data_dir, 'Préparation de la recherche web…')
+    _set_status(data_dir, 'Préparation de la recherche web…', 85)
     try:
         _start_searxng()
-        _set_status(data_dir, 'Prêt')
+        _set_status(data_dir, 'Prêt', 100)
     except Exception as exc:
         log.warning('SearXNG non démarré : %s', exc)
-        _set_status(data_dir, 'Prêt (sans recherche web)')
+        _set_status(data_dir, 'Prêt (sans recherche web)', 100)
 
 
 def start_server(port: int = APP_PORT) -> int:
@@ -251,20 +259,24 @@ def start_server(port: int = APP_PORT) -> int:
         if _started:
             return port
         data_dir = _prepare_env()
-        _set_status(data_dir, "Démarrage du serveur Open WebUI…")
+        _set_status(data_dir, "Démarrage du serveur Open WebUI…", 45)
 
         def run() -> None:
-            import uvicorn
-            from open_webui.main import app
+            try:
+                import uvicorn
+                from open_webui.main import app
 
-            config = uvicorn.Config(
-                app,
-                host="127.0.0.1",
-                port=port,
-                log_level="warning",
-                access_log=False,
-            )
-            uvicorn.Server(config).run()
+                config = uvicorn.Config(
+                    app,
+                    host="127.0.0.1",
+                    port=port,
+                    log_level="warning",
+                    access_log=False,
+                )
+                uvicorn.Server(config).run()
+            except BaseException as exc:  # visible sur l'écran de démarrage
+                log.exception("échec du démarrage du serveur")
+                _set_status(data_dir, f"Erreur au démarrage : {type(exc).__name__}: {exc}", 100)
 
         t = threading.Thread(target=run, name="openwebui-server", daemon=True)
         t.start()

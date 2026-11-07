@@ -640,6 +640,31 @@ def slim_frontend() -> None:
     PATCHES.append(("frontend allégé (maps/pyodide/wasm)", f"-{freed / 1e6:.0f} Mo"))
 
 
+def frontend_out_of_python() -> None:
+    """P15 — sort le frontend des assets Python (extraction Java unique).
+
+    Les données du paquet `open_webui` (dont `frontend/`, ~85 Mo) sont
+    extraites par Chaquopy *au moment de l'import du paquet* — donc pendant
+    le démarrage du serveur, à chaque installation/mise à jour. En le
+    déplaçant dans les assets Android (`src-assets/frontend/`), c'est
+    `MainActivity` qui l'extrait UNE FOIS (versionné) AVANT de lancer Python,
+    avec progression affichée. Bonus : les assets sont compressés dans l'APK.
+    """
+    import shutil
+
+    src = DST / "frontend"
+    if not src.is_dir():
+        return
+    dst = PROJ / "src-assets" / "frontend"
+    if dst.exists():
+        shutil.rmtree(dst)
+    dst.parent.mkdir(exist_ok=True)
+    shutil.move(str(src), str(dst))
+    log(f"  P15 frontend déplacé vers assets Android : {dst} "
+        f"({sum(f.stat().st_size for f in dst.rglob('*') if f.is_file()) / 1e6:.0f} Mo)")
+    PATCHES.append(("frontend → assets Android", "déplacé"))
+
+
 def patch_lazy_imports() -> None:
     """P14 — imports coûteux différés (ldap3, black, MCP/boto3 au besoin)."""
     # black : utilisé par un seul endpoint (format_code) → import local
@@ -732,6 +757,7 @@ def main() -> int:
     write_null_vector_db()
     write_local_vector_db()
     slim_frontend()
+    frontend_out_of_python()
     patch_lazy_imports()
     write_stubs(args.with_native_pycrdt)
     log(f"terminé : {len(PATCHES)} opération(s)")

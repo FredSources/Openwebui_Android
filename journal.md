@@ -338,6 +338,29 @@ Lire ce fichier avant chaque session ; y ajouter chaque action.
     l'étape réelle (`data/startup-status.txt`) — diagnostic intégré.
 - **Résultat mesuré** : `/health` en **29 s** (vs ~35 s + contention avant),
   SearXNG se réchauffe en arrière-plan, APK attendu ≈ 130 Mo.
+- **Suite (retour appareil)** : blocage persistant sur « Démarrage du serveur
+  Open WebUI… ». Cause racine : le frontend (85 Mo, des milliers de fichiers)
+  vit dans le paquet Python → **extraction Chaquopy pendant l'import du
+  serveur**, invisible et sans retour.
+- **Décision D18 / patch P15** : le frontend sort des assets Python
+  (`src-assets/frontend/` = *assets Android*) — `MainActivity` l'extrait
+  **une fois par versionCode** dans `filesDir/frontend` (avec message
+  « Préparation de l'interface »), `FRONTEND_BUILD_DIR` y pointe.
+  Compléments : compteur de secondes sur l'écran de démarrage, **erreurs
+  d'import écrites dans `startup-status.txt`** (un blocage devient lisible),
+  retries portés à 15 min, et premier lancement documenté.
+- **Résultat** : import serveur **35,5 s → 11 s** mesuré, `src/open_webui`
+  264 Mo → 9,9 Mo, APK en cours de build (assets compressés).
+- **Suite (demande utilisateur)** : « je voudrais une barre de progression du
+  démarrage avec commentaire et message d'erreur au cas où ».
+  → **Écran de démarrage complet** : `ProgressBar` horizontale (0-100),
+    pourcentage **réel** pendant l'extraction des assets (fichiers comptés puis
+    copiés avec mise à jour tous les 100), étapes Python transmises au format
+    `PCT|message` via `data/startup-status.txt` (45 % démarrage serveur,
+    85 % recherche web, 100 % prêt), commentaires d'étape + compteur de
+    secondes, et **zone d'erreur rouge** (`Erreur au démarrage : …`) dès qu'une
+    étape échoue — un blocage devient visible et lisible, jamais silencieux.
+    Reprises : retry porté à 15 min, échec d'extraction signalé lui aussi.
 
 ## Décisions cumulées (suite)
 

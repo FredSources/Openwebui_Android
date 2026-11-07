@@ -38,9 +38,11 @@ android {
     }
 
     // Sources Python : notre copie patchée (src/open_webui) + shims (tiktoken, pycrdt)
+    // Assets : frontend lourd (src-assets/frontend) extrait par MainActivity — cf. P15
     sourceSets {
         main {
             python.srcDirs = ['src/main/python', "${rootDir}/src"]
+            assets.srcDirs += ["${rootDir}/src-assets"]
         }
     }
 

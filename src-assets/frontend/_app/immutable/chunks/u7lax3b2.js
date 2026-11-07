@@ -1,0 +1,2 @@
+import{j as r}from"./Bc6-PzHY.js";const i=async(t,e,a)=>{const s=await fetch(`${r}/auths/mfa/${t}`,{method:t==="status"?"GET":"POST",credentials:"same-origin",cache:"no-store",headers:{"Content-Type":"application/json",...a?{Authorization:`Bearer ${a}`}:{}},...e?{body:JSON.stringify(e)}:{}}),o=await s.json();if(!s.ok)throw new Error(o.detail||"Authentication failed. Please try again.");return o};export{i as m};
+//# sourceMappingURL=u7lax3b2.js.map

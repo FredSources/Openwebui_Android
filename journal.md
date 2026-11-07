@@ -545,6 +545,13 @@ ultérieures (signature différente).
 `app-debug.apk` + `app-release.apk`, ce dernier signé avec la clé de release
 (branche keystore prise, sans repli debug).
 
+## 2026-11-07 — APK renommés `OpenWebUI_Android-<version>-<variante>.apk`
+
+`build.sh` nomme désormais les livrables de façon explicite
+(`OpenWebUI_Android-1.0.0-release.apk`) au lieu de `app-release.apk` — build local
+et CI identiques ; vérification CI ajustée. La release `v1.0.0` est re-publée
+(mêmes sources taggées, nommage explicite) — personne n'avait encore téléchargé.
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

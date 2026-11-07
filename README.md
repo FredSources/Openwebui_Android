@@ -74,6 +74,9 @@ lors du push d'un tag `v*`, et publie la **Release GitHub** avec les APK attach�
 git tag v0.3.0 && git push origin v0.3.0   # → build CI + release + APK attachés
 ```
 
+Les APK sont nommés `OpenWebUI_Android-<version>-<variante>.apk`
+(ex. `OpenWebUI_Android-1.0.0-release.apk`) — même nom en build local (`dist/`).
+
 Signature release : ajouter les secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,
 `KEY_ALIAS`, `KEY_PASSWORD` au dépôt — sinon l'APK release est signé avec la clé
 debug (installable, pour tests).

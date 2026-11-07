@@ -48,8 +48,13 @@ GRADLE="$PROJ/tools/gradle/gradle-8.10.2/bin/gradle"
 [ $# -gt 0 ] || set -- assembleDebug
 "$GRADLE" --no-daemon -p "$PROJ" "$@" -Pvcode="$VC"
 
-# 5. Copie vers dist/
+# 5. Copie vers dist/ avec nom explicite : OpenWebUI_Android-<versionName>-<variante>.apk
 mkdir -p "$PROJ/dist"
-find "$PROJ/app/build/outputs/apk" -name '*.apk' -exec cp {} "$PROJ/dist/" \;
+VNAME=$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" "$PROJ/app/build.gradle" | head -1)
+find "$PROJ/app/build/outputs/apk" -name '*.apk' | while read -r f; do
+  variant=$(basename "$f" .apk)
+  variant=${variant#app-}
+  cp "$f" "$PROJ/dist/OpenWebUI_Android-$VNAME-$variant.apk"
+done
 echo "[build] APK :"
 ls -la "$PROJ/dist/"

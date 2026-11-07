@@ -482,6 +482,16 @@ Le pipeline automatique (globe) reste conditionné au toggle (comportement amont
 `builtinTools.web_search=false`, `features={web_search: false}`) → 31 outils,
 `search_web` et `fetch_url` présents.
 
+## 2026-11-07 — Publication GitHub (FredSources/Openwebui_Android)
+
+- Dépôt public `git@github.com:FredSources/Openwebui_Android.git`, clé RSA 4096
+  dans `~/.ssh/id_rsa` (publique ajoutée au compte GitHub par l'utilisateur).
+- **Purge de l'historique** : les APK (`dist/`, ~148 Mo × 6 versions) étaient
+  committés en force — GitHub refuse > 100 Mo/fichier. `git filter-branch
+  --index-filter 'git rm -r --cached --ignore-unmatch dist'` + gc :
+  dépôt 1,6 Go → 93 Mo. Convention changée : l'APK n'est *jamais* versionné
+  (il est rebuildable par `build.sh`) — docs/environnement.typ à jour.
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

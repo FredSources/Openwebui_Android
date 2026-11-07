@@ -87,7 +87,7 @@ bash scripts/setup-env.sh --build
   [`vendor/` (Open WebUI, SearXNG)], [non], [étape 9 du script (pins documentés)],
   [`android-sdk/`, `tools/` (JDK, NDK, Gradle, Rust, qemu, python)], [non], [étapes 1-8 du script],
   [caches (`.gradle-cache`, `.pip-cache`, `.tmp`…)], [non], [recréés au besoin],
-  [`dist/` (APK)], [non], [`build.sh` — l'APK de référence peut être forcé : `git add -f dist/app-debug.apk`],
+  [`dist/` (APK)], [non], [`build.sh` — l'APK n'est *jamais* versionné (limite GitHub : 100 Mo par fichier ; binaire rebuildable) ; livré hors dépôt],
 )
 
 = Reprendre le projet après reconstruction

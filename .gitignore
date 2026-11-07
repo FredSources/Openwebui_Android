@@ -33,7 +33,7 @@ __pycache__/
 /build/
 /.gradle/
 
-# --- Livrables rebuildables (forcer : git add -f dist/app-debug.apk) ---
+# --- Livrables rebuildables (jamais versionnés : limite GitHub 100 Mo/fichier) ---
 /dist/
 /docs/*.txt
 

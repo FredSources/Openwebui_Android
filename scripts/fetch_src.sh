@@ -21,8 +21,10 @@ mkdir -p "$WHL_DIR" "$DEST"
 
 if [ ! -f "$WHL" ]; then
   echo "[fetch] téléchargement open-webui $VERSION depuis PyPI…"
+  # --ignore-requires-python : le wheel porte un cap <3.13 (dû à pydub/audioop,
+  # neutralisé par P5) — le wheel est py3-none-any, le cap ne nous concerne pas.
   "$PY" -m pip download "open-webui==$VERSION" --no-deps --only-binary :all: \
-    -d "$WHL_DIR" --no-cache-dir
+    --ignore-requires-python -d "$WHL_DIR" --no-cache-dir
   # pip nomme le wheel open_webui-<version>-py3-none-any.whl
   mv "$WHL_DIR"/open_webui-*.whl "$WHL"
 fi

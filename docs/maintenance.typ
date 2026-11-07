@@ -191,7 +191,7 @@ propriété Gradle `android.aapt2FromMavenOverride` et le remplacement de
   [Dictée vocale native], [`AndroidSpeech.java` + shim JS], [API `SpeechRecognition` du web → `SpeechRecognizer` Android (souvent hors-ligne) ; relances anti « no speech » ; arbitrage du micro],
   [Outil *compile\_typst*], [P11 + wheel `typst`], [compile un document `.typ` en PDF, l'enregistre dans les fichiers de l'utilisateur, affichable via `display_file`],
   [Purge cache WebView], [`MainActivity`], [à chaque `versionCode` (D13), `version_code` incrémenté par `build.sh`],
-  [Écran de démarrage avec **barre de progression**], [`MainActivity` + `android_main.py`], [pourcentage réel (extraction des assets comptée fichier par fichier, étapes Python via `data/startup-status.txt` au format `PCT|message`), commentaires d'étape, compteur de secondes, et **messages d'erreur en rouge** en cas d'échec (import Python fautif, extraction…) — un blocage est visible et diagnostiquable],
+  [Écran de démarrage avec *barre de progression*], [`MainActivity` + `android_main.py`], [pourcentage réel (extraction des assets comptée fichier par fichier, étapes Python via `data/startup-status.txt` au format `PCT|message`), commentaires d'étape, compteur de secondes, et *messages d'erreur en rouge* en cas d'échec (import Python fautif, extraction…) — un blocage est visible et diagnostiquable],
   [Foreground service], [`ServerService.java`], [le serveur survit au passage en arrière-plan],
   [Fichier de configuration `data/openwebui.env`], [`android_main.py`], [variables `KEY=VALUE` chargées au démarrage, sans rebuild],
   [Notification de permission contextuelle], [`MainActivity`], [demande micro/caméra à l'appel `getUserMedia`, pas seulement au lancement],
@@ -239,9 +239,9 @@ successives, mesurées sur le CPU de l'appareil (temps jusqu'à `/health`) :
 
 - P13 : frontend allégé (248 → 85 Mo : source maps, `pyodide/`, `wasm/`) ;
 - P14 : imports coûteux différés (`ldap3`, `black`, `MCPClient`) ;
-- P15 : le frontend est extrait **par Java, une fois par version** (avec message
+- P15 : le frontend est extrait *par Java, une fois par version* (avec message
   « Préparation de l'interface »), plus par l'import Python à chaque lancement ;
-- SearXNG démarre **après** `/health` (pas de contention sur l'écran d'attente) ;
+- SearXNG démarre *après* `/health` (pas de contention sur l'écran d'attente) ;
 - l'écran de démarrage affiche l'étape réelle + un compteur de secondes
   (`data/startup-status.txt`) ; les **erreurs d'import du serveur y sont
   écrites** — un blocage devient donc lisible, pas silencieux.
@@ -335,7 +335,7 @@ Réglages essentiels depuis l'UI : *Admin → Documents* (moteur d'embedding dis
   [Build pip : conflit `numpy`/`grpcio-tools`], [dépendance exigeant des versions natives supérieures], [pinner une version amont antérieure compatible],
   [L'APK grossit anormalement], [packaging incrémental], [`build.sh` nettoie déjà ; vérifier qu'on ne passe pas par un autre script],
   [« Erreur au démarrage : … migrations/env.py »], [Chaquopy retire les `.py` après compilation bytecode, or Alembic lit les fichiers de `migrations/`], [patch P16 (`extractPackages`) — vérifier la présence de `open_webui/migrations/__init__.py` dans `src/`],
-  [« dlopen failed … .abi3.so » (uuid_utils, typst)], [les wheels **abi3** (PyO3) ne lient pas `libpython` : symboles `Py*` indéfinis au chargement — fatal sous Android], [`build-wheels.sh` force la liaison via **`PYO3_CONFIG_FILE`** (`suppress_build_script_link_lines=false`) ; vérifier par `readelf -d <module>.so | grep NEEDED` (doit mentionner `libpython3.13.so`), puis rebuild des wheels — plan B : `patchelf --add-needed libpython3.13.so`],
+  [« dlopen failed … .abi3.so » (uuid_utils, typst)], [les wheels *abi3* (PyO3) ne lient pas `libpython` : symboles `Py*` indéfinis au chargement — fatal sous Android], [`build-wheels.sh` force la liaison via *`PYO3_CONFIG_FILE`* (`suppress_build_script_link_lines=false`) ; vérifier par `readelf -d <module>.so | grep NEEDED` (doit mentionner `libpython3.13.so`), puis rebuild des wheels — plan B : `patchelf --add-needed libpython3.13.so`],
   [Le correctif wheel « ne prend pas » (même erreur après rebuild)], [la tâche pip de Chaquopy ne suit que le *fichier* de requirements : un wheel reconstruit (même nom/version) n'est pas réinstallé — l'ancien `.so` reste dans l'APK], [`build.sh` vide `app/build/python|generated` + `intermediates/assets` à chaque build ; vérifier le `.so` de `app/build/python/pip/debug/common/` par `readelf` avant livraison],
   [Le serveur ne démarre pas sur l'appareil], [exception d'import], [lire logcat (`adb logcat | grep python`) ; cause fréquente : nouvelle dépendance non embarquée],
 )

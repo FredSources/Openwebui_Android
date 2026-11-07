@@ -243,8 +243,8 @@ successives, mesurées sur le CPU de l'appareil (temps jusqu'à `/health`) :
   « Préparation de l'interface »), plus par l'import Python à chaque lancement ;
 - SearXNG démarre *après* `/health` (pas de contention sur l'écran d'attente) ;
 - l'écran de démarrage affiche l'étape réelle + un compteur de secondes
-  (`data/startup-status.txt`) ; les **erreurs d'import du serveur y sont
-  écrites** — un blocage devient donc lisible, pas silencieux.
+  (`data/startup-status.txt`) ; les *erreurs d'import du serveur y sont
+  écrites* — un blocage devient donc lisible, pas silencieux.
 
 Si un démarrage redevient long : lire l'écran (étape + compteur) ; si le texte
 mentionne une erreur, c'est l'import Python fautive (manque de dépendance) ;

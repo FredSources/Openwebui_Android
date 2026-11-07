@@ -407,6 +407,17 @@ invalident tout test s'ils ne sont pas contrôlés :
 Un seul serveur par test ; ne jamais inférer un bug applicatif d'un test dont l'identité du
 serveur n'est pas confirmée.
 
+== Intégration continue (GitHub Actions)
+
+`.github/workflows/build-apk.yml` build les APK _debug_ et _release_ à chaque push
+ou PR (artifacts téléchargeables), et publie une Release GitHub avec les APK pour
+chaque tag `v*`. Adaptations automatiques du runner x86_64 : retrait de la surcharge
+`aapt2FromMavenOverride` (qemu), JDK système accepté si `tools/jdk` (aarch64) est
+absent, `.venv313` recréé en CPython 3.13, SearXNG cloné au commit figé. Le
+`versionCode` CI vaut `10000 + numéro d'exécution`. Signature release : secrets
+GitHub `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` — sans
+eux, l'APK release est signé avec la clé debug (installable, pour tests).
+
 == Pistes d'évolution
 
 - Mise à jour in-app de l'APK (GitHub Releases) ;

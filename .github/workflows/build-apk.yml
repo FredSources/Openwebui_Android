@@ -1,0 +1,122 @@
+# build-apk.yml — CI/CD OpenWebUI Android
+# Build les APK debug + release à chaque push/PR, et publie une Release GitHub
+# avec les APK attachés pour chaque tag v*.
+#
+# Particularités de la chaîne (voir docs/maintenance.typ) :
+#   - sources Python patchées générées par scripts/prepare_src.py (P1–P18)
+#   - SearXNG vendor figé (commit a30b2d4749) cloné ici
+#   - wheels Rust cross-buildés déjà committés dans wheels/ (pas de rebuild CI)
+#   - gradle.properties : la surcharge aapt2/qemu (aarch64) est retirée — le
+#     runner x86_64 exécute aapt2 nativement
+#   - versionCode = 10000 + numéro d'exécution (installable par-dessus les
+#     builds précédents)
+#
+# Signature release : créer les secrets GitHub
+#   KEYSTORE_BASE64 (keystore JKS en base64), KEYSTORE_PASSWORD, KEY_ALIAS,
+#   KEY_PASSWORD — sinon l'APK release est signé avec la clé debug (tests).
+
+name: Build APK
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      # build.gradle attend un CPython 3.13 à .venv313/bin/python3 (buildPython)
+      - name: Environnement Python du projet
+        run: |
+          python3.13 -m venv .venv313
+          .venv313/bin/pip install -q --upgrade pip setuptools wheel
+
+      - name: SearXNG vendor (commit figé)
+        run: |
+          git clone --quiet https://github.com/searxng/searxng.git vendor/searxng
+          git -C vendor/searxng checkout -q a30b2d47492ab46ae82ce25ee62a31626565cf67
+
+      - name: Adaptation CI x86_64 (aapt2 natif, pas de qemu)
+        run: sed -i '/aapt2FromMavenOverride/d' gradle.properties
+
+      - name: Téléchargements (cmdline-tools, Gradle)
+        run: |
+          mkdir -p downloads
+          curl -sL -o downloads/cmdline-tools.zip \
+            https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          curl -sL -o downloads/gradle.zip \
+            https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
+
+      - name: Cache Gradle + SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            .gradle-cache
+            android-sdk
+            tools/gradle
+          key: build-${{ runner.os }}-${{ hashFiles('gradle.properties', 'app/build.gradle') }}
+
+      - name: SDK + Gradle (installés dans le projet)
+        run: bash scripts/setup-sdk.sh
+
+      - name: versionCode (numéro d'exécution)
+        run: echo $((10000 + GITHUB_RUN_NUMBER)) > version_code
+
+      - name: Keystore de release (si secrets présents)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/release.keystore"
+            echo "KEYSTORE_FILE=$GITHUB_WORKSPACE/release.keystore" >> "$GITHUB_ENV"
+          else
+            echo "Aucun keystore : release signé avec la clé debug (installable, tests)."
+          fi
+
+      - name: Build APK debug + release
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: bash scripts/build.sh assembleDebug assembleRelease
+
+      - name: Vérification des APK produits
+        run: |
+          ls -la dist/
+          test -f dist/app-debug.apk
+          test -f dist/app-release.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openwebui-android-apk-${{ github.sha }}
+          path: dist/*.apk
+          if-no-files-found: error
+
+      - name: Release GitHub (tags v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.apk
+          generate_release_notes: true

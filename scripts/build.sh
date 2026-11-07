@@ -10,8 +10,11 @@ export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export GRADLE_USER_HOME="$PROJ/.gradle-cache"
 export TMPDIR="$PROJ/.tmp"
 export PIP_CACHE_DIR="$PROJ/.pip-cache"
-export JAVA_HOME="$PROJ/tools/jdk"          # JDK portable : javac requis (D5)
-export PATH="$JAVA_HOME/bin:$PATH"
+# JDK portable du projet (D5) ; sur CI, le JDK système (setup-java) fait l'affaire
+if [ -d "$PROJ/tools/jdk" ]; then
+  export JAVA_HOME="$PROJ/tools/jdk"
+  export PATH="$JAVA_HOME/bin:$PATH"
+fi
 
 # 1. SDK + Gradle
 bash "$PROJ/scripts/setup-sdk.sh"
@@ -40,7 +43,9 @@ VC=1
 echo "$VC" > "$PROJ/version_code"
 echo "[build] versionCode=$VC"
 GRADLE="$PROJ/tools/gradle/gradle-8.10.2/bin/gradle"
-"$GRADLE" --no-daemon -p "$PROJ" "${1:-assembleDebug}" -Pvcode="$VC"
+# une ou plusieurs tâches Gradle (ex. assembleDebug assembleRelease) — même versionCode
+[ $# -gt 0 ] || set -- assembleDebug
+"$GRADLE" --no-daemon -p "$PROJ" "$@" -Pvcode="$VC"
 
 # 5. Copie vers dist/
 mkdir -p "$PROJ/dist"

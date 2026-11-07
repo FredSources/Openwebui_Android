@@ -492,6 +492,24 @@ Le pipeline automatique (globe) reste conditionné au toggle (comportement amont
   dépôt 1,6 Go → 93 Mo. Convention changée : l'APK n'est *jamais* versionné
   (il est rebuildable par `build.sh`) — docs/environnement.typ à jour.
 
+## 2026-11-07 — CI/CD GitHub Actions + correction de nommage
+
+**Nommage** : le projet était décrit « sans RAG » (README, AGENTS.md) — faux depuis
+D15 : le RAG est actif avec `LocalVectorDB` (vecteurs locaux SQLite+numpy) et des
+**embeddings distants par API** (la plateforme interdit le calcul d'embedding local).
+Corrigé : « APK autonome avec RAG » dans README, diagramme AGENTS.md, PATCHES.md.
+
+**CI/CD** (`.github/workflows/build-apk.yml`) : build debug + release à chaque
+push/PR (artifacts), Release GitHub avec APK pour chaque tag `v*` :
+- runner x86_64 : la surcharge aapt2/qemu est retirée (`sed` sur gradle.properties)
+  et `build.sh`/`env.sh` acceptent un JDK système si `tools/jdk` (aarch64) est absent ;
+- `.venv313` recréé avec CPython 3.13 (chemin attendu par `buildPython`) ;
+- SearXNG cloné au commit figé ; wheels Rust déjà committés ;
+- `build.sh` accepte plusieurs tâches Gradle (debug+release, même versionCode) ;
+- versionCode CI = 10000 + run number ; signature release via secrets GitHub
+  (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`), repli
+  clé debug si absents.
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

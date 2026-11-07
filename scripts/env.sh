@@ -24,9 +24,12 @@ export PYTHONDONTWRITEBYTECODE=1
 # Rust : TOUJOURS dans le projet (jamais ~/.cargo ni ~/.rustup — isolation D5)
 export CARGO_HOME="$PROJ/tools/cargo"
 export RUSTUP_HOME="$PROJ/tools/rustup"
-# JDK portable du projet (le JDK système est un JRE sans javac)
-export JAVA_HOME="$PROJ/tools/jdk"
-export PATH="$JAVA_HOME/bin:$PATH"
+# JDK portable du projet (le JDK système est un JRE sans javac) ; sur CI,
+# un JDK système complet (setup-java) est utilisé si tools/jdk est absent
+if [ -d "$PROJ/tools/jdk" ]; then
+  export JAVA_HOME="$PROJ/tools/jdk"
+  export PATH="$JAVA_HOME/bin:$PATH"
+fi
 
 mkdir -p "$ANDROID_HOME" "$GRADLE_USER_HOME" "$UV_PYTHON_INSTALL_DIR" \
          "$UV_CACHE_DIR" "$npm_config_cache" "$TMPDIR" "$XDG_CACHE_HOME" \

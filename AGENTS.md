@@ -37,7 +37,7 @@ puissance de calcul non disponible sur téléphone est déportée.
 │  App Kotlin (MainActivity)              │      │  Ollama ou API OpenAI-compat │
 │   ├─ Chaquopy : CPython 3.13 embarqué   │ HTTPS│  (le LLM)                    │
 │   │    └─ thread → uvicorn :8080        │ ───► │  OLLAMA_BASE_URL /           │
-│   │        └─ open_webui (SANS RAG)     │      │  OPENAI_API_BASE_URL         │
+│   │        └─ open_webui (RAG local)    │      │  OPENAI_API_BASE_URL         │
 │   └─ WebView → http://127.0.0.1:8080    │      └──────────────────────────────┘
 └─────────────────────────────────────────┘
 ```

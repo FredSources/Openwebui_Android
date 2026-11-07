@@ -27,7 +27,7 @@ Tous les patchs sont générés par `scripts/prepare_src.py` (idempotent, rejoua
 | — | `src/searx/` | **SearXNG embarqué** (vendor figé sur `a30b2d4749`, 2026-08-28 — avant la migration `curl_cffi`) | serveur local `127.0.0.1:8888`, réglages générés par `android_main.py` (clé secrète propre à l'appareil, `search.formats: [html, json]`) |
 | — | `retrieval/vector/dbs/none.py` | **Nouveau** : `NullVectorDB` | RAG éteint (`VECTOR_DB=none`) : insertions ignorées, recherches vides |
 | — | `retrieval/vector/dbs/local.py` | **Nouveau** : `LocalVectorDB` | Base vectorielle **locale** SQLite + numpy (force brute vectorisée, score cosinus dans [0,1]) — `VECTOR_DB=local` |
-| — | `src/tiktoken.py` | **Nouveau** : shim | tiktoken (Rust) non fourni ; comptage approximatif (inutile sans RAG) |
+| — | `src/tiktoken.py` | **Nouveau** : shim | tiktoken (Rust) non fourni ; comptage approximatif (suffisant pour le chunking RAG local) |
 | — | `src/pycrdt.py` | **Nouveau** : stub | pycrdt (Rust) non fourni ; collab dégradée (accumulateur d'updates) |
 
 ## Dépendances retirées (voir `requirements-min.txt`)

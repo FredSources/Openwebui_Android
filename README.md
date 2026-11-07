@@ -1,12 +1,17 @@
-# OpenWebUI Android — APK autonome « sans RAG »
+# OpenWebUI Android — APK autonome avec RAG
+
+[![Build APK](https://github.com/FredSources/Openwebui_Android/actions/workflows/build-apk.yml/badge.svg)](https://github.com/FredSources/Openwebui_Android/actions/workflows/build-apk.yml)
 
 APK Android qui embarque le serveur **Open WebUI 0.13.0** (FastAPI + SQLite +
 frontend SvelteKit compilé) dans un interpréteur **Python 3.13** (Chaquopy),
 avec l'interface affichée dans une WebView locale (`http://127.0.0.1:8080`).
 Le **LLM reste distant** : Ollama ou API OpenAI-compatible sur ton PC/serveur.
 
-> Le **RAG est volontairement retiré** (chromadb, torch, sentence-transformers…),
-> ainsi que le traitement audio local. Voir `PATCHES.md` pour le détail exact.
+> Le **RAG est actif** : base vectorielle **locale** (`LocalVectorDB`, SQLite +
+> numpy, force brute) pour le stockage des vecteurs ; les **embeddings sont
+> calculés à distance par API** — la plateforme Android ne permet pas le calcul
+> d'embedding local (pas de torch/sentence-transformers). La dictée utilise le
+> moteur vocal natif Android. Voir `PATCHES.md` pour le détail exact.
 
 ## Contenu du dépôt
 
@@ -15,7 +20,7 @@ Le **LLM reste distant** : Ollama ou API OpenAI-compatible sur ton PC/serveur.
 | `AGENTS.md` | Objectif, périmètre, décisions, règle d'isolation |
 | `todo.md` / `journal.md` | Suivi des tâches / historique horodaté |
 | `PATCHES.md` | Toutes les modifications du code Open WebUI |
-| `requirements-min.txt` | Dépendances Python embarquées (slim − RAG − natifs absents) |
+| `requirements-min.txt` | Dépendances Python embarquées (slim, RAG léger `LocalVectorDB`) |
 | `vendor/unpacked/` | Wheel Open WebUI pristine (source des patchs) |
 | `vendor/searxng/` | SearXNG figé (commit `a30b2d4749`) — copié dans `src/searx/` |
 | `src/` | Code Python embarqué (Open WebUI patché + SearXNG + shims) |
@@ -59,6 +64,20 @@ bash scripts/build.sh            # → dist/app-debug.apk
 
 Pour un APK signé « release » : `bash scripts/build.sh assembleRelease`
 (générer d'abord un keystore et le référencer dans `app/build.gradle`).
+
+## CI/CD (GitHub Actions)
+
+`.github/workflows/build-apk.yml` build les APK **debug et release** à chaque push
+ou PR (artifacts), et publie une **Release GitHub** avec les APK pour chaque tag
+`v*` :
+
+```bash
+git tag v0.3.0 && git push origin v0.3.0   # → release + APK attachés
+```
+
+Signature release : ajouter les secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,
+`KEY_ALIAS`, `KEY_PASSWORD` au dépôt — sinon l'APK release est signé avec la clé
+debug (installable, pour tests).
 
 ## Installation et usage
 

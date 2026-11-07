@@ -409,9 +409,9 @@ serveur n'est pas confirmée.
 
 == Intégration continue (GitHub Actions)
 
-`.github/workflows/build-apk.yml` build les APK _debug_ et _release_ à chaque push
-ou PR (artifacts téléchargeables), et publie une Release GitHub avec les APK pour
-chaque tag `v*`. Adaptations automatiques du runner x86_64 : retrait de la surcharge
+`.github/workflows/build-apk.yml` build les APK _debug_ et _release_ uniquement
+au push d'un tag `v*`, et publie la Release GitHub avec les APK attachés.
+Adaptations automatiques du runner x86_64 : retrait de la surcharge
 `aapt2FromMavenOverride` (qemu), JDK système accepté si `tools/jdk` (aarch64) est
 absent, `.venv313` recréé en CPython 3.13, SearXNG cloné au commit figé. Le
 `versionCode` CI vaut `10000 + numéro d'exécution`. Signature release : secrets

@@ -67,12 +67,11 @@ Pour un APK signé « release » : `bash scripts/build.sh assembleRelease`
 
 ## CI/CD (GitHub Actions)
 
-`.github/workflows/build-apk.yml` build les APK **debug et release** à chaque push
-ou PR (artifacts), et publie une **Release GitHub** avec les APK pour chaque tag
-`v*` :
+`.github/workflows/build-apk.yml` build les APK **debug et release** uniquement
+lors du push d'un tag `v*`, et publie la **Release GitHub** avec les APK attachés :
 
 ```bash
-git tag v0.3.0 && git push origin v0.3.0   # → release + APK attachés
+git tag v0.3.0 && git push origin v0.3.0   # → build CI + release + APK attachés
 ```
 
 Signature release : ajouter les secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,

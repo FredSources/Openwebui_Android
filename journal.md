@@ -499,8 +499,9 @@ D15 : le RAG est actif avec `LocalVectorDB` (vecteurs locaux SQLite+numpy) et de
 **embeddings distants par API** (la plateforme interdit le calcul d'embedding local).
 Corrigé : « APK autonome avec RAG » dans README, diagramme AGENTS.md, PATCHES.md.
 
-**CI/CD** (`.github/workflows/build-apk.yml`) : build debug + release à chaque
-push/PR (artifacts), Release GitHub avec APK pour chaque tag `v*` :
+**CI/CD** (`.github/workflows/build-apk.yml`) : build debug + release
+**uniquement au push d'un tag `v*`** (souhait utilisateur — pas de build à chaque
+commit), Release GitHub avec les APK attachés :
 - runner x86_64 : la surcharge aapt2/qemu est retirée (`sed` sur gradle.properties)
   et `build.sh`/`env.sh` acceptent un JDK système si `tools/jdk` (aarch64) est absent ;
 - `.venv313` recréé avec CPython 3.13 (chemin attendu par `buildPython`) ;
@@ -509,6 +510,11 @@ push/PR (artifacts), Release GitHub avec APK pour chaque tag `v*` :
 - versionCode CI = 10000 + run number ; signature release via secrets GitHub
   (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`), repli
   clé debug si absents.
+
+**Keystore release** : générée dans `~/.openwebui-release/` (PKCS12, RSA 4096,
+alias `openwebui-release`, 10 000 jours) — **hors du dépôt**, `chmod 600`, avec
+`CREDENTIALS.txt` (mots de passe + procédure de sauvegarde). Empreinte certificat
+SHA-256 `7F:A2:58:45:…:66:DC:34:E4`. À injecter en secrets GitHub pour la CI.
 
 ## Points ouverts
 

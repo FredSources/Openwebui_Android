@@ -1,6 +1,6 @@
 # build-apk.yml — CI/CD OpenWebUI Android
-# Build les APK debug + release à chaque push/PR, et publie une Release GitHub
-# avec les APK attachés pour chaque tag v*.
+# Build les APK debug + release UNIQUEMENT sur un tag v* (git tag vX.Y.Z),
+# et publie la Release GitHub avec les APK attachés.
 #
 # Particularités de la chaîne (voir docs/maintenance.typ) :
 #   - sources Python patchées générées par scripts/prepare_src.py (P1–P18)
@@ -19,10 +19,7 @@ name: Build APK
 
 on:
   push:
-    branches: [master]
     tags: ['v*']
-  pull_request:
-  workflow_dispatch:
 
 permissions:
   contents: write

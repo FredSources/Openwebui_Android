@@ -442,6 +442,24 @@ frontend est sain ; l'écran blanc est un phénomène propre à la WebView de l'
 - P15 : premier lancement migre les données créées dans la mauvaise arborescence.
 - P16 : purge des services/pids orphelins et `System.exit` en `onDestroy` (sécurité).
 
+## 2026-11-07 — Recherche web absente de l'inventaire d'outils (v15)
+
+**Symptôme** : l'UI fonctionne (v14 OK) mais le modèle déclare n'avoir aucun outil de
+recherche web ; `search_web`/`fetch_url` absents de la liste function-calling.
+
+**Cause** : `ENABLE_WEB_SEARCH` défaut à `'False'` en amont → la clé `web.search.enable`
+est éteinte, ce qui coupe `get_builtin_tools` (outils) *et* `chat_web_search_handler`
+(pipeline du chat, middleware ligne 2412). P12 n'avait débloqué qu'une des cinq
+conditions du gate ; les autres (capacités modèle, permissions) défautent à `True`.
+
+**Correctif (android_main, v15)** : `os.environ.setdefault('ENABLE_WEB_SEARCH', 'true')`
++ `_force_config_value(data_dir, 'web.search.enable', True)` (migration des DB existantes
+où la clé est stockée à `false`). Effet de bord assumé : une désactivation manuelle dans
+l'admin est réactivée au redémarrage — la recherche web est une fonctionnalité centrale.
+
+**Validé hôte** : `get_builtin_tools` avec un modèle sans métadonnées (cas DeepSeek via
+API) retourne 31 outils dont `search_web` et `fetch_url`.
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

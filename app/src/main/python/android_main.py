@@ -106,6 +106,15 @@ def _prepare_env() -> Path:
         also_replace=("embeded-searxng",),
     )
 
+    # Outils internet : ENABLE_WEB_SEARCH défaut à 'False' en amont, ce qui masque
+    # les outils search_web/fetch_url ET coupe le pipeline de recherche du chat.
+    # Forcé à true : la recherche web est une fonctionnalité centrale de l'app.
+    os.environ.setdefault("ENABLE_WEB_SEARCH", "true")
+    _force_config_value(
+        data_dir, "web.search.enable", True,
+        also_replace=("false", "False", "0"),
+    )
+
     # SearXNG embarqué : réglages locaux (clé secrète propre à l'appareil)
     _ensure_searxng_settings(data_dir)
     return data_dir
@@ -115,9 +124,10 @@ def _prepare_env() -> Path:
     os.environ.setdefault("ENABLE_OLLAMA_API", os.environ.get("ENABLE_OLLAMA_API", "true"))
 
 
-def _force_config_value(data_dir: Path, key: str, value: str, also_replace: tuple = ()) -> None:
+def _force_config_value(data_dir: Path, key: str, value, also_replace: tuple = ()) -> None:
     """Force une valeur de config en base si la clé est absente, vide, ou obsolète.
 
+    `value` est sérialisé en JSON (`str` → chaîne, `bool` → vrai booléen JSON).
     Les réglages sont stockés dans la table `config` (JSON) : les valeurs déjà
     semées ('') ne sont pas remplacées par la simple variable d'environnement.
     `also_replace` liste les anciennes valeurs à migrer (ex. typo « embeded »).

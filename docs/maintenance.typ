@@ -319,8 +319,11 @@ entrées zip` doit rester de l'ordre de 8 Ko.
 
 Réglages essentiels depuis l'UI : *Admin → Documents* (moteur d'embedding distant
 + clé), *Admin → Audio* (STT « web » pour la dictée), *Admin → Recherche web*
-(moteur `embedded-searxng`), et activation de la capacité `web_search` du modèle
-(*Admin → Modèles*), sans laquelle l'assistant n'a aucun outil web.
+(moteur `embedded-searxng`). Depuis v15, `android_main` force `web.search.enable`
+à `true` au démarrage (`ENABLE_WEB_SEARCH`) : les outils `search_web`/`fetch_url`
+et le pipeline de recherche du chat sont actifs sans réglage manuel — y compris
+pour les modèles qui ne déclarent pas la capacité `web_search` dans leurs
+métadonnées (P12).
 
 = Dépannage rapide
 
@@ -330,6 +333,7 @@ Réglages essentiels depuis l'UI : *Admin → Documents* (moteur d'embedding dis
   [L'UI affiche une ancienne version], [cache WebView], [réinstaller + forcer l'arrêt / vider le cache ; normalement automatique via le `versionCode`],
   [« no speech » à la dictée], [micro occupé ou permissions], [accorder micro/caméra ; l'app relance déjà l'écoute 3 fois],
   [Recherche web vide], [moteurs amont bloqués (IP datacenter) ou moteur mal configuré], [vérifier `Admin → Recherche web` ; le message d'erreur porte désormais le moteur lu],
+  [Pas d'outils web (`search_web`/`fetch_url` absents de l'inventaire)], [`web.search.enable` éteint (`ENABLE_WEB_SEARCH` défaut `False` en amont) — bloque aussi le pipeline de recherche du chat], [depuis v15 : `android_main` force la clé à `true` au démarrage (env + table `config`) ; vérifier par `sqlite3 webui.db \"SELECT value FROM config WHERE key='web.search.enable'\"`],
   [RAG inactif au téléversement], [pas d'API d'embeddings configurée], [configurer *Admin → Documents* (embeddings distants obligatoires)],
   [Build pip : `from versions: none`], [paquet natif absent du dépôt Android], [cross-build (maturin/setuptools) ou retirer la dépendance — cf. @sec-composants],
   [Build pip : conflit `numpy`/`grpcio-tools`], [dépendance exigeant des versions natives supérieures], [pinner une version amont antérieure compatible],

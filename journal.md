@@ -516,6 +516,13 @@ alias `openwebui-release`, 10 000 jours) — **hors du dépôt**, `chmod 600`, a
 `CREDENTIALS.txt` (mots de passe + procédure de sauvegarde). Empreinte certificat
 SHA-256 `7F:A2:58:45:…:66:DC:34:E4`. À injecter en secrets GitHub pour la CI.
 
+## 2026-11-07 — Version 1.0.0 (tag v1.0.0)
+
+`versionName` passé à `1.0.0` (build.gradle). Tag `v1.0.0` poussé : première
+exécution de la CI « build sur tag » → Release GitHub avec APK debug + release.
+Les secrets de signature (`KEYSTORE_*`) n'étant pas encore posés, l'APK release
+est signé avec la clé debug (re-signable dès que les secrets sont injectés).
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

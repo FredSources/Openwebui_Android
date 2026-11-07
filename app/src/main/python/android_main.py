@@ -130,6 +130,11 @@ def _prepare_env(files_dir: str | None = None) -> Path:
         also_replace=("false", "False", "0"),
     )
 
+    # Interpréteur de code : le sandbox Pyodide (WASM) a été retiré du frontend
+    # (P13) — execute_code ne peut pas fonctionner : désactivé pour ne pas
+    # tromper le modèle. Réactivable depuis l'admin si un sandbox est ajouté.
+    _force_config_value(data_dir, "code_interpreter.enable", False)
+
     # SearXNG embarqué : réglages locaux (clé secrète propre à l'appareil)
     _ensure_searxng_settings(data_dir)
     return data_dir

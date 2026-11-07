@@ -588,6 +588,31 @@ compte les `assets/frontend/_app/` dans l'APK et rejette tout APK < 500 fichiers
 Leçons : (1) vérifier le CONTENU de l'APK livré, pas seulement son build ;
 (2) tester avec l'environnement réel de l'appli, jamais un serveur parallèle.
 
+## 2026-11-07 — v1.0.3 : check complet de l'UI → 4 correctifs
+
+Check utilisateur des outils dans l'appli (v1.0.2) : 4 pannes, 4 causes, 4 fixes —
+
+1. **compile_typst** « os error 2 » : `typst.compile(str)` interprète la chaîne
+   comme un CHEMIN de fichier (preuve hôte : identique). Fix : `source` passe en
+   **octets** (une ligne de texte compile), `file_path` passe par son **vrai
+   chemin** (contexte `#include`/images relatifs) — les deux cas demandés.
+2. **search_web** (8888 injoignable) : `markdown_it` importe `linkify_it` au
+   chargement — module **absent de l'APK** → le thread SearXNG meurt silencieusement.
+   Fix : `linkify-it-py` ajouté à requirements-min (débusqué par test à import
+   bloqué sur le code exact de l'APK).
+3. **Fuseau horaire** « No time zone found with key UTC » (et worker des
+   automatisations) : Android n'a pas `/usr/share/zoneinfo`. Fix : `tzdata`
+   (base IANA embarquée) ajouté à requirements-min.
+4. **execute_code** « loadPyodide is not defined » : Pyodide a été retiré du
+   frontend (P13) — l'outil ne peut pas marcher. Fix : `code_interpreter.enable`
+   forcé à false (outil masqué, réactivable en admin).
+
+**Embeddings** : testé le relay LLM de l'utilisateur (`/embeddings` → 404) :
+pas d'API d'embedding disponible. Options documentées : Ollama sur le PC
+(`nomic-embed-text` via OLLAMA_BASE_URL) ou toute API compatible OpenAI
+(Admin → Documents). Les outils sémantiques (query_knowledge_*, add_memory)
+restent en erreur propre tant qu'aucune n'est configurée.
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

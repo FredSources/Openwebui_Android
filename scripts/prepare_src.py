@@ -330,14 +330,16 @@ async def compile_typst(
         user = __user__ or {}
 
         def _read_and_compile() -> bytes:
-            text = source
-            if not text:
-                if not file_path:
-                    raise ValueError("Fournir 'source' (texte Typst) ou 'file_path' (fichier .typ).")
-                local = Storage.get_file(file_path)
-                with open(local, encoding="utf-8") as handle:
-                    text = handle.read()
-            return typst_lib.compile(text)
+            # typst.compile : une chaîne (str) est interprétée comme un CHEMIN de
+            # fichier (→ « os error 2 » si absent) ; le code source doit passer en
+            # OCTETS, et un fichier doit passer par son vrai chemin (contexte des
+            # #include et images relatifs).
+            if source:
+                return typst_lib.compile(source.encode("utf-8"))
+            if not file_path:
+                raise ValueError("Fournir 'source' (texte Typst) ou 'file_path' (fichier .typ).")
+            local = Storage.get_file(file_path)
+            return typst_lib.compile(local)
 
         pdf_bytes = await asyncio.to_thread(_read_and_compile)
 

@@ -336,6 +336,7 @@ Réglages essentiels depuis l'UI : *Admin → Documents* (moteur d'embedding dis
   [L'APK grossit anormalement], [packaging incrémental], [`build.sh` nettoie déjà ; vérifier qu'on ne passe pas par un autre script],
   [« Erreur au démarrage : … migrations/env.py »], [Chaquopy retire les `.py` après compilation bytecode, or Alembic lit les fichiers de `migrations/`], [patch P16 (`extractPackages`) — vérifier la présence de `open_webui/migrations/__init__.py` dans `src/`],
   [« dlopen failed … .abi3.so » (uuid_utils, typst)], [les wheels **abi3** (PyO3) ne lient pas `libpython` : symboles `Py*` indéfinis au chargement — fatal sous Android], [`build-wheels.sh` force la liaison via **`PYO3_CONFIG_FILE`** (`suppress_build_script_link_lines=false`) ; vérifier par `readelf -d <module>.so | grep NEEDED` (doit mentionner `libpython3.13.so`), puis rebuild des wheels — plan B : `patchelf --add-needed libpython3.13.so`],
+  [Le correctif wheel « ne prend pas » (même erreur après rebuild)], [la tâche pip de Chaquopy ne suit que le *fichier* de requirements : un wheel reconstruit (même nom/version) n'est pas réinstallé — l'ancien `.so` reste dans l'APK], [`build.sh` vide `app/build/python|generated` + `intermediates/assets` à chaque build ; vérifier le `.so` de `app/build/python/pip/debug/common/` par `readelf` avant livraison],
   [Le serveur ne démarre pas sur l'appareil], [exception d'import], [lire logcat (`adb logcat | grep python`) ; cause fréquente : nouvelle dépendance non embarquée],
 )
 
@@ -384,6 +385,21 @@ bash scripts/build-wheels.sh  # wheels Rust uniquement
 bash scripts/prepare_src.py   # régénérer src/ (patchs)
 bash scripts/smoke.sh         # test de fumée hôte
 adb install -r dist/app-debug.apk")
+
+== Règles de test hôte (serveur de développement)
+
+Le test hôte (`scripts/smoke.sh`) vérifie le code embarqué sans appareil. Deux pièges
+invalident tout test s'ils ne sont pas contrôlés :
+
+- _Serveurs zombies_ : `fuser`/`pkill` sont inefficaces sous proot ; un ancien serveur peut
+  rester sur le port 8080 et répondre avec du code périmé. Toujours tuer par PID :
+  `pgrep -f 'venv313/bin/pyth[o]n'` (classe de caractères pour ne pas tuer la commande de
+  kill elle-même), puis vérifier `pgrep -f "$PAT" | wc -l` vaut 0.
+- _Démarrage lent_ : le serveur met environ 40 s à être prêt. Attendre `/health` en boucle
+  (requête toutes les 3 s) avant tout test — un `sleep` court produit des faux négatifs.
+
+Un seul serveur par test ; ne jamais inférer un bug applicatif d'un test dont l'identité du
+serveur n'est pas confirmée.
 
 == Pistes d'évolution
 

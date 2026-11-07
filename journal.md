@@ -383,6 +383,15 @@ Lire ce fichier avant chaque session ; y ajouter chaque action.
     rebâtis : `readelf -d` confirme `NEEDED libpython3.13.so` ✅.
     Plan B documenté : `patchelf --add-needed` (installé dans le venv hôte).
     Vérification systématique ajoutée au dépannage (`readelf | grep NEEDED`).
+- **Suite : « toujours la même erreur »** après le build précédent.
+  → **Cause** (prouvée) : la tâche pip de Chaquopy ne suit que le *fichier*
+    de requirements — un wheel **reconstruit sous le même nom/version**
+    n'est jamais réinstallé. Les tâches Python étaient `UP-TO-DATE` et l'APK
+    contenait l'ancien `_uuid_utils.abi3.so` (sans libpython). 
+  → **Correctif** : `build.sh` supprime désormais `app/build/python`,
+    `app/build/generated` et `intermediates/assets` avant chaque build
+    (réinstallation pip + régénération des assets forcées), et le `.so`
+    empaqueté est vérifié par `readelf` avant livraison.
 
 ## Décisions cumulées (suite)
 
@@ -404,6 +413,34 @@ Lire ce fichier avant chaque session ; y ajouter chaque action.
 | D14 | **Outil Typst** : `typst-py` (compilateur Typst en lib Rust, maturin) cross-buildé + outil Open WebUI `compile_typst` (`.typ` → PDF) via un patch `tools/builtin.py` | demande utilisateur ; pipeline Rust déjà rodé (msgspec) |
 | D15 | **RAG final** : embeddings distants (API) + `LocalVectorDB` (SQLite + numpy, force brute) en stockage local — `VECTOR_DB=local` par défaut | plateforme = pas de calcul d'embedding local ; la base vectorielle peut être locale ; clients distants (qdrant…) retirés (blocages numpy/grpcio-tools/protobuf) |
 | D16 | **Reproductibilité** : `scripts/setup-env.sh` (+ `docs/environnement.pdf`) reconstruit l'environnement complet depuis le dépôt git seul ; ne versionner que sources/scripts/docs/wheels/wrappers | reprendre le projet sur machine neuve sans doc perdue ni environnement fantôme |
+
+## 2026-11-07 — Leçon majeure : serveurs zombies et tests faussés (incidents #7-#8)
+
+**Ce qui s'est passé** : lors du diagnostic « écran blanc après la barre 100 % », toute une
+série de tests (404 sur `/_app/**.js`, traces invisibles, fichiers introuvables) ont fait
+croire à un bug de `SPAStaticFiles`. Vraie cause : `fuser`/`pkill` ne marchent pas sous proot
+et les motifs `ps aux | grep '[.]venv313/bin/python'` se tuaient parfois eux-mêmes → **des
+serveurs périmés restaient vivants sur 8080** et répondaient aux tests avec l'ancien code.
+L'appareil Android, lui, tournait avec le code courant.
+
+**Règles de test désormais obligatoires** :
+1. Tuer par PID avec motif insécable : `pgrep -f 'venv313/bin/pyth[o]n'` (classe de
+   caractères : ne matche pas la commande de kill elle-même) ; jamais `pkill`/`fuser`.
+2. Vérifier l'extinction : `pgrep -f "$PAT" | wc -l` doit valoir 0.
+3. Un seul serveur par test ; attendre `/health` en boucle (3 s, ~40 s de démarrage) avant
+   tout test — jamais de `sleep` fixe trop court.
+4. Ne jamais inférer un bug applicatif d'un test sans identité de serveur confirmée.
+
+**Validé sur serveur propre** : `/_app/immutable/entry/start.BHzHmkW5.js` → 200
+(`text/javascript`), `/assets/welcome.mp4` → 200, `/favicon.png` → 200. Le service du
+frontend est sain ; l'écran blanc est un phénomène propre à la WebView de l'appareil.
+
+**Correctifs embarqués (v14)** pour le rendre visible et le résoudre :
+- `MainActivity` : `onReceivedError` + `checkLogs()` → toute erreur de chargement ou console
+  JS s'affiche dans un écran de diagnostic au lieu d'un blanc.
+- Barre de progression temps réel (estimation 90 × 3 s) : ne reste plus figée.
+- P15 : premier lancement migre les données créées dans la mauvaise arborescence.
+- P16 : purge des services/pids orphelins et `System.exit` en `onDestroy` (sécurité).
 
 ## Points ouverts
 

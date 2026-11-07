@@ -28,7 +28,12 @@ fi
 #    (zipflinger) réutilise l'APK précédent et append les entrées changées ;
 #    app.imy (110 Mo) étant réécrit à chaque patch, ses anciennes copies
 #    s'accumulent dans le zip (193 → 303 Mo constatés). Cf. journal.
-rm -rf "$PROJ/app/build/outputs/apk" "$PROJ/app/build/intermediates/apk"
+#    + app/build/python : la tâche pip de Chaquopy ne suit que le FICHIER de
+#    requirements — un wheel reconstruit (même nom/version) n'est jamais
+#    réinstallé : l'ancien .so restait dans l'APK (cas uuid_utils/typst abi3).
+rm -rf "$PROJ/app/build/outputs/apk" "$PROJ/app/build/intermediates/apk" \
+       "$PROJ/app/build/python" "$PROJ/app/build/generated" \
+       "$PROJ/app/build/intermediates/assets"
 # versionCode auto-incrémenté → purge du cache WebView à chaque nouvelle version
 VC=1
 [ -f "$PROJ/version_code" ] && VC=$(( $(cat "$PROJ/version_code") + 1 ))

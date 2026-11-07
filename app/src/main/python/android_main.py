@@ -266,6 +266,33 @@ def start_server(port: int = APP_PORT) -> int:
                 import uvicorn
                 from open_webui.main import app
 
+                # Diagnostic : répertoire(s) réellement monté(s) pour l'UI
+                try:
+                    import inspect
+                    import open_webui.main as _m
+                    from starlette.routing import Mount
+                    log.warning("main.py chargé depuis : %s", _m.__file__)
+                    for route in app.routes:
+                        if isinstance(route, Mount) and type(route.app).__name__ == 'SPAStaticFiles':
+                            log.warning("SPA configurée (frontend : %s)", dirs)
+                    for route in app.routes:
+                        if isinstance(route, Mount) and type(route.app).__name__ == 'SPAStaticFiles':
+                            dirs = getattr(route.app, 'all_directories', None)
+                            log.warning("SPA montée sur %r -> %s", route.path, dirs)
+                            for d in dirs or []:
+                                p = Path(str(d))
+                                log.warning("  %s existe=%s probe=%s nb_fichiers=%s",
+                                            p, p.is_dir(), (p / 'probe.txt').exists(),
+                                            len(list(p.rglob('*'))) if p.is_dir() else -1)
+                                sa = route.app
+                                fake = {'type': 'http', 'method': 'GET', 'path': '/probe.txt',
+                                        'root_path': '', 'headers': [], 'query_string': b''}
+                                gp = sa.get_path(fake)
+                                lp = sa.lookup_path(gp)
+                                log.warning("  get_path=%r lookup=%s", gp, lp[1] is not None)
+                except Exception:
+                    pass
+
                 config = uvicorn.Config(
                     app,
                     host="127.0.0.1",

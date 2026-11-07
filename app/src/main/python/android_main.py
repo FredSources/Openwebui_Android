@@ -250,6 +250,14 @@ def _start_searxng() -> None:
             httpd.serve_forever()
         except Exception as exc:
             log.exception("SearXNG embarqué indisponible : %s", exc)
+            # P22 : la trace complète est conservée dans le journal — l'outil
+            # search_web l'annexe à son message d'erreur (diagnostic direct).
+            try:
+                import traceback as _tb
+                _log = Path(os.environ.get("DATA_DIR", ".")) / "searxng.log"
+                _log.write_text(_tb.format_exc(), encoding="utf-8")
+            except Exception:
+                pass
 
     threading.Thread(target=run, name="searxng", daemon=True).start()
 

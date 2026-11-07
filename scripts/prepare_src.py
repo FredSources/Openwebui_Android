@@ -324,7 +324,7 @@ async def compile_typst(
 
         import typst as typst_lib
 
-        from open_webui.models.files import FileModel, Files
+        from open_webui.models.files import FileForm, Files
         from open_webui.storage.provider import Storage
 
         user = __user__ or {}
@@ -356,17 +356,15 @@ async def compile_typst(
             "OpenWebUI-File-Id": file_id,
         }
         _, stored_path = await asyncio.to_thread(Storage.upload_file, io.BytesIO(pdf_bytes), filename, tags)
-        now = int(time.time())
-        await Files.insert(
-            FileModel(
+        await Files.insert_new_file(
+            user.get("id", ""),
+            FileForm(
                 id=file_id,
-                user_id=user.get("id", ""),
                 filename=filename,
                 path=stored_path,
+                data={},
                 meta={"name": f"{base}.pdf", "content_type": "application/pdf", "size": len(pdf_bytes)},
-                created_at=now,
-                updated_at=now,
-            )
+            ),
         )
         return JSONCodec.dumps(
             {
@@ -381,6 +379,43 @@ async def compile_typst(
         log.exception(f"compile_typst error: {exc}")
         return JSONCodec.dumps({"error": str(exc)})
 '''
+
+
+def patch_recurrence_thread() -> None:
+    """P21 — anyio.to_process (sous-processus) est impossible sur Android :
+    les calculs de récurrence passent en thread local."""
+    replace_once(
+        DST / "utils" / "recurrence.py",
+        "            return await to_process.run_sync(_next_occurrences, s, now, n, cancellable=True)",
+        "            # P21 : to_process (sous-processus) interdit sur Android — thread local.\n"
+        "            return await to_thread.run_sync(_next_occurrences, s, now, n)",
+        "P21 recurrence to_thread",
+    )
+
+
+def patch_search_error_log() -> None:
+    """P22 — l'échec de recherche web inclut la fin du journal SearXNG
+    (diagnostic du démarrage de l'instance embarquée)."""
+    replace_once(
+        DST / "tools" / "builtin.py",
+        "    except Exception as e:\n"
+        "        log.exception(f'search_web error: {e}')\n"
+        "        return JSONCodec.dumps({'error': str(e)})",
+        "    except Exception as e:\n"
+        "        log.exception(f'search_web error: {e}')\n"
+        "        detail = str(e)\n"
+        "        try:\n"
+        "            import os as _os\n"
+        "            from open_webui.config import DATA_DIR as _DD\n"
+        "            _lp = _os.path.join(str(_DD), 'searxng.log')\n"
+        "            if _os.path.exists(_lp):\n"
+        "                with open(_lp, encoding='utf-8', errors='replace') as _f:\n"
+        "                    detail += '\\n--- journal SearXNG ---\\n' + _f.read()[-600:]\n"
+        "        except Exception:\n"
+        "            pass\n"
+        "        return JSONCodec.dumps({'error': detail})",
+        "P22 search_web journal searxng",
+    )
 
 
 def patch_typst_tool() -> None:
@@ -583,10 +618,42 @@ class Doc:
 '''
 
 
+RE2_SHIM = '''\
+"""re2 — shim sur `re` (google-re2 est natif et non fourni sur Android).
+
+API utilisée par open_webui (knowledge_fs) : Options(), compile(pattern,
+options=...), error. Les attributs max_mem/log_errors de Options sont acceptés
+et ignorés : `re` (backtracking) remplace RE2, suffisant pour la recherche
+dans les fichiers de connaissances et les skills.
+"""
+import re as _re
+from re import error, escape, match, search, split, sub, findall, finditer  # noqa: F401
+
+
+class Options:
+    case_sensitive: bool = True
+    literal: bool = False
+    max_mem: int = 0
+    log_errors: bool = True
+
+
+def compile(pattern, options=None, flags=0):  # noqa: A001
+    if options is not None:
+        if not getattr(options, "case_sensitive", True):
+            flags |= _re.IGNORECASE
+        if getattr(options, "literal", False):
+            pattern = _re.escape(pattern)
+    return _re.compile(pattern, flags)
+'''
+
+
 def write_stubs(with_native_pycrdt: bool) -> None:
     (SRC / "tiktoken.py").write_text(TIKTOKEN_SHIM, encoding="utf-8")
     log("  shim tiktoken.py écrit")
     PATCHES.append(("shim tiktoken", "écrit"))
+    (SRC / "re2.py").write_text(RE2_SHIM, encoding="utf-8")
+    log("  shim re2.py écrit")
+    PATCHES.append(("shim re2", "écrit"))
     if with_native_pycrdt:
         log("  pycrdt natif demandé : pas de stub (le wheel local doit exister)")
     else:
@@ -772,6 +839,8 @@ def main() -> int:
     patch_frontend_engines()
     copy_searxng()
     patch_typst_tool()
+    patch_recurrence_thread()
+    patch_search_error_log()
     write_null_vector_db()
     write_local_vector_db()
     slim_frontend()

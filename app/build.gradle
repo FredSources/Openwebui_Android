@@ -16,7 +16,7 @@ android {
         // MainActivity s'en sert pour purger le cache WebView quand l'UI change
         def vcodeStr = project.hasProperty('vcode') ? project.property('vcode') : '1'
         versionCode vcodeStr.toString().toInteger()
-        versionName '1.0.3'
+        versionName '1.0.4'
 
         // Python = composant natif : arm64-v8a couvre tous les téléphones récents
         ndk {
@@ -31,7 +31,8 @@ android {
 
             // P16 : Alembic lit migrations/*.py comme des fichiers — les .py
             // doivent rester sur disque malgré la compilation bytecode
-            extractPackages "open_webui.migrations", "open_webui.migrations.versions"
+            // + searx : settings.yml, locales et static doivent être sur disque
+            extractPackages "open_webui.migrations", "open_webui.migrations.versions", "searx"
 
             pip {
                 // wheels Android cross-buildés localement (pydantic-core, jiter)

@@ -613,6 +613,31 @@ pas d'API d'embedding disponible. Options documentées : Ollama sur le PC
 (Admin → Documents). Les outils sémantiques (query_knowledge_*, add_memory)
 restent en erreur propre tant qu'aucune n'est configurée.
 
+## 2026-11-07 — v1.0.4 : re-test complet (40 outils) → 4 causes profondes
+
+Re-test utilisateur sans réutiliser les résultats : 24 OK, 2 dégradés, 12 en panne
+regroupés en 6 causes. Corrections —
+
+1. **compile_typst** « 'FilesTable' object has no attribute 'insert' » : l'outil
+   appelait `Files.insert(...)` — l'API réelle est `Files.insert_new_file(user_id,
+   FileForm(...))`. Corrigé (le compilateur, lui, fonctionnait déjà).
+2. **grep_knowledge_files / grep_skill_files** « module 're' has no attribute
+   'Options' » : `knowledge_fs` utilise l'API `re2.Options` (google-re2, natif
+   absent) avec repli `import re as re2` — `re` n'a pas `Options`. Fix : shim
+   `src/re2.py` (Options/compile/error sur `re`, littéral + case-insensitive
+   testés).
+3. **Automatisations** « Error during worker process initialization » : la source
+   est `anyio.to_process.run_sync` (sous-processus impossible sur Android) dans
+   `utils/recurrence.py`. Fix P21 : `to_thread.run_sync`.
+4. **search_web** toujours injoignable malgré linkify-it-py : la trace du thread
+   SearXNG était perdue. Maintenant écrite dans `data_dir/searxng.log` (P22) et
+   **annexée au message d'erreur de search_web** — le prochain test porte la
+   cause exacte. + `extractPackages "searx"` (settings.yml/locales/static sur
+   disque, par sécurité).
+
+Embeddings : le relay de l'utilisateur ne sert pas /embeddings (404) — attendons
+l'URL + le modèle configurés côté appareil pour corriger (soupçon : nom de modèle).
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

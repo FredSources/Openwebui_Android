@@ -59,19 +59,34 @@ def _set_status(data_dir: Path, message: str, progress: int | None = None) -> No
         pass
 
 
-def _prepare_env() -> Path:
-    """Variables d'environnement Open WebUI pour Android (avant tout import du package)."""
+def _prepare_env(files_dir: str | None = None) -> Path:
+    """Variables d'environnement Open WebUI pour Android (avant tout import du package).
+
+    Garantie d'isolation : TOUT fichier (base, uploads, cache, temporaires) est
+    écrit dans l'espace privé de l'application — <files>/data, <files>/tmp,
+    <files>/cache — où <files> est getFilesDir() fourni par MainActivity.
+    """
     import open_webui  # noqa: F401  (le paquet doit être localisable)
     pkg_dir = Path(open_webui.__file__).parent
 
-    home = os.environ.get("HOME") or str(pkg_dir.parent)
-    data_dir = Path(home) / "data"
+    # files_dir (getFilesDir()) est prioritaire sur HOME : aucune écriture ne
+    # doit dépendre d'un HOME implicite du runtime.
+    home = Path(files_dir or os.environ.get("HOME") or pkg_dir.parent).resolve()
+    home.mkdir(parents=True, exist_ok=True)
+    os.environ["HOME"] = str(home)  # forcé (et non setdefault) pour tous les importeurs
+    for sub, var in (("tmp", "TMPDIR"), ("cache", "XDG_CACHE_HOME")):
+        d = home / sub
+        d.mkdir(parents=True, exist_ok=True)
+        os.environ[var] = str(d)
+
+    data_dir = home / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
 
     # configuration utilisateur (RAG distant, etc.) — avant toute lecture d'env
     _load_env_file(data_dir)
 
     os.environ.setdefault("DATA_DIR", str(data_dir))
+    log.warning("espace applicatif : HOME=%s DATA_DIR=%s", home, data_dir)
     # Frontend : extrait par MainActivity dans $HOME/frontend (assets, versionné) ;
     # repli sur le paquet Python pour les tests hôte.
     extracted = Path(home) / "frontend"
@@ -262,13 +277,13 @@ def _warm_up_then_searxng(data_dir: Path, port: int) -> None:
         _set_status(data_dir, 'Prêt (sans recherche web)', 100)
 
 
-def start_server(port: int = APP_PORT) -> int:
+def start_server(port: int = APP_PORT, files_dir: str | None = None) -> int:
     """Lance uvicorn dans un thread daemon. Retourne le port. Idempotent."""
     global _started
     with _lock:
         if _started:
             return port
-        data_dir = _prepare_env()
+        data_dir = _prepare_env(files_dir)
         _set_status(data_dir, "Démarrage du serveur Open WebUI…", 45)
 
         def run() -> None:

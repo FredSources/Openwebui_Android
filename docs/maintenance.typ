@@ -316,7 +316,14 @@ entrées zip` doit rester de l'ordre de 8 Ko.
   [`files/data/vector_db/local_vectors.sqlite3`], [vecteurs RAG locaux],
   [`files/data/searxng-settings.yml`], [réglages SearXNG (clé secrète générée) ],
   [`files/data/openwebui.env`], [variables d'environnement optionnelles (`KEY=VALUE`) ],
+  [`files/tmp/`], [temporaires Python (`TMPDIR`) ],
+  [`files/cache/`], [caches diverses (`XDG_CACHE_HOME`) ],
 )
+
+Depuis v1.0.1, tous ces chemins découlent explicitement de `getFilesDir()`
+transmis par `MainActivity` à `start_server` — `HOME`, `TMPDIR` et
+`XDG_CACHE_HOME` sont *forcés* dans l'espace privé
+(`/data/data/org.openwebui.android/files/…`) : aucun fichier n'est écrit ailleurs.
 
 Réglages essentiels depuis l'UI : *Admin → Documents* (moteur d'embedding distant
 + clé), *Admin → Audio* (STT « web » pour la dictée), *Admin → Recherche web*

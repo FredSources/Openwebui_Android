@@ -163,7 +163,7 @@ public class MainActivity extends Activity {
             prepareFrontend();
             writeStatus(45, "Démarrage du serveur Open WebUI…");
             Python py = Python.getInstance();
-            py.getModule("android_main").callAttr("start_server", 8080);
+            py.getModule("android_main").callAttr("start_server", 8080, getFilesDir().getAbsolutePath());
         } catch (Exception e) {
             writeStatus(100, "Erreur : " + e);
             mainHandler.post(() -> showError("Erreur Python : " + e.getMessage()));

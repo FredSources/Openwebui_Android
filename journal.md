@@ -552,6 +552,20 @@ ultérieures (signature différente).
 et CI identiques ; vérification CI ajustée. La release `v1.0.0` est re-publée
 (mêmes sources taggées, nommage explicite) — personne n'avait encore téléchargé.
 
+## 2026-11-07 — v1.0.1 : isolation stricte de l'espace applicatif
+
+Demande utilisateur : vérifier que TOUS les fichiers sont écrits dans
+`/data/data/org.openwebui.android`. Audit : Java utilisait déjà `getFilesDir()`,
+mais Python dépendait d'un `HOME` implicite (Chaquopy) et `TMPDIR`/caches n'étaient
+pas garantis. Correctif : `MainActivity` passe `getFilesDir()` à `start_server` ;
+`_prepare_env` force `HOME`, `TMPDIR`, `XDG_CACHE_HOME` dans l'espace privé
+(`<files>/data`, `<files>/tmp`, `<files>/cache`) — validé par test. Documenté dans
+`docs/maintenance.typ` (table des fichiers).
+
+À suivre : le bug de démarrage de l'appli signalé par l'utilisateur (le serveur de
+test masquait le vrai démarrage) reste à observer sur v1.0.1 — l'écran d'erreur
+affiche désormais la cause exacte.
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

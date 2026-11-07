@@ -10,6 +10,7 @@ export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export GRADLE_USER_HOME="$PROJ/.gradle-cache"
 export TMPDIR="$PROJ/.tmp"
 export PIP_CACHE_DIR="$PROJ/.pip-cache"
+mkdir -p "$TMPDIR" "$PIP_CACHE_DIR"   # absents d'un checkout neuf (CI)
 # JDK portable du projet (D5) ; sur CI, le JDK système (setup-java) fait l'affaire
 if [ -d "$PROJ/tools/jdk" ]; then
   export JAVA_HOME="$PROJ/tools/jdk"

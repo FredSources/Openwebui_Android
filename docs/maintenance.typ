@@ -220,6 +220,7 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P13], [`frontend/` (données)], [allègement : suppression des *source maps*, de `pyodide/` et `wasm/` (169 Mo) — ML navigateur et Python-navigateur désactivés, conformes à la règle « pas de calcul local » ; gain majeur de démarrage et de taille APK],
   [P14], [`routers/auths.py`, `routers/utils.py`, `routers/configs.py`], [imports différés : `ldap3` (1,7 s), `black` (0,9 s), `MCPClient`/`mcp` (~1-2 s) n'exécutent plus au démarrage — importés à l'usage],
   [P15], [`src/` → `src-assets/`], [le frontend sort des *assets Python* (extrait à l'import par Chaquopy) pour devenir des *assets Android*, extraits une fois par version par `MainActivity` avec progression ; `app.imy` et l'import Python s'effondrent],
+  [P16], [`open_webui/migrations/`], [`migrations/` et `versions/` marqués paquets + `extractPackages` : les `.py` restent sur disque malgré la compilation bytecode — Alembic *lit* `env.py`/`versions/*.py` comme des fichiers (correctif du blocage « … migrations/env.py » sur l'écran de démarrage)],
 )
 
 == Performances de démarrage
@@ -333,6 +334,7 @@ Réglages essentiels depuis l'UI : *Admin → Documents* (moteur d'embedding dis
   [Build pip : `from versions: none`], [paquet natif absent du dépôt Android], [cross-build (maturin/setuptools) ou retirer la dépendance — cf. @sec-composants],
   [Build pip : conflit `numpy`/`grpcio-tools`], [dépendance exigeant des versions natives supérieures], [pinner une version amont antérieure compatible],
   [L'APK grossit anormalement], [packaging incrémental], [`build.sh` nettoie déjà ; vérifier qu'on ne passe pas par un autre script],
+  [« Erreur au démarrage : … migrations/env.py »], [Chaquopy retire les `.py` après compilation bytecode, or Alembic lit les fichiers de `migrations/`], [patch P16 (`extractPackages`) — vérifier la présence de `open_webui/migrations/__init__.py` dans `src/`],
   [Le serveur ne démarre pas sur l'appareil], [exception d'import], [lire logcat (`adb logcat | grep python`) ; cause fréquente : nouvelle dépendance non embarquée],
 )
 

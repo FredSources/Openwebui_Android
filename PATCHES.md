@@ -19,6 +19,10 @@ Tous les patchs sont générés par `scripts/prepare_src.py` (idempotent, rejoua
 | P9b | `routers/retrieval.py` | Message d'erreur de `search_web()` qui porte le moteur lu | diagnostic des mauvaises configurations |
 | P11 | `tools/builtin.py` + `utils/tools.py` | Outil **`compile_typst`** (.typ → PDF) et son enregistrement | compilateur Typst embarqué (wheel `typst`) |
 | P12 | `utils/tools.py` | `features.get('web_search', True)` | les outils internet (`search_web` = `embedded-searxng`, `fetch_url`) sont exposés même quand le modèle ne déclare pas la capacité dans ses métadonnées |
+| P13 | `frontend/` (données) | allègement : source maps, `pyodide/`, `wasm/` supprimés (169 Mo) | ML navigateur et Python-navigateur retirés (règle « pas de calcul local ») |
+| P14 | `routers/auths.py`, `routers/utils.py`, `routers/configs.py` | imports différés : `ldap3`, `black`, `MCPClient` | −3,4 s au démarrage |
+| P15 | `src/` → `src-assets/` | frontend sorti des assets Python → assets Android extraits une fois par `MainActivity` (progression affichée) | import serveur 35,5 s → 11 s ; APK allégé |
+| P16 | `open_webui/migrations/` (+ `build.gradle`) | `migrations/` et `versions/` marqués paquets + `extractPackages` : les `.py` restent sur disque | Alembic lit `env.py`/`versions/*.py` en fichiers — Chaquopy les retirait après compilation bytecode (blocage « … migrations/env.py ») |
 | — | `src/searx/` | **SearXNG embarqué** (vendor figé sur `a30b2d4749`, 2026-08-28 — avant la migration `curl_cffi`) | serveur local `127.0.0.1:8888`, réglages générés par `android_main.py` (clé secrète propre à l'appareil, `search.formats: [html, json]`) |
 | — | `retrieval/vector/dbs/none.py` | **Nouveau** : `NullVectorDB` | RAG éteint (`VECTOR_DB=none`) : insertions ignorées, recherches vides |
 | — | `retrieval/vector/dbs/local.py` | **Nouveau** : `LocalVectorDB` | Base vectorielle **locale** SQLite + numpy (force brute vectorisée, score cosinus dans [0,1]) — `VECTOR_DB=local` |

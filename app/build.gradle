@@ -29,6 +29,10 @@ android {
             // python 3.13 du projet (isolation : rien hors du dépôt)
             buildPython "${rootDir}/.venv313/bin/python3"
 
+            // P16 : Alembic lit migrations/*.py comme des fichiers — les .py
+            // doivent rester sur disque malgré la compilation bytecode
+            extractPackages "open_webui.migrations", "open_webui.migrations.versions"
+
             pip {
                 // wheels Android cross-buildés localement (pydantic-core, jiter)
                 options '--find-links', "${rootDir}/wheels"

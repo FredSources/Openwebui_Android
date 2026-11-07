@@ -361,6 +361,16 @@ Lire ce fichier avant chaque session ; y ajouter chaque action.
     secondes, et **zone d'erreur rouge** (`Erreur au démarrage : …`) dès qu'une
     étape échoue — un blocage devient visible et lisible, jamais silencieux.
     Reprises : retry porté à 15 min, échec d'extraction signalé lui aussi.
+- **Retour appareil (la barre d'erreur fonctionne)** : « erreur import
+  migration/env.py » affichée en rouge à l'écran de démarrage.
+  → **Cause** : Chaquopy compile les `.py` en `.pyc` et **retire les sources**
+    de l'APK ; or Alembic *charge* `migrations/env.py` et `versions/*.py` depuis
+    le disque (`load_python_file`). Les smoke tests hôte ne le voyaient pas
+    (sources présentes).
+  → **Correctif P16** : `open_webui/migrations` et `migrations/versions` marqués
+    paquets (`__init__.py`) + `extractPackages` dans `build.gradle` — Chaquopy
+    conserve alors les `.py` pour ces paquets. Symptôme ajouté au
+    dépannage de `maintenance.pdf`.
 
 ## Décisions cumulées (suite)
 

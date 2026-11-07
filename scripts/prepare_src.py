@@ -665,6 +665,26 @@ def frontend_out_of_python() -> None:
     PATCHES.append(("frontend → assets Android", "déplacé"))
 
 
+def make_migrations_extractable() -> None:
+    """P16 — rend `migrations/` extractible en fichiers réels (.py conservés).
+
+    Chaquopy compile les .py en .pyc et RETIRE les sources de l'APK — mais
+    Alembic doit *lire* `migrations/env.py` et `migrations/versions/*.py`
+    comme des fichiers texte (load_python_file). Symptôme sur appareil :
+    « Erreur au démarrage : … migrations/env.py ». extractPackages (build.gradle)
+    ne conserve les .py que pour les PAQUETS : on marque donc les deux
+    répertoires comme paquets.
+    """
+    import os as _os
+    for rel in ("migrations", _os.path.join("migrations", "versions")):
+        init = DST / rel / "__init__.py"
+        if not init.exists():
+            init.write_text('"""Paquet marqué pour extractPackages (Alembic lit les sources)."""\n',
+                            encoding="utf-8")
+    log("  P16 migrations/ marquées paquets (extractPackages conserve les .py)")
+    PATCHES.append(("migrations extractibles (Alembic)", "P16"))
+
+
 def patch_lazy_imports() -> None:
     """P14 — imports coûteux différés (ldap3, black, MCP/boto3 au besoin)."""
     # black : utilisé par un seul endpoint (format_code) → import local
@@ -758,6 +778,7 @@ def main() -> int:
     write_local_vector_db()
     slim_frontend()
     frontend_out_of_python()
+    make_migrations_extractable()
     patch_lazy_imports()
     write_stubs(args.with_native_pycrdt)
     log(f"terminé : {len(PATCHES)} opération(s)")

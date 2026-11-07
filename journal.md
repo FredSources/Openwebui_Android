@@ -371,6 +371,18 @@ Lire ce fichier avant chaque session ; y ajouter chaque action.
     paquets (`__init__.py`) + `extractPackages` dans `build.gradle` — Chaquopy
     conserve alors les `.py` pour ces paquets. Symptôme ajouté au
     dépannage de `maintenance.pdf`.
+- **Retour appareil** : « dlopen failed `_uuid_utils.abi3.so` ».
+  → **Cause** (prouvée par `readelf`/`nm`) : les wheels **abi3** (PyO3) ne lient
+    PAS `libpython` — 95 symboles `Py*` indéfinis, aucune `DT_NEEDED` sur
+    libpython → dlopen impossible sur Android (sur desktop, les symboles se
+    résolvent à l'exécution). `pydantic_core` (non-abi3) liait libpython et
+    chargeait bien. `typst` (abi3 aussi) était concerné au même titre.
+  → **Correctif** : `build-wheels.sh` génère un **`PYO3_CONFIG_FILE`** avec
+    `suppress_build_script_link_lines=false` (mécanisme officiel PyO3) +
+    `CARGO_TARGET_..._RUSTFLAGS` en renfort. Les deux wheels ont été
+    rebâtis : `readelf -d` confirme `NEEDED libpython3.13.so` ✅.
+    Plan B documenté : `patchelf --add-needed` (installé dans le venv hôte).
+    Vérification systématique ajoutée au dépannage (`readelf | grep NEEDED`).
 
 ## Décisions cumulées (suite)
 

@@ -75,6 +75,27 @@ export CARGO_TARGET_AARCH64_LINUX_ANDROID_AR="/data/data/com.termux/files/usr/bi
 # libpython3.13 (prefix PyO3) + libunwind.a (copié dans tools/ndk-cc/lib, le NDK
 # officiel ne l'expédie pas pour ce target)
 export RUSTFLAGS="-L native=$PYO3_ROOT/lib -L native=$WRAP/lib"
+# Les wheels ABI3 (uuid_utils, typst) ne lient PAS libpython : PyO3 considère que
+# les symboles Py* seront résolus à l'exécution — vrai sur desktop, FAUX sur
+# Android (dlopen échoue). On force la liaison via le config PyO3 officiel :
+# suppress_build_script_link_lines=false → pyo3 émet -lpython3.13 au link.
+mkdir -p "$PROJ/tools/pyo3"
+PYO3_CONF="$PROJ/tools/pyo3/pyo3-config.txt"
+cat > "$PYO3_CONF" <<EOF
+implementation=CPython
+version=3.13
+shared=true
+abi3=true
+lib_name=python3.13
+lib_dir=$PYO3_ROOT/lib
+executable=
+pointer_width=64
+build_flags=
+suppress_build_script_link_lines=false
+EOF
+export PYO3_CONFIG_FILE="$PYO3_CONF"
+export CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS="\
+$RUSTFLAGS -C link-args=-L$PYO3_ROOT/lib -C link-args=-lpython3.13"
 
 # 6. Build des wheels
 build_one() {

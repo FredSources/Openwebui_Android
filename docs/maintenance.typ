@@ -335,6 +335,7 @@ Réglages essentiels depuis l'UI : *Admin → Documents* (moteur d'embedding dis
   [Build pip : conflit `numpy`/`grpcio-tools`], [dépendance exigeant des versions natives supérieures], [pinner une version amont antérieure compatible],
   [L'APK grossit anormalement], [packaging incrémental], [`build.sh` nettoie déjà ; vérifier qu'on ne passe pas par un autre script],
   [« Erreur au démarrage : … migrations/env.py »], [Chaquopy retire les `.py` après compilation bytecode, or Alembic lit les fichiers de `migrations/`], [patch P16 (`extractPackages`) — vérifier la présence de `open_webui/migrations/__init__.py` dans `src/`],
+  [« dlopen failed … .abi3.so » (uuid_utils, typst)], [les wheels **abi3** (PyO3) ne lient pas `libpython` : symboles `Py*` indéfinis au chargement — fatal sous Android], [`build-wheels.sh` force la liaison via **`PYO3_CONFIG_FILE`** (`suppress_build_script_link_lines=false`) ; vérifier par `readelf -d <module>.so | grep NEEDED` (doit mentionner `libpython3.13.so`), puis rebuild des wheels — plan B : `patchelf --add-needed libpython3.13.so`],
   [Le serveur ne démarre pas sur l'appareil], [exception d'import], [lire logcat (`adb logcat | grep python`) ; cause fréquente : nouvelle dépendance non embarquée],
 )
 

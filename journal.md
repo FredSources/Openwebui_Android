@@ -460,6 +460,28 @@ l'admin est réactivée au redémarrage — la recherche web est une fonctionnal
 **Validé hôte** : `get_builtin_tools` avec un modèle sans métadonnées (cas DeepSeek via
 API) retourne 31 outils dont `search_web` et `fetch_url`.
 
+## 2026-11-07 — Recherche web : toujours absente après v15 (v16, P18)
+
+**Symptôme** : malgré `web.search.enable=true` (v15), le modèle déclare toujours
+n'avoir aucun outil web.
+
+**Cause** : deux autres filtres du gate de `get_builtin_tools` valent *false explicite* :
+- `model.info.meta.capabilities.web_search` et `builtinTools.web_search` — l'UI
+  *Admin → Modèles* écrit ces valeurs dans la fiche modèle, souvent à `false` pour
+  les API tierces (DeepSeek) ;
+- `features.web_search` — le frontend envoie `false` dans la requête de chat quand
+  le globe n'est pas actionné. P12 ne traitait que la clé *absente* (`.get(..., True)`).
+
+**Correctif P18** (`utils/tools.py` via `prepare_src.py`) : gate réduit à
+`web.search.enable` + permission utilisateur — `search_web`/`fetch_url` sont exposés
+sans condition de modèle ni de toggle. Rationale : la recherche web est une
+fonctionnalité centrale de l'app ; c'est au modèle de décider d'appeler l'outil.
+Le pipeline automatique (globe) reste conditionné au toggle (comportement amont).
+
+**Validé hôte** : scénario hostile (`capabilities.web_search=false`,
+`builtinTools.web_search=false`, `features={web_search: false}`) → 31 outils,
+`search_web` et `fetch_url` présents.
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

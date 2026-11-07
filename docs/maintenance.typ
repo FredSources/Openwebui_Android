@@ -216,7 +216,8 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P9/P9b], [`routers/retrieval.py`], [provider `embedded-searxng` + message d'erreur portant le moteur lu],
   [P10], [`frontend/.../nodes/*.js`], [ajout de `embedded-searxng` à la liste des providers],
   [P11], [`tools/builtin.py` + `utils/tools.py`], [outil `compile_typst` et son enregistrement],
-  [P12], [`utils/tools.py`], [`features.get('web_search', True)` : les outils internet (`search_web` = `embedded-searxng`, `fetch_url`) sont exposés même quand le modèle ne déclare pas la capacité dans ses métadonnées],
+  [P12], [`utils/tools.py`], [`features.get('web_search', True)` : les outils internet (`search_web` = `embedded-searxng`, `fetch_url`) sont exposés même quand le modèle ne déclare pas la capacité dans ses métadonnées — *supersédé par P18*],
+  [P18], [`utils/tools.py`], [gate des outils web réduit à `web.search.enable` + permission : `search_web`/`fetch_url` exposés quelles que soient les capacités modèle (`capabilities.web_search`, `builtinTools.web_search`) et le toggle `features` de la requête (souvent `false` explicite pour les API tierces ou globe non actionné)],
   [P13], [`frontend/` (données)], [allègement : suppression des *source maps*, de `pyodide/` et `wasm/` (169 Mo) — ML navigateur et Python-navigateur désactivés, conformes à la règle « pas de calcul local » ; gain majeur de démarrage et de taille APK],
   [P14], [`routers/auths.py`, `routers/utils.py`, `routers/configs.py`], [imports différés : `ldap3` (1,7 s), `black` (0,9 s), `MCPClient`/`mcp` (~1-2 s) n'exécutent plus au démarrage — importés à l'usage],
   [P15], [`src/` → `src-assets/`], [le frontend sort des *assets Python* (extrait à l'import par Chaquopy) pour devenir des *assets Android*, extraits une fois par version par `MainActivity` avec progression ; `app.imy` et l'import Python s'effondrent],
@@ -320,10 +321,11 @@ entrées zip` doit rester de l'ordre de 8 Ko.
 Réglages essentiels depuis l'UI : *Admin → Documents* (moteur d'embedding distant
 + clé), *Admin → Audio* (STT « web » pour la dictée), *Admin → Recherche web*
 (moteur `embedded-searxng`). Depuis v15, `android_main` force `web.search.enable`
-à `true` au démarrage (`ENABLE_WEB_SEARCH`) : les outils `search_web`/`fetch_url`
-et le pipeline de recherche du chat sont actifs sans réglage manuel — y compris
-pour les modèles qui ne déclarent pas la capacité `web_search` dans leurs
-métadonnées (P12).
+à `true` au démarrage (`ENABLE_WEB_SEARCH`) ; depuis v16 (P18), les outils
+`search_web`/`fetch_url` sont exposés *sans condition de modèle ni de toggle*
+— y compris pour les API tierces (DeepSeek…) dont la fiche modèle porte
+`capabilities.web_search: false`, et quand le globe du chat n'est pas actionné.
+Le pipeline de recherche automatique (globe) reste, lui, conditionné au toggle.
 
 = Dépannage rapide
 
@@ -333,7 +335,7 @@ métadonnées (P12).
   [L'UI affiche une ancienne version], [cache WebView], [réinstaller + forcer l'arrêt / vider le cache ; normalement automatique via le `versionCode`],
   [« no speech » à la dictée], [micro occupé ou permissions], [accorder micro/caméra ; l'app relance déjà l'écoute 3 fois],
   [Recherche web vide], [moteurs amont bloqués (IP datacenter) ou moteur mal configuré], [vérifier `Admin → Recherche web` ; le message d'erreur porte désormais le moteur lu],
-  [Pas d'outils web (`search_web`/`fetch_url` absents de l'inventaire)], [`web.search.enable` éteint (`ENABLE_WEB_SEARCH` défaut `False` en amont) — bloque aussi le pipeline de recherche du chat], [depuis v15 : `android_main` force la clé à `true` au démarrage (env + table `config`) ; vérifier par `sqlite3 webui.db \"SELECT value FROM config WHERE key='web.search.enable'\"`],
+  [Pas d'outils web (`search_web`/`fetch_url` absents de l'inventaire)], [`web.search.enable` éteint (`ENABLE_WEB_SEARCH` défaut `False` en amont), ou capacités modèle / toggle `features` à `false` explicite], [v15 force `web.search.enable` ; v16 (P18) ignore capacités et toggle — si absent malgré tout : `sqlite3 webui.db \"SELECT value FROM config WHERE key='web.search.enable'\"`],
   [RAG inactif au téléversement], [pas d'API d'embeddings configurée], [configurer *Admin → Documents* (embeddings distants obligatoires)],
   [Build pip : `from versions: none`], [paquet natif absent du dépôt Android], [cross-build (maturin/setuptools) ou retirer la dépendance — cf. @sec-composants],
   [Build pip : conflit `numpy`/`grpcio-tools`], [dépendance exigeant des versions natives supérieures], [pinner une version amont antérieure compatible],

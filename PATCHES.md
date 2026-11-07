@@ -18,7 +18,8 @@ Tous les patchs sont générés par `scripts/prepare_src.py` (idempotent, rejoua
 | P10 | `frontend/_app/immutable/nodes/*.js` | `embedded-searxng` ajouté à la liste des providers (dropdown) | libellé = valeur brute, affiché tel quel dans l'UI |
 | P9b | `routers/retrieval.py` | Message d'erreur de `search_web()` qui porte le moteur lu | diagnostic des mauvaises configurations |
 | P11 | `tools/builtin.py` + `utils/tools.py` | Outil **`compile_typst`** (.typ → PDF) et son enregistrement | compilateur Typst embarqué (wheel `typst`) |
-| P12 | `utils/tools.py` | `features.get('web_search', True)` | les outils internet (`search_web` = `embedded-searxng`, `fetch_url`) sont exposés même quand le modèle ne déclare pas la capacité dans ses métadonnées |
+| P12 | `utils/tools.py` | `features.get('web_search', True)` | les outils internet (`search_web` = `embedded-searxng`, `fetch_url`) sont exposés même quand le modèle ne déclare pas la capacité dans ses métadonnées — *supersédé par P18* |
+| P18 | `utils/tools.py` | gate des outils web réduit à `web.search.enable` + permission utilisateur | `search_web`/`fetch_url` exposés quelles que soient les capacités modèle (`capabilities.web_search`, `builtinTools.web_search`) et le toggle `features` de la requête — les API tierces écrivent souvent `false` explicite dans la fiche modèle et le frontend envoie `features.web_search=false` quand le globe n'est pas actionné |
 | P13 | `frontend/` (données) | allègement : source maps, `pyodide/`, `wasm/` supprimés (169 Mo) | ML navigateur et Python-navigateur retirés (règle « pas de calcul local ») |
 | P14 | `routers/auths.py`, `routers/utils.py`, `routers/configs.py` | imports différés : `ldap3`, `black`, `MCPClient` | −3,4 s au démarrage |
 | P15 | `src/` → `src-assets/` | frontend sorti des assets Python → assets Android extraits une fois par `MainActivity` (progression affichée) | import serveur 35,5 s → 11 s ; APK allégé |

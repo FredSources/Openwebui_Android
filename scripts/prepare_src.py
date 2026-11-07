@@ -219,23 +219,19 @@ WEB_TOOLS_OLD = """    # Add web search tools if builtin category enabled AND en
         builtin_functions.extend([search_web, fetch_url])"""
 
 WEB_TOOLS_NEW = """    # Add web search tools if builtin category enabled AND enabled globally AND model has web_search capability
-    # P12 : features.get('web_search') défaut True — un modèle qui ne déclare pas
-    # explicitement la capacité dans ses métadonnées doit quand même obtenir les
-    # outils internet (search_web = moteur embarqué embedded-searxng, fetch_url).
-    if (
-        is_builtin_tool_enabled('web_search')
-        and config.get('web.search.enable')
-        and get_model_capability('web_search')
-        and features.get('web_search', True)
-        and await has_user_permission('web_search')
-    ):
+    # P18 : outils internet TOUJOURS exposés quand la recherche web est active.
+    # Les filtres amont (capacités modèle, builtinTools, toggle `features` de la
+    # requête) valent souvent « false » explicite pour les API tierces ou quand le
+    # globe n'est pas actionné — ils ne doivent pas masquer search_web/fetch_url
+    # (moteur embarqué embedded-searxng) : c'est au modèle de décider de les appeler.
+    if config.get('web.search.enable') and await has_user_permission('web_search'):
         builtin_functions.extend([search_web, fetch_url])"""
 
 
 def patch_web_tools() -> None:
-    """P12 — outils internet (search_web/fetch_url) exposés par défaut."""
+    """P18 — outils internet (search_web/fetch_url) exposés sans condition de modèle."""
     replace_once(DST / "utils" / "tools.py", WEB_TOOLS_OLD, WEB_TOOLS_NEW,
-                 "P12 tools.py outils web par défaut")
+                 "P18 tools.py outils web forcés")
 
 
 def patch_web_search() -> None:

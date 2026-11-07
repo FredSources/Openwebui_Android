@@ -566,6 +566,28 @@ pas garantis. Correctif : `MainActivity` passe `getFilesDir()` à `start_server`
 test masquait le vrai démarrage) reste à observer sur v1.0.1 — l'écran d'erreur
 affiche désormais la cause exacte.
 
+## 2026-11-07 — v1.0.2 : LE bug de l'écran figé — dossier `_app/` supprimé du packaging
+
+**Symptôme réel** (capturé en direct par sondage réseau, l'appli partage le réseau
+avec Termux) : serveur OK (`/health`, `/api/config`, index.html → 200) mais **tout
+`/_app/**` en 404** → les JS de l'UI ne chargent pas → écran de chargement « oi »
+figé. Le serveur de test masquait le bug (il servait le frontend depuis le disque).
+
+**Cause racine (P20)** : le motif `ignoreAssetsPattern` PAR DÉFAUT d'Android
+(AAPT/AGP) contient `<dir>_*` — tout *dossier* d'assets dont le nom commence par
+`_` est **supprimé silencieusement** du packaging. Le frontend SvelteKit stocke
+tous ses `.js` dans `_app/` → les 927 fichiers disparaissaient de l'APK (vérifié :
+l'APK v1.0.1 contient 3880 fichiers frontend, zéro `_app/`). Les *fichiers* à
+underscore (`_bz2.so`) survivent — d'où la subtilité.
+
+**Correctif** : `androidResources { ignoreAssetsPattern }` personnalisé dans
+`build.gradle`, identique au défaut SANS `<dir>_*`. Validé : les 927 fichiers
+sont de retour dans les assets fusionnés. **Garde-fou CI** : l'étape de vérification
+compte les `assets/frontend/_app/` dans l'APK et rejette tout APK < 500 fichiers.
+
+Leçons : (1) vérifier le CONTENU de l'APK livré, pas seulement son build ;
+(2) tester avec l'environnement réel de l'appli, jamais un serveur parallèle.
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

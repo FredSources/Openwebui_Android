@@ -107,6 +107,13 @@ jobs:
           ls -la dist/
           test -f dist/OpenWebUI_Android-*-debug.apk
           test -f dist/OpenWebUI_Android-*-release.apk
+          # Garde-fou P20 : le motif ignoreAssetsPattern par défaut d'Android
+          # (<dir>_*) supprime les DOSSIERS d'assets à underscore — le dossier
+          # _app/ (JS de l'UI) avait ainsi disparu d'un APK livré. Tout APK
+          # sans les ~927 fichiers _app/ est rejeté ici.
+          N=$(unzip -l dist/OpenWebUI_Android-*-release.apk | grep -c 'assets/frontend/_app/')
+          echo "fichiers _app/ dans l'APK : $N"
+          test "$N" -gt 500
 
       - uses: actions/upload-artifact@v4
         with:

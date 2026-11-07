@@ -16,7 +16,7 @@ android {
         // MainActivity s'en sert pour purger le cache WebView quand l'UI change
         def vcodeStr = project.hasProperty('vcode') ? project.property('vcode') : '1'
         versionCode vcodeStr.toString().toInteger()
-        versionName '1.0.1'
+        versionName '1.0.2'
 
         // Python = composant natif : arm64-v8a couvre tous les téléphones récents
         ndk {
@@ -81,5 +81,14 @@ android {
             // extraire les .so sur le système de fichiers (ctypes / page size 16 Ko)
             useLegacyPackaging = true
         }
+    }
+
+    // P20 : le motif ignoreAssetsPattern PAR DÉFAUT d'Android contient <dir>_* :
+    // tout DOSSIER d'assets dont le nom commence par "_" est supprimé silencieusement
+    // du packaging. Le dossier _app/ du frontend SvelteKit (TOUS les .js de l'UI)
+    // disparaissait donc de l'APK → écran de chargement figé. Motif personnalisé,
+    // identique au défaut SANS <dir>_*. Vérifié en CI (comptage assets/frontend/_app/).
+    androidResources {
+        ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
 }

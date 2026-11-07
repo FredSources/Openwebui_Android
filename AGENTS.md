@@ -82,6 +82,11 @@ variables ci-dessus et refuser de tourner si `$PWD` n'est pas la racine du proje
 ## Règles de travail (en plus des règles globales)
 
 - **Français** pour toute la documentation et les échanges.
+- **Documentation Typst TOUJOURS maintenue** : toute modification du projet
+  (patch amont, version, script, composant, procédure) doit être répercutée dans
+  la documentation Typst (`docs/maintenance.typ`, `docs/environnement.typ`),
+  suivie d'une **recompilation des PDF**. La documentation est un livrable au
+  même titre que l'APK : un changement non documenté est une tâche incomplète.
 - À chaque session : lire `todo.md` (état) et `journal.md` (historique + décisions),
   puis **journaliser toute action** dans `journal.md` (horodatage UTC).
 - Cocher les tâches dans `todo.md` au fur et à mesure ; ne jamais cocher sans test.

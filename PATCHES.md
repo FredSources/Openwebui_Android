@@ -16,6 +16,9 @@ Tous les patchs sont générés par `scripts/prepare_src.py` (idempotent, rejoua
 | P8 | `config.py` | `AUDIO_STT_ENGINE` défaut → `'web'` | la dictée utilise le **moteur vocal natif Android** via le shim `SpeechRecognition` (Java `AndroidSpeech.java` + polyfill JS) |
 | P9 | `routers/retrieval.py` | Nouveau provider **`embedded-searxng`** dans `search_web()` → `http://127.0.0.1:8888` | SearXNG embarqué : recherche web locale, aucun réglage requis |
 | P10 | `frontend/_app/immutable/nodes/*.js` | `embedded-searxng` ajouté à la liste des providers (dropdown) | libellé = valeur brute, affiché tel quel dans l'UI |
+| P9b | `routers/retrieval.py` | Message d'erreur de `search_web()` qui porte le moteur lu | diagnostic des mauvaises configurations |
+| P11 | `tools/builtin.py` + `utils/tools.py` | Outil **`compile_typst`** (.typ → PDF) et son enregistrement | compilateur Typst embarqué (wheel `typst`) |
+| P12 | `utils/tools.py` | `features.get('web_search', True)` | les outils internet (`search_web` = `embedded-searxng`, `fetch_url`) sont exposés même quand le modèle ne déclare pas la capacité dans ses métadonnées |
 | — | `src/searx/` | **SearXNG embarqué** (vendor figé sur `a30b2d4749`, 2026-08-28 — avant la migration `curl_cffi`) | serveur local `127.0.0.1:8888`, réglages générés par `android_main.py` (clé secrète propre à l'appareil, `search.formats: [html, json]`) |
 | — | `retrieval/vector/dbs/none.py` | **Nouveau** : `NullVectorDB` | RAG éteint (`VECTOR_DB=none`) : insertions ignorées, recherches vides |
 | — | `retrieval/vector/dbs/local.py` | **Nouveau** : `LocalVectorDB` | Base vectorielle **locale** SQLite + numpy (force brute vectorisée, score cosinus dans [0,1]) — `VECTOR_DB=local` |

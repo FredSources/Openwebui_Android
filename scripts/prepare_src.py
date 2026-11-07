@@ -208,6 +208,36 @@ WEB_SEARCH_NEW = """            raise Exception('No SEARXNG_QUERY_URL found in e
     elif engine == 'openserp':"""
 
 
+WEB_TOOLS_OLD = """    # Add web search tools if builtin category enabled AND enabled globally AND model has web_search capability
+    if (
+        is_builtin_tool_enabled('web_search')
+        and config.get('web.search.enable')
+        and get_model_capability('web_search')
+        and features.get('web_search')
+        and await has_user_permission('web_search')
+    ):
+        builtin_functions.extend([search_web, fetch_url])"""
+
+WEB_TOOLS_NEW = """    # Add web search tools if builtin category enabled AND enabled globally AND model has web_search capability
+    # P12 : features.get('web_search') défaut True — un modèle qui ne déclare pas
+    # explicitement la capacité dans ses métadonnées doit quand même obtenir les
+    # outils internet (search_web = moteur embarqué embedded-searxng, fetch_url).
+    if (
+        is_builtin_tool_enabled('web_search')
+        and config.get('web.search.enable')
+        and get_model_capability('web_search')
+        and features.get('web_search', True)
+        and await has_user_permission('web_search')
+    ):
+        builtin_functions.extend([search_web, fetch_url])"""
+
+
+def patch_web_tools() -> None:
+    """P12 — outils internet (search_web/fetch_url) exposés par défaut."""
+    replace_once(DST / "utils" / "tools.py", WEB_TOOLS_OLD, WEB_TOOLS_NEW,
+                 "P12 tools.py outils web par défaut")
+
+
 def patch_web_search() -> None:
     """P9 — provider « embedded-searxng » (SearXNG local) côté backend."""
     replace_once(DST / "routers" / "retrieval.py", WEB_SEARCH_OLD, WEB_SEARCH_NEW,
@@ -611,6 +641,7 @@ def main() -> int:
     patch_storage()
     patch_local_ai()
     patch_stt_default()
+    patch_web_tools()
     patch_web_search()
     patch_frontend_engines()
     copy_searxng()

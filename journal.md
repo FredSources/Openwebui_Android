@@ -297,6 +297,25 @@ Lire ce fichier avant chaque session ; y ajouter chaque action.
   APK non versionné (rebuildable ; `git add -f` possible) ; SDK/JDK/NDK/Rust/
   qemu/caches exclus car **reconstruits par `setup-env.sh`**.
 
+## 2026-11-07 — Session 8 (outils internet de l'assistant)
+
+- **Retour appareil** : l'inventaire d'outils de l'assistant (DeepSeek) contient
+  `compile_typst` ✔ (outil Typst opérationnel sur l'appareil) mais **aucun outil
+  internet** (`search_web`/`fetch_url` absents). Diagnostic : le filtre
+  `features.get('web_search')` dans `get_builtin_tools` est le **seul sans défaut
+  True** — un modèle dont les métadonnées ne déclarent pas la capacité est
+  évalué falsy et perd les outils web, alors que `web.search.enable` est actif.
+- **Décision D17 / patch P12** : `features.get('web_search', True)` — les outils
+  internet sont exposés dès que la recherche web est activée globalement (et la
+  permission utilisateur satisfaite). Un refus *explicite* par le modèle reste
+  respecté. `search_web` utilise le moteur `embedded-searxng` ; `fetch_url` est
+  l'équivalent « webfetch » (lecture de page) — aucun nouvel outil à ajouter.
+- Smoke OK, rebuild APK, commit.
+- **Règle ajoutée aux règles de travail (AGENTS.md)** : la *documentation Typst
+  doit être toujours maintenue* — tout changement du projet y est répercuté,
+  suivi de la recompilation des PDF ; c'est un livrable au même titre que l'APK.
+  Appliquée immédiatement : `docs/maintenance.typ` complété avec P12.
+
 ## Décisions cumulées (suite)
 
 | # | Décision | Motif |

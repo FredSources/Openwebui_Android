@@ -215,6 +215,7 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P9/P9b], [`routers/retrieval.py`], [provider `embedded-searxng` + message d'erreur portant le moteur lu],
   [P10], [`frontend/.../nodes/*.js`], [ajout de `embedded-searxng` à la liste des providers],
   [P11], [`tools/builtin.py` + `utils/tools.py`], [outil `compile_typst` et son enregistrement],
+  [P12], [`utils/tools.py`], [`features.get('web_search', True)` : les outils internet (`search_web` = `embedded-searxng`, `fetch_url`) sont exposés même quand le modèle ne déclare pas la capacité dans ses métadonnées],
 )
 
 #tip-box[

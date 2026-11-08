@@ -1119,3 +1119,25 @@ contrôle ÉTENDU (P44 activation de la voie worker, P44b boot iframe, P45 rrule
 — aucun affaiblissement. Leçon méthodologique : une preuve sur banc doit
 reproduire le SÉLECTEUR de chemin de l'appareil (flag/feature), pas seulement
 le composant cible.
+
+## 2026-11-08 — v0.0.27 : paquets Pyodide à la demande, insensibles au style d'import (P46)
+
+Rapport utilisateur : numpy/pandas/sympy OK (le boot P38 tourne enfin — la
+voie worker est bien active), mais matplotlib/scipy/sklearn/PIL/bs4/requests/
+lxml/docx/pptx/openpyxl/seaborn absents. Cause : l'installation à la demande
+reposait sur la détection regex d'IMPORTS LITTÉRAUX côté frontend ; un code
+qui teste par boucle ou importlib ne déclenche rien — et l'audit testait
+précisément ainsi (matrice « disponibles = exactement le boot »).
+
+- P46a : `_pyodide_packages(code)` côté SERVEUR — détection par simple
+  PRÉSENCE du nom de module dans le code (import littéral, boucle, importlib,
+  chaîne). Testé : littéral → [matplotlib, scipy] ; boucle/importlib →
+  [beautifulsoup4, matplotlib, pillow, scikit-learn] ; rien → [].
+- P46b–e : la liste est transmise dans le message et fusionnée avec la détection
+  regex frontend (filet de sécurité double).
+- P46f : le prompt système du bac à sable documente la liste RÉELLE des
+  bibliothèques embarquées (et signale l'absence volontaire de pymupdf,
+  statsmodels, plotly — pas de wheels dans l'APK).
+
+Justification de l'évolution de scripts/check_patches.py : contrôle ÉTENDU
+(P46a backend, P46c transit frontend) — aucun affaiblissement.

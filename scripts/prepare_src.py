@@ -1494,6 +1494,83 @@ def patch_automation_rrule() -> None:
     )
 
 
+PYODIDE_PKGS_HELPER = '''
+def _pyodide_packages(code: str) -> list:
+    """P46a — paquets Pyodide à installer avant exécution. Détection par
+    simple PRÉSENCE du nom du module dans le code (import littéral, boucle,
+    importlib, littéral de chaîne — peu importe le style), pour être
+    insensible à la façon d'importer. Seuls les wheels embarqués dans l'APK
+    sont proposés (installation hors ligne)."""
+    noms = {
+        'numpy': 'numpy', 'pandas': 'pandas', 'matplotlib': 'matplotlib',
+        'scipy': 'scipy', 'sklearn': 'scikit-learn', 'PIL': 'pillow',
+        'seaborn': 'seaborn', 'sympy': 'sympy', 'mpmath': 'mpmath',
+        'bs4': 'beautifulsoup4', 'requests': 'requests', 'lxml': 'lxml',
+        'docx': 'python-docx', 'pptx': 'python-pptx', 'openpyxl': 'openpyxl',
+        'tiktoken': 'tiktoken', 'pytz': 'pytz', 'regex': 'regex',
+        'dateutil': 'python-dateutil', 'six': 'six', 'packaging': 'packaging',
+    }
+    texte = code or ''
+    import re as _re
+    trouves = set()
+    for nom, paquet in noms.items():
+        if _re.search(r'\\b' + _re.escape(nom) + r'\\b', texte):
+            trouves.add(paquet)
+    return sorted(trouves)
+'''
+
+
+def patch_pyodide_detection() -> None:
+    """P46 — les paquets à la demande ne dépendaient que de la détection regex
+    d'imports littéraux côté frontend : un code qui importe par boucle ou
+    importlib ne déclenchait rien (audit : numpy/pandas/sympy OK au boot,
+    tout le reste absent). La liste est désormais calculée côté SERVEUR (par
+    présence du nom dans le code) et transmise au bac à sable."""
+    builtin = DST / "tools" / "builtin.py"
+    text = builtin.read_text(encoding="utf-8")
+    if "_pyodide_packages(" in text:
+        log("  P46a détection paquets : déjà appliqué")
+    else:
+        builtin.write_text(text + "\n\n" + PYODIDE_PKGS_HELPER, encoding="utf-8")
+        log("  P46a détection serveur des paquets ajoutée")
+    replace_once(
+        builtin,
+        """                    'data': {
+                        'id': str(uuid4()),
+                        'code': code,""",
+        """                    'data': {
+                        'id': str(uuid4()),
+                        'code': code,
+                        'packages': _pyodide_packages(code),""",
+        "P46b execute_code : paquets calculés côté serveur",
+    )
+    root = DST / "frontend" / "_app" / "immutable"
+    _patch_first_match(
+        str(root / "nodes" / "0.*.js"),
+        "Me(u.id,u.code,i,u.files||[])",
+        "Me(u.id,u.code,i,u.files||[],u.packages||[])",
+        "P46c frontend : transit des paquets serveur",
+    )
+    _patch_first_match(
+        str(root / "nodes" / "0.*.js"),
+        "Me=async(t,i,F,P=[])",
+        "Me=async(t,i,F,P=[],X=[])",
+        "P46d frontend : signature Me étendue",
+    )
+    _patch_first_match(
+        str(root / "nodes" / "0.*.js"),
+        "packages:ue,files:k.length>0?k:void 0}",
+        "packages:[...new Set([...ue,...X])],files:k.length>0?k:void 0}",
+        "P46e frontend : fusion regex + serveur",
+    )
+    replace_once(
+        DST / "config.py",
+        "- This Python environment runs via Pyodide in the browser. **Do not install packages** — `pip install`, `subprocess`, and `micropip.install()` are not available.",
+        "- This Python environment runs via Pyodide in the browser. **Do not install packages** — `pip install`, `subprocess`, and `micropip.install()` are not available.\n- Libraries bundled and available on demand: numpy, pandas, matplotlib, scipy, scikit-learn, seaborn, sympy, mpmath, pillow (PIL), requests, beautifulsoup4 (bs4), lxml, python-docx (docx), python-pptx (pptx), openpyxl, tiktoken, pytz. No other third-party library (no pymupdf, statsmodels, plotly).",
+        "P46f prompt : bibliothèques disponibles documentées",
+    )
+
+
 def patch_pyodide_packages() -> None:
     """P38 — paquets scientifiques garantis au démarrage du bac à sable Pyodide.
     Le worker ne préinstallait que micropip : numpy/pandas/sympy (wheels déjà
@@ -2075,6 +2152,7 @@ def main() -> int:
     patch_kb_backfill()
     patch_pyodide_packages()
     patch_pyodide_universel()
+    patch_pyodide_detection()
     patch_automation_rrule()
     patch_upload_harvest()
     patch_note_newlines()

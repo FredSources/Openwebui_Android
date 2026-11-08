@@ -46,6 +46,7 @@ CHECKS = [
     ("P41c fichiers produits enregistrés", "open_webui/tools/builtin.py", "fichiers_sortie"),
     ("P42a \\n littéraux write_note", "open_webui/tools/builtin.py", "P42 : \\n littéraux"),
     ("P45a rrule create_automation", "open_webui/tools/builtin.py", "P45 : \\n littéraux convertis"),
+    ("P46a détection paquets serveur", "open_webui/tools/builtin.py", "_pyodide_packages"),
 ]
 
 
@@ -171,6 +172,11 @@ def check_p41_harvest() -> None:
         for c in nodes
     ):
         err("P41b : frontend sans transmission des fichiers produits")
+    if nodes and not any(
+        "u.packages||[]" in open(c, encoding="utf-8", errors="ignore").read()
+        for c in nodes
+    ):
+        err("P46c : frontend sans transit des paquets serveur")
 
 
 def check_compilation() -> None:

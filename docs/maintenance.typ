@@ -355,7 +355,7 @@ Le pipeline de recherche automatique (globe) reste, lui, conditionné au toggle.
   [« No time zone found with key UTC »], [Android n'a pas `/usr/share/zoneinfo`], [`tzdata` dans `requirements-min.txt` (base IANA embarquée) — corrige aussi l'init du worker des automatisations],
   [`execute_code` → « loadPyodide is not defined »], [le dossier `pyodide/` (runtime WASM) avait été retiré du frontend par P13], [P23 : `pyodide/` restauré (61 Mo, cœur + paquets, offline) et `code_interpreter.enable` réactivé — la règle « pas de calcul local » ne vise que les embeddings],
   [`add_memory` / `update_memory` → « 'dict' object has no attribute 'id' »], [`LocalVectorDB._write` accédait aux champs par attribut alors que le pipeline mémoire passe des dicts bruts], [normalisation dict→VectorItem à l'entrée de `_write` (scripts/local_vector_db.py) ],
-  [`search_web` : dlopen msgspec « libm.so.6 not found »], [le wheel msgspec lie glibc (`libc.so.6`/`libm.so.6`) au lieu du bionic — les 6 autres wheels natifs sont corrects], [reconstruction en cours (profilage de la commande de lien setuptools) — `readelf -d` doit montrer `libc.so`/`libm.so`],
+  [`search_web` : dlopen msgspec « libm.so.6 not found »], [le sysconfig de l'Python hôte injecte `-L/usr/lib/aarch64-linux-gnu` dans la commande de lien setuptools → `-lm` résolvait sur la glibc ; les builds maturin échappaient au piège], [les wrappers `ndk-cc` filtrent les `-L/usr/lib*`/`-L/lib*` hôtes ; vérifier `readelf -d` du wheel : `libc.so`/`libm.so` (bionic)],
   [`compile_typst` → « 'FilesTable' object has no attribute 'insert' »], [l'outil appelait `Files.insert` — l'API réelle est `insert_new_file(user_id, FileForm)`], [corrigé dans l'outil `compile_typst` (générateur `prepare_src.py`) ],
   [`grep_knowledge_files` / `grep_skill_files` → « module 're' has no attribute 'Options' »], [`knowledge_fs` utilise l'API `re2.Options` avec repli `import re as re2` (google-re2 natif absent)], [shim `src/re2.py` (Options/compile/error sur `re`) ],
   [Automatisations → « Error during worker process initialization »], [`anyio.to_process.run_sync` (sous-processus interdit sur Android) dans `utils/recurrence.py`], [patch P21 : exécution en `to_thread.run_sync` ],
@@ -427,6 +427,11 @@ Un seul serveur par test ; ne jamais inférer un bug applicatif d'un test dont l
 serveur n'est pas confirmée.
 
 == Intégration continue (GitHub Actions)
+
+Numérotation : le projet est en étape pré-stable — les versions historiques
+`1.0.0`–`1.0.5` ont été renumérotées `0.0.0`–`0.0.5` (mêmes commits, releases et
+APK conservés) ; les mentions `1.0.x` de ce document renvoient donc à `0.0.x`.
+Depuis `0.0.6`, le `versionName` de l'APK suit la numérotation du tag.
 
 `.github/workflows/build-apk.yml` build les APK _debug_ et _release_ uniquement
 au push d'un tag `v*`, et publie la Release GitHub avec les APK attachés.

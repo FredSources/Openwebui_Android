@@ -15,8 +15,18 @@ for a in "$@"; do
   esac
 done
 [ "$link" = 1 ] && EXTRA="-fuse-ld=lld"
+# Filtre les chemins de bibliothèques HÔTES injectés par le sysconfig Python
+# (ex. -L/usr/lib/aarch64-linux-gnu de distutils/setuptools) : ils font résoudre
+# -lm/-lc sur la glibc (libm.so.6) au lieu du bionic du sysroot NDK (msgspec).
+args=()
+for a in "$@"; do
+  case "$a" in
+    -L/usr/lib|-L/usr/lib/*|-L/lib|-L/lib/*) ;;
+    *) args+=("$a") ;;
+  esac
+done
 exec /data/data/com.termux/files/usr/bin/clang \
   --target=aarch64-linux-android24 \
   --sysroot="$SYSROOT" \
   $EXTRA \
-  "$@"
+  "${args[@]}"

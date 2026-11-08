@@ -658,6 +658,23 @@ Reste ouvert : msgspec (recherche web) lie `libc.so.6`/`libm.so.6` (glibc) au
 lieu du bionic — le wrapper ndk-cc est correct isolément, la commande de lien
 réelle de setuptools reste à profiler (logging wrapper en place).
 
+## 2026-11-08 — Renumérotation 1.0.N → 0.0.N + v0.0.6 (recherche web réparée)
+
+**Renumérotation** (souhait utilisateur : le projet est en étape pré-stable) :
+toutes les versions `1.0.N` deviennent `0.0.N`. Tags `v0.0.0`–`v0.0.5` recréés
+aux **mêmes commits**, releases renommées via l'API GitHub (APK intacts,
+Actions désactivés pendant l'opération pour éviter des rebuilds), anciens tags
+`v1.0.N` supprimés. Les APK historiques gardent leur `versionName` interne
+(1.0.N) ; à partir de v0.0.6, `versionName` suit la numérotation 0.0.N.
+
+**Recherche web (msgspec) — cause racine et fix définitif** : la commande de lien
+de setuptools révélait `-L/usr/lib/aarch64-linux-gnu` injecté par le sysconfig
+de l'Python HÔTE → `-lm` résolvait sur la glibc (`libm.so.6`) au lieu du bionic
+du sysroot NDK. Les builds maturin échappaient au piège (d'où « msgspec seul
+cassé »). Fix : les wrappers `ndk-cc` filtrent les `-L/usr/lib*` et `-L/lib*`
+hôtes. Vérifié `readelf -d` : `libm.so`, `libc.so`, `libdl.so` (bionic) — SearXNG
+peut enfin importer msgspec sur l'appareil.
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

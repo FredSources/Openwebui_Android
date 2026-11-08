@@ -2,8 +2,17 @@
 # Même wrapper que aarch64-linux-android24-clang, en mode C++.
 PROJ="$(cd "$(dirname "$0")/../.." && pwd)"
 SYSROOT="$PROJ/tools/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+# Filtre les chemins de bibliothèques HÔTES (glibc) injectés par les sysconfig
+# Python — cf. le wrapper C pour l'incident msgspec (libm.so.6).
+args=()
+for a in "$@"; do
+  case "$a" in
+    -L/usr/lib|-L/usr/lib/*|-L/lib|-L/lib/*) ;;
+    *) args+=("$a") ;;
+  esac
+done
 exec /data/data/com.termux/files/usr/bin/clang++ \
   --target=aarch64-linux-android24 \
   --sysroot="$SYSROOT" \
   -fuse-ld=lld \
-  "$@"
+  "${args[@]}"

@@ -122,6 +122,9 @@ build_one 'orjson'
 build_one 'rpds_py'
 build_one 'typst'
 build_one 'pycrdt'
+# maturin nomme le .so « aarch64-android-android » — l'import Android attend
+# le SOABI « aarch64-linux-android » (cf. le renommage msgspec)
+"$PROJ/.venv313/bin/python" "$PROJ/scripts/fix-pycrdt-suffix.py" "$PROJ/wheels"
 
 # msgspec : extension C (setuptools, pas maturin) — build via clang wrapper
 build_msgspec() {

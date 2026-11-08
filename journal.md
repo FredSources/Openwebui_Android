@@ -733,6 +733,16 @@ les PDF générés ni les téléversements n'étaient consultables. Ajout :
 
 Validé hôte : serveur neuf, marqueur bouton présent, `/fm` → 401 (protégé).
 
+## 2026-11-08 — v0.0.9 : correctif urgent — le .so de pycrdt mal nommé
+
+« No module named pycrdt » au démarrage de v0.0.8 : maturin nomme le natif
+`_pycrdt.cpython-313-aarch64-android-android.so`, alors que l'import Android
+cherche `_pycrdt.cpython-313-aarch64-linux-android.so` (SOABI de Chaquopy —
+le même piège de suffixe que msgspec, en plus subtil : le wheel était
+correctement *installé*, seul le nom du `.so` ne correspondait à aucun suffixe
+d'import). Fix : `scripts/fix-pycrdt-suffix.py` renomme le `.so` dans le wheel
+(et met à jour le RECORD) ; branché dans `build-wheels.sh` pour tout rebuild.
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

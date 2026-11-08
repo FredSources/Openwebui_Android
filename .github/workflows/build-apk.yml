@@ -121,9 +121,28 @@ jobs:
           path: dist/*.apk
           if-no-files-found: error
 
+      - name: Corps de release (versions embarquées)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          mkdir -p .tmp
+          OW=$(sed -n 's/.*OPEN_WEBUI_VERSION:-\([0-9.]*\).*/\1/p' scripts/fetch_src.sh | head -1)
+          SX=$(git -C vendor/searxng rev-parse --short=7 HEAD)
+          {
+            echo "## Composants embarqués"
+            echo ""
+            echo "| Composant | Version |"
+            echo "|---|---|"
+            echo "| Open WebUI | $OW |"
+            echo "| SearXNG | \`$SX\` (commit figé) |"
+            echo "| Python | 3.13 (Chaquopy 17.2) |"
+            echo ""
+          } > .tmp/release-body.md
+          cat .tmp/release-body.md
+
       - name: Release GitHub (tags v*)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*.apk
+          body_path: .tmp/release-body.md
           generate_release_notes: true

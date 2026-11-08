@@ -1,4 +1,4 @@
-# OpenWebUI Android — APK autonome avec RAG
+# OpenWebUI Android — APK autonome sans calcul de l'embedding local
 
 [![Build APK](https://github.com/FredSources/Openwebui_Android/actions/workflows/build-apk.yml/badge.svg)](https://github.com/FredSources/Openwebui_Android/actions/workflows/build-apk.yml)
 

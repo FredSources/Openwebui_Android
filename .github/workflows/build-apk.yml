@@ -64,9 +64,9 @@ jobs:
       - name: Téléchargements (cmdline-tools, Gradle)
         run: |
           mkdir -p downloads
-          curl -sL -o downloads/cmdline-tools.zip \
+          curl -fsSL --retry 3 --retry-delay 2 -o downloads/cmdline-tools.zip \
             https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          curl -sL -o downloads/gradle.zip \
+          curl -fsSL --retry 3 --retry-delay 2 -o downloads/gradle.zip \
             https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
 
       - name: Cache Gradle + SDK

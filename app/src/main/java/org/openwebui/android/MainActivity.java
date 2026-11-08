@@ -416,15 +416,6 @@ public class MainActivity extends Activity {
         return home;
     }
 
-    private static void deleteRecursive(java.io.File f) {
-        if (f.isDirectory()) {
-            String[] kids = f.list();
-            if (kids != null) {
-                for (String k : kids) deleteRecursive(new java.io.File(f, k));
-            }
-        }
-        f.delete();
-    }
 
     private static void copyRecursive(java.io.File src, java.io.File dst) throws java.io.IOException {
         if (src.isDirectory()) {

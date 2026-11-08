@@ -764,3 +764,18 @@ fichiers arrivent dans Téléchargements avec notification.
 - Paquets pip natifs indisponibles dans l'index Chaquopy → à inventorier dès la
   Phase 1 (risque principal du projet).
 - `javac` absent du PATH : vérifier que le JDK 21 est complet (`-jdk` pas `-jre`).
+
+## 2026-11-08 — v0.0.11 : compile_typst libéré + retour navigateur
+
+**compile_typst disparu de l'inventaire** : l'outil était enregistré *dans le
+bloc `create_tool`/`workspace.tools`* (création d'outils) — il héritait donc de
+ses permissions et pouvait disparaître (hypothèse utilisateur : lié à une
+autorisation — exact, celle de création d'outils). Fix P28 : enregistrement
+*indépendant et inconditionnel* (outil documentaire).
+
+**Navigateur de fichiers** : bouton de retour « ← Open WebUI » fixe et visible
+sur toutes les pages /fm (et aperçu).
+
+**Conversations conservées à la mise à jour** : comportement normal — une mise
+à jour Android conserve les données de l'appli ; seul « Effacer les données »
+(Réglages → Apps) ou une désinstallation-suppression remet à zéro.

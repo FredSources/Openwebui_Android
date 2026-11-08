@@ -491,11 +491,17 @@ _FM_STYLE = """
 
 
 def _fm_page(inner: str, title: str = "Fichiers") -> str:
+    back = (
+        "<a href=\\"/\\" title=\\"Retour \\u00e0 Open WebUI\\" "
+        "style=\\"position:fixed;right:12px;top:12px;z-index:10;background:#3b82f6;color:#fff;"
+        "padding:10px 16px;border-radius:24px;text-decoration:none;font-weight:600;"
+        "box-shadow:0 2px 8px rgba(0,0,0,.4)\\">\\u2190 Open WebUI</a>"
+    )
     return (
         "<!doctype html><html lang=\\"fr\\"><head><meta charset=\\"utf-8\\">"
         "<meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1\\">"
         f"<title>{_html.escape(title)}</title><style>{_FM_STYLE}</style></head>"
-        f"<body>{inner}</body></html>"
+        f"<body>{back}{inner}</body></html>"
     )
 
 
@@ -719,10 +725,14 @@ def patch_typst_tool() -> None:
     )
     replace_once(
         DST / "utils" / "tools.py",
-        "            builtin_functions.append(create_tool)",
-        "            builtin_functions.append(create_tool)\n"
-        "            builtin_functions.append(compile_typst)",
-        "P11b registration compile_typst",
+        "    # Task management - break down complex work into trackable steps",
+        "    # P28 : compile_typst — outil documentaire, TOUJOURS disponible\n"
+        "    # (auparavant greffé sur le bloc create_tool/workspace.tools : il\n"
+        "    # disparaissait selon les permissions de création d'outils).\n"
+        "    builtin_functions.append(compile_typst)\n"
+        "\n"
+        "    # Task management - break down complex work into trackable steps",
+        "P28 registration compile_typst (indépendant)",
     )
 
 

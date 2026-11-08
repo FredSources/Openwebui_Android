@@ -43,8 +43,46 @@ def fix_wheel(whl: pathlib.Path) -> bool:
     return True
 
 
+def strip_bad_so(whl: pathlib.Path) -> bool:
+    """Retire les .so au suffixe non importable (ex. -gnu.so) quand un .so
+    valide existe deja dans le meme paquet."""
+    import re as _re
+    valid = _re.compile(r"(\.abi3|\.cpython-313-aarch64-linux-android)\.so$")
+    with zipfile.ZipFile(whl) as z:
+        names = z.namelist()
+        by_stem = {}
+        for n in names:
+            if n.endswith(".so"):
+                by_stem.setdefault(n.rsplit("/", 1)[0], []).append(n)
+        drop = []
+        for pkg, so_names in by_stem.items():
+            good = [n for n in so_names if valid.search(n.split("/")[-1])]
+            if good:
+                drop += [n for n in so_names if n not in good]
+        if not drop:
+            return False
+        print(f"[fix-so] {whl.name} : retire {len(drop)} .so parasite(s)")
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as out:
+            for item in z.infolist():
+                if item.filename in drop:
+                    continue
+                data = z.read(item.filename)
+                if item.filename.endswith("RECORD"):
+                    lines = [l for l in data.decode("utf-8").splitlines()
+                             if l.split(",")[0] not in drop]
+                    out.writestr(item, "\n".join(lines) + "\n")
+                else:
+                    out.writestr(item, data)
+    whl.write_bytes(buf.getvalue())
+    return True
+
+
 if __name__ == "__main__":
+    root = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "wheels")
     fixed = False
-    for p in pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "wheels").glob("pycrdt-*.whl"):
+    for p in root.glob("pycrdt-*.whl"):
         fixed = fix_wheel(p) or fixed
-    print("[fix-pycrdt] OK" if fixed else "[fix-pycrdt] rien à corriger")
+    for p in root.glob("*.whl"):
+        fixed = strip_bad_so(p) or fixed
+    print("[fix-so] OK" if fixed else "[fix-so] rien à corriger")

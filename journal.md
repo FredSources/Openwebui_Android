@@ -791,3 +791,23 @@ levait une AttributeError (**= le « internal error » de v0.0.9**) et mon
 `_fm_get()` (dict ou objet) + affichage **humain français** (« 7,6 Ko ») prenant
 la taille réelle du fichier sur disque en priorité, « — » si inconnue.
 Validé hôte : 7 638 o affiché « 7,6 Ko », colonne Type rétablie.
+
+## 2026-11-08 — v0.0.13 : contrôle automatique de la chaîne APK (check_apk.py)
+
+Demande utilisateur : vérifier en fin de build que l'APK contient bien ce qui
+est attendu. `scripts/check_apk.py` (exécuté en CI avant publication, rejet du
+build si échec) contrôle les PIEGES RENCONTRES en production :
+- modules pip critiques présents (typst, pycrdt, msgspec, pydantic_core…) ;
+- code applicatif présent (open_webui, searx + settings.yml + version_frozen,
+  shims tiktoken/re2, stub pycrdt absent) ;
+- noms de `.so` importables (SOABI Android ou .abi3) — piège pycrdt ;
+- liaison bionic des natifs (aucun libc.so.6 = glibc) — piège msgspec ;
+- frontend complet (`_app/` ≥ 500, index + bouton /fm, pyodide) ;
+- route /fm présente dans le code embarqué (recherche dans les .pyc) ;
+- taille d'APK plausible.
+
+Premier passage du contrôle sur la v0.0.11 : il a déniché le `.so` résiduel
+`_core…-gnu.so` de msgspec (lié à la glibc !) — retiré du wheel par le nettoyeur
+étendu (`fix-pycrdt-suffix.py` strip désormais tout `.so` parasite). Le message
+d'erreur de `compile_typst` est aussi devenu auto-diagnostiquant (python, HOME,
+sys.path) pour trancher le « No module named 'typst' » restant côté appareil.

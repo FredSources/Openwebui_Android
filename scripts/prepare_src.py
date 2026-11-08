@@ -347,7 +347,15 @@ async def compile_typst(
         import time
         import uuid as uuidlib
 
-        import typst as typst_lib
+        try:
+            import typst as typst_lib
+        except Exception as _exc:
+            import os as _os
+            import sys as _sys
+            raise RuntimeError(
+                f"import typst impossible : {_exc} | python={_sys.version.split()[0]} | "
+                f"HOME={_os.environ.get('HOME', '')} | chemins={_sys.path[:5]}"
+            ) from _exc
 
         from open_webui.models.files import FileForm, Files
         from open_webui.storage.provider import Storage

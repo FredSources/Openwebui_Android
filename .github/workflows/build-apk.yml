@@ -129,6 +129,9 @@ jobs:
           echo "fichiers _app/ dans l'APK : $N"
           test "$N" -gt 500
 
+      - name: Vérification de la chaîne APK
+        run: python3 scripts/check_apk.py dist/*.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: openwebui-android-apk-${{ github.sha }}

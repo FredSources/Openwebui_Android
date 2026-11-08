@@ -1509,6 +1509,7 @@ def _pyodide_packages(code: str) -> list:
         'docx': 'python-docx', 'pptx': 'python-pptx', 'openpyxl': 'openpyxl',
         'tiktoken': 'tiktoken', 'pytz': 'pytz', 'regex': 'regex',
         'dateutil': 'python-dateutil', 'six': 'six', 'packaging': 'packaging',
+        'pymupdf': 'pymupdf', 'fitz': 'pymupdf', 'statsmodels': 'statsmodels',
     }
     texte = code or ''
     import re as _re
@@ -1566,9 +1567,31 @@ def patch_pyodide_detection() -> None:
     replace_once(
         DST / "config.py",
         "- This Python environment runs via Pyodide in the browser. **Do not install packages** — `pip install`, `subprocess`, and `micropip.install()` are not available.",
-        "- This Python environment runs via Pyodide in the browser. **Do not install packages** — `pip install`, `subprocess`, and `micropip.install()` are not available.\n- Libraries bundled and available on demand: numpy, pandas, matplotlib, scipy, scikit-learn, seaborn, sympy, mpmath, pillow (PIL), requests, beautifulsoup4 (bs4), lxml, python-docx (docx), python-pptx (pptx), openpyxl, tiktoken, pytz. No other third-party library (no pymupdf, statsmodels, plotly).",
+        "- This Python environment runs via Pyodide in the browser. **Do not install packages** — `pip install`, `subprocess`, and `micropip.install()` are not available.\n- Libraries bundled and available on demand: numpy, pandas, matplotlib, scipy, scikit-learn, seaborn, sympy, mpmath, pillow (PIL), requests, beautifulsoup4 (bs4), lxml, python-docx (docx), python-pptx (pptx), openpyxl, tiktoken, pytz, pymupdf (fitz), statsmodels. No other third-party library (no plotly, pypdf).",
         "P46f prompt : bibliothèques disponibles documentées",
     )
+
+
+def patch_extra_wheels() -> None:
+    """P47 — wheels supplémentaires embarqués depuis vendor/wheels-extra/ :
+    statsmodels et pymupdf existent en wasm dans la distribution Pyodide
+    (sha256 conformes au lock pyodide-lock.json) mais l'amont n'en embarquait
+    que 53 pour garder l'APK léger. Copiés dans pyodide/, ils deviennent
+    installables hors ligne par le bac à sable (détection P46)."""
+    import glob as _glob
+    import shutil as _shutil
+
+    srcs = sorted(_glob.glob(str(PROJ / "vendor" / "wheels-extra" / "*.whl")))
+    if not srcs:
+        log("  P47 wheels supplémentaires : aucun wheel dans vendor/wheels-extra/")
+        return
+    dest_dir = DST / "frontend" / "pyodide"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    for src in srcs:
+        _shutil.copy2(src, dest_dir / Path(src).name)
+    noms = ", ".join(Path(s).name.split("-")[0] for s in srcs)
+    log(f"  P47 wheels supplémentaires embarqués : {noms}")
+    PATCHES.append((f"wheels extra ({noms})", f"{len(srcs)} copié(s)"))
 
 
 def patch_pyodide_packages() -> None:
@@ -2152,6 +2175,7 @@ def main() -> int:
     patch_kb_backfill()
     patch_pyodide_packages()
     patch_pyodide_universel()
+    patch_extra_wheels()
     patch_pyodide_detection()
     patch_automation_rrule()
     patch_upload_harvest()

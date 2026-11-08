@@ -1141,3 +1141,23 @@ précisément ainsi (matrice « disponibles = exactement le boot »).
 
 Justification de l'évolution de scripts/check_patches.py : contrôle ÉTENDU
 (P46a backend, P46c transit frontend) — aucun affaiblissement.
+
+## 2026-11-08 — v0.0.28 : statsmodels et pymupdf embarqués (P47)
+
+Question utilisateur : « pourquoi les wheels ne sont pas embarqués ? » → la
+sélection des 53 wheels est celle de l'amont (APK léger) ; le lock Pyodide en
+connaît 364, le reste suppose un CDN à l'exécution (impossible hors ligne).
+MAIS statsmodels et pymupdf existent en wasm dans la distribution :
+
+- téléchargés depuis le CDN officiel (pyodide v314.0.3), sha256 CONFORMES au
+  pyodide-lock.json de l'APK (vérifié) : pymupdf 17,5 Mo, statsmodels 8,1 Mo ;
+- stockés dans vendor/wheels-extra/ (règle D5 : tout dans le projet) puis copiés
+  dans pyodide/ à chaque génération (P47) — installables hors ligne via la
+  détection P46 (fitz → pymupdf, statsmodels → statsmodels) ;
+- prompt du bac à sable mis à jour : pymupdf/statsmodels disponibles ;
+  plotly/pypdf/pdfplumber INEXISTANTS pour ce runtime wasm (pas dans le lock).
+
+Justification de l'évolution de scripts/check_apk.py (règle diagnostic) :
+contrôle ÉTENDU — les wheels statsmodels/pymupdf doivent figurer dans l'APK
+(aucun affaiblissement). Gain : extraction/lecture PDF native (pymupdf) et
+régressions/stats (statsmodels) dans execute_code.

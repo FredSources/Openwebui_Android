@@ -100,6 +100,12 @@ def check_apk(apk: pathlib.Path) -> None:
                        "assets/frontend/pyodide/pyodide-lock.json"):
             if requis not in noms:
                 err(f"{apk.name} : absent — {requis}")
+        # P47 : wheels supplémentaires garantis dans l'artefact (statsmodels,
+        # pymupdf — sha256 conformes au lock, copiés par prepare_src)
+        for motif in ("statsmodels-", "pymupdf-"):
+            if not any(n.startswith("assets/frontend/pyodide/") and motif in n and n.endswith(".whl")
+                       for n in noms):
+                err(f"{apk.name} : wheel {motif}* absente de assets/frontend/pyodide/")
         if not any("assets/frontend/index.html" == n and lire(z, n) and b"/fm" in lire(z, n) or False
                    for n in noms):
             contenu_index = lire(z, "assets/frontend/index.html") or b""

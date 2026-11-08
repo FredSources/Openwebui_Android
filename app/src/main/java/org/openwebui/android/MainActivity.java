@@ -400,6 +400,36 @@ public class MainActivity extends Activity {
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         webView.setKeepScreenOn(true);
 
+        // Téléchargements : la WebView n'en gère aucun par défaut — DownloadManager
+        // + session cookie pour les URL authentifiées (/api/v1/files/…/content)
+        webView.setDownloadListener((url, agent, disposition, mime, length) -> {
+            try {
+                android.app.DownloadManager dm =
+                        (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                android.net.Uri uri = android.net.Uri.parse(url);
+                android.app.DownloadManager.Request req =
+                        new android.app.DownloadManager.Request(uri);
+                String cookie = android.webkit.CookieManager.getInstance().getCookie(url);
+                if (cookie != null) req.addRequestHeader("Cookie", cookie);
+                if (mime != null) req.setMimeType(mime);
+                String name = android.webkit.URLUtil.guessFileName(url, disposition, mime);
+                req.setTitle(name);
+                req.setNotificationVisibility(
+                        android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                try {
+                    req.setDestinationInExternalPublicDir(
+                            android.os.Environment.DIRECTORY_DOWNLOADS, name);
+                } catch (Exception ignored) {
+                }
+                dm.enqueue(req);
+                android.widget.Toast.makeText(this, "Téléchargement : " + name,
+                        android.widget.Toast.LENGTH_LONG).show();
+            } catch (Exception e) {
+                android.widget.Toast.makeText(this, "Téléchargement impossible : " + e,
+                        android.widget.Toast.LENGTH_LONG).show();
+            }
+        });
+
         // moteur vocal natif (dictée STT mode « web »)
         webView.addJavascriptInterface(new AndroidSpeech(webView), "AndroidSpeech");
 

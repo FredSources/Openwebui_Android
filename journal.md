@@ -743,6 +743,21 @@ correctement *installé*, seul le nom du `.so` ne correspondait à aucun suffixe
 d'import). Fix : `scripts/fix-pycrdt-suffix.py` renomme le `.so` dans le wheel
 (et met à jour le RECORD) ; branché dans `build-wheels.sh` pour tout rebuild.
 
+## 2026-11-08 — v0.0.10 : vrai navigateur de fichiers + téléchargements WebView
+
+**Navigation de fichiers (P27)** : le bouton 📂 ouvre désormais un vrai
+navigateur : dossiers par type (Tous/PDF/Images/Documents/Autres), recherche
+par nom, tri par date, aperçu intégré (`/fm/preview` : image, PDF, texte),
+téléchargement et **suppression**. Robustesse : champs `meta`/dates tolérants
+(types hétérogènes selon les fichiers — cause probable du « internal error »
+de v0.0.9) et toute erreur rendue **lisible dans la page** (traceback affiché).
+Validé hôte sur serveur neuf : upload → liste → aperçu ✓.
+
+**Téléchargements dans les chats** : la WebView Android **ne gère aucun
+téléchargement** par défaut — ajout d'un `DownloadListener` (DownloadManager +
+cookie de session pour les URL authentifiées `/api/v1/files/…/content`), les
+fichiers arrivent dans Téléchargements avec notification.
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

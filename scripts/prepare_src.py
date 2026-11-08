@@ -459,75 +459,227 @@ def patch_searx_git_oserror() -> None:
         )
 
 
-FILES_MANAGER_ROUTE_ANCHOR = "@app.get('/cache/{path:path}')"
+FM_CODE = '''
+import html as _html
+import traceback as _tb
+from datetime import datetime as _dt
+from urllib.parse import quote as _quote
+
+from fastapi.responses import HTMLResponse as _HTMLResponse, RedirectResponse as _Redirect
+
+_FM_STYLE = """
+  body { font-family: system-ui, sans-serif; margin: 0; background: #171717; color: #e7e7e7; }
+  a { color: #7db7ff; text-decoration: none; }
+  .wrap { display: flex; min-height: 100vh; }
+  .side { width: 180px; padding: 14px 10px; background: #1f1f1f; }
+  .side a { display: block; padding: 8px 10px; border-radius: 8px; margin-bottom: 4px; color: #ddd; }
+  .side a.on { background: #3b82f6; color: #fff; }
+  .main { flex: 1; padding: 16px; min-width: 0; }
+  h1 { font-size: 1.15rem; margin: 0 0 12px; }
+  .bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  input[type=search] { background: #262626; border: 1px solid #444; color: #eee; padding: 8px 10px; border-radius: 8px; min-width: 200px; }
+  button, .btn { background: #3b82f6; color: #fff; border: 0; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: .85rem; }
+  .del { background: #b91c1c; }
+  table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #2e2e2e; }
+  th { color: #9a9a9a; font-weight: 600; }
+  .ico { font-size: 1.2rem; }
+  .nav { margin: 14px 0; display: flex; gap: 14px; }
+  .empty { color: #999; padding: 30px 0; }
+  .err { background: #3b1111; border: 1px solid #7f1d1d; padding: 12px; border-radius: 8px; white-space: pre-wrap; }
+"""
+
+
+def _fm_page(inner: str, title: str = "Fichiers") -> str:
+    return (
+        "<!doctype html><html lang=\\"fr\\"><head><meta charset=\\"utf-8\\">"
+        "<meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1\\">"
+        f"<title>{_html.escape(title)}</title><style>{_FM_STYLE}</style></head>"
+        f"<body>{inner}</body></html>"
+    )
+
+
+def _fm_kind(name: str, ctype: str) -> str:
+    n = (name or "").lower()
+    c = (ctype or "").lower()
+    if c == "application/pdf" or n.endswith(".pdf"):
+        return "pdf"
+    if c.startswith("image/") or n.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")):
+        return "img"
+    if c.startswith("text/") or n.endswith((".txt", ".md", ".csv", ".docx", ".xlsx", ".pptx", ".json", ".yaml", ".yml", ".typ")):
+        return "doc"
+    return "other"
+
+
+_FM_ICO = {"pdf": "\\U0001f4c4", "img": "\\U0001f5bc", "doc": "\\U0001f4c3", "other": "\\U0001f4e6"}
+
+
+def _fm_row(f) -> str:
+    meta = f.meta if isinstance(f.meta, dict) else {}
+    name = str(meta.get("name") or f.filename or f.id)
+    size = int(meta.get("size") or 0)
+    ctype = str(meta.get("content_type") or "")
+
+    def _fmt(ts) -> str:
+        try:
+            if isinstance(ts, _dt):
+                return ts.strftime("%Y-%m-%d %H:%M")
+            if isinstance(ts, (int, float)):
+                return _dt.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
+            return str(ts or "")
+        except Exception:
+            return ""
+
+    when = _fmt(f.updated_at) or _fmt(f.created_at)
+    kind = _fm_kind(name, ctype)
+    return (
+        f"<tr><td class=\\"ico\\">{_FM_ICO[kind]}</td>"
+        f"<td><a href=\\"/fm/preview?id={f.id}\\">{_html.escape(name)}</a></td>"
+        f"<td>{size:,} o</td><td>{when}</td><td>{_html.escape(ctype)}</td><td>"
+        f"<a class=\\"btn\\" href=\\"/api/v1/files/{f.id}/content\\" download>T\\u00e9l\\u00e9charger</a> "
+        f"<a class=\\"btn\\" href=\\"/fm/preview?id={f.id}\\">Voir</a> "
+        f"<form style=\\"display:inline\\" method=\\"post\\" action=\\"/fm/delete\\" "
+        f"onsubmit=\\"return confirm('Supprimer ce fichier ?')\\">"
+        f"<input type=\\"hidden\\" name=\\"id\\" value=\\"{f.id}\\">"
+        f"<button class=\\"del\\">Suppr.</button></form></td></tr>"
+    )
+
+
+def _fm_error(exc: Exception) -> str:
+    return _fm_page(
+        "<h1>Erreur du gestionnaire de fichiers</h1><div class=\\"err\\">"
+        + _html.escape("".join(_tb.format_exception(exc)))
+        + "</div><div class=\\"nav\\"><a href=\\"/fm\\">\\u2190 r\\u00e9essayer</a>"
+        " \\u00b7 <a href=\\"/\\">\\u2190 assistant</a></div>"
+    )
+
+
+@app.get('/fm')
+async def fm_browser(request: Request, user=Depends(get_verified_user)):
+    """P27 — navigateur de fichiers (dossiers par type, recherche, actions)."""
+    try:
+        from open_webui.models.files import Files
+
+        q = (request.query_params.get('q') or '').strip().lower()
+        folder = request.query_params.get('folder') or 'all'
+        page = max(1, int(request.query_params.get('page') or 1))
+        per_page = 50
+        uid = None if user.role == 'admin' else user.id
+        result = await Files.get_file_list(user_id=uid, skip=0, limit=10000)
+        items = []
+        for f in result.items:
+            meta = f.meta if isinstance(f.meta, dict) else {}
+            name = str(meta.get('name') or f.filename or f.id)
+            if folder != 'all' and _fm_kind(name, str(meta.get('content_type') or '')) != folder:
+                continue
+            if q and q not in name.lower():
+                continue
+            items.append(f)
+        def _key(f):
+            v = f.updated_at or f.created_at or 0
+            try:
+                return v.timestamp() if isinstance(v, _dt) else float(v)
+            except Exception:
+                return 0.0
+
+        items.sort(key=_key, reverse=True)
+        total = len(items)
+        page_items = items[(page - 1) * per_page: page * per_page]
+        body = "".join(_fm_row(f) for f in page_items) or "<tr><td colspan=\\"6\\" class=\\"empty\\">Aucun fichier ici pour le moment.</td></tr>"
+        tabs = [("all", "\\U0001f4c1 Tous"), ("pdf", "\\U0001f4c4 PDF"), ("img", "\\U0001f5bc Images"),
+                ("doc", "\\U0001f4c3 Documents"), ("other", "\\U0001f4e6 Autres")]
+        side = "".join(
+            f"<a href=\\"/fm?folder={k}&q={_quote(q)}\\" class=\\"{'on' if k == folder else ''}\\">{label}</a>"
+            for k, label in tabs
+        )
+        prev_link = f"<a href=\\"/fm?folder={folder}&q={_quote(q)}&page={page-1}\\">\\u2190 pr\\u00e9c\\u00e9dent</a>" if page > 1 else ""
+        next_link = f"<a href=\\"/fm?folder={folder}&q={_quote(q)}&page={page+1}\\">suivant \\u2192</a>" if page * per_page < total else ""
+        inner = (
+            "<div class=\\"wrap\\"><div class=\\"side\\">" + side + "</div><div class=\\"main\\">"
+            "<h1>Navigateur de fichiers</h1>"
+            f"<div class=\\"bar\\"><form method=\\"get\\" action=\\"/fm\\">"
+            f"<input type=\\"hidden\\" name=\\"folder\\" value=\\"{folder}\\">"
+            f"<input type=\\"search\\" name=\\"q\\" value=\\"{_html.escape(q)}\\" placeholder=\\"Rechercher un fichier\\">"
+            "<button>Chercher</button></form>"
+            "<a class=\\"btn\\" href=\\"/\\">\\u2190 assistant</a></div>"
+            f"<table><thead><tr><th></th><th>Nom ({total})</th><th>Taille</th><th>Modifi\\u00e9</th>"
+            f"<th>Type</th><th>Actions</th></tr></thead><tbody>{body}</tbody></table>"
+            f"<div class=\\"nav\\">{prev_link}{next_link}</div>"
+            "</div></div>"
+        )
+        return _HTMLResponse(_fm_page(inner))
+    except Exception as exc:
+        return _HTMLResponse(_fm_error(exc), status_code=500)
+
+
+@app.get('/fm/preview')
+async def fm_preview(request: Request, user=Depends(get_verified_user)):
+    """Apercu d'un fichier (image, PDF, texte) + telechargement."""
+    try:
+        from open_webui.models.files import Files
+
+        f = await Files.get_file_by_id(request.query_params.get('id') or '')
+        if f is None:
+            return _HTMLResponse(_fm_page("<h1>Fichier introuvable</h1><a href=\\"/fm\\">\\u2190 retour</a>"), status_code=404)
+        if user.role != 'admin' and f.user_id != user.id:
+            return _HTMLResponse(_fm_page("<h1>Acc\\u00e8s refus\\u00e9</h1><a href=\\"/fm\\">\\u2190 retour</a>"), status_code=403)
+        meta = f.meta if isinstance(f.meta, dict) else {}
+        name = str(meta.get('name') or f.filename or f.id)
+        kind = _fm_kind(name, str(meta.get('content_type') or ''))
+        url = f'/api/v1/files/{f.id}/content'
+        if kind == 'img':
+            view = f"<img src=\\"{url}\\" style=\\"max-width:100%\\">"
+        elif kind == 'pdf':
+            view = f"<embed src=\\"{url}\\" type=\\"application/pdf\\" style=\\"width:100%;height:75vh\\">"
+        else:
+            view = (
+                "<pre id=\\"c\\" style=\\"white-space:pre-wrap;background:#101010;padding:12px;"
+                "border-radius:8px;max-height:70vh;overflow:auto\\">Chargement\\u2026</pre>"
+                f"<script>fetch('{url}').then(r=>r.text()).then(t=>document.getElementById('c').textContent=t)"
+                ".catch(e=>document.getElementById('c').textContent='Erreur : '+e);</script>"
+            )
+        inner = (
+            f"<div class=\\"main\\"><h1>{_FM_ICO[kind]} {_html.escape(name)}</h1>"
+            f"<div class=\\"bar\\"><a class=\\"btn\\" href=\\"{url}\\" download>T\\u00e9l\\u00e9charger</a>"
+            "<a class=\\"btn\\" href=\\"/fm\\">\\u2190 navigateur</a></div>" + view + "</div>"
+        )
+        return _HTMLResponse(_fm_page(inner, name))
+    except Exception as exc:
+        return _HTMLResponse(_fm_error(exc), status_code=500)
+
+
+@app.post('/fm/delete')
+async def fm_delete(request: Request, user=Depends(get_verified_user)):
+    """Supprime un fichier (proprietaire ou admin) puis revient au navigateur."""
+    try:
+        from open_webui.models.files import Files
+
+        form = await request.form()
+        f = await Files.get_file_by_id(str(form.get('id') or ''))
+        if f is not None and (user.role == 'admin' or f.user_id == user.id):
+            try:
+                from open_webui.storage.provider import Storage
+                await Storage.delete_file(f.path)
+            except Exception:
+                pass
+            await Files.delete_file_by_id(f.id)
+    except Exception:
+        pass
+    return _Redirect('/fm', status_code=303)
+
+'''
 
 
 def patch_files_manager() -> None:
-    """P26 — gestionnaire de fichiers : le Workspace 0.13 n'a aucune section
-    « Fichiers » (ni les PDF générés, ni les téléversements n'y sont listés).
-    Route /fm : page HTML autonome, authentifiée par la session WebView,
-    listant les fichiers avec liens de téléchargement."""
-    handler = '''@app.get('/fm')
-async def local_files_manager_page(request: Request, user=Depends(get_verified_user)):
-    """P26 — gestionnaire de fichiers local (liste + téléchargement)."""
-    import html as _html
-    from datetime import datetime as _dt
-
-    from fastapi.responses import HTMLResponse as _HTMLResponse
-
-    from open_webui.models.files import Files
-
-    page = max(1, int(request.query_params.get('page', '1') or 1))
-    per_page = 50
-    result = await Files.get_file_list(
-        user_id=(None if user.role == 'admin' else user.id),
-        skip=(page - 1) * per_page,
-        limit=per_page,
-    )
-    rows = []
-    for f in result.items:
-        meta = f.meta or {}
-        name = meta.get('name') or f.filename or f.id
-        size = int(meta.get('size') or 0)
-        when = _dt.fromtimestamp(f.created_at).strftime('%Y-%m-%d %H:%M') if f.created_at else ''
-        ctype = meta.get('content_type') or ''
-        rows.append(
-            "<tr><td><a href='/api/v1/files/%s/content' download>%s</a></td>"
-            "<td>%s</td><td>%s</td><td>%s</td></tr>"
-            % (f.id, _html.escape(str(name)), f"{size:,}".replace(",", " ") + " o",
-               when, _html.escape(str(ctype)))
-        )
-    total = getattr(result, 'total', len(rows))
-    prev_link = f"<a href='/fm?page={page - 1}'>← précédente</a>" if page > 1 else ""
-    next_link = f"<a href='/fm?page={page + 1}'>suivante →</a>" if page * per_page < total else ""
-    body = "".join(rows) or "<tr><td colspan='4'>Aucun fichier pour le moment.</td></tr>"
-    page_html = f"""<!doctype html><html lang="fr"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fichiers</title>
-<style>
-  body {{ font-family: system-ui, sans-serif; margin: 1rem; background: #171717; color: #e7e7e7; }}
-  h1 {{ font-size: 1.2rem; }} a {{ color: #7db7ff; }}
-  table {{ width: 100%; border-collapse: collapse; font-size: .9rem; }}
-  th, td {{ text-align: left; padding: .45rem .5rem; border-bottom: 1px solid #333; }}
-  th {{ color: #aaa; font-weight: 600; }}
-  .nav {{ margin: 1rem 0; display: flex; gap: 1rem; }}
-  .back {{ margin-top: 1.2rem; }}
-</style></head><body>
-<h1>Fichiers ({total})</h1>
-<table><thead><tr><th>Nom</th><th>Taille</th><th>Ajouté</th><th>Type</th></tr></thead>
-<tbody>{body}</tbody></table>
-<div class="nav">{prev_link}{next_link}</div>
-<div class="back"><a href="/">← retour à l'assistant</a></div>
-</body></html>"""
-    return _HTMLResponse(page_html)
-
-
-'''
+    """P26/P27 — navigateur de fichiers : le Workspace 0.13 n'a aucune section
+    « Fichiers ». Routes /fm (dossiers par type, recherche, actions), /fm/preview
+    (aperçu) et /fm/delete (suppression) — toute erreur est rendue lisible dans
+    la page au lieu d'un « internal error » muet."""
     replace_once(
         DST / "main.py",
-        FILES_MANAGER_ROUTE_ANCHOR,
-        handler + FILES_MANAGER_ROUTE_ANCHOR,
-        "P26 route /fm gestionnaire de fichiers",
+        "@app.get('/cache/{path:path}')",
+        FM_CODE + "\n@app.get('/cache/{path:path}')",
+        "P27 navigateur de fichiers /fm",
     )
 
 

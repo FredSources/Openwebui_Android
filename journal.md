@@ -675,6 +675,24 @@ cassé »). Fix : les wrappers `ndk-cc` filtrent les `-L/usr/lib*` et `-L/lib*`
 hôtes. Vérifié `readelf -d` : `libm.so`, `libc.so`, `libdl.so` (bionic) — SearXNG
 peut enfin importer msgspec sur l'appareil.
 
+## 2026-11-08 — v0.0.7 : la VRAIE cause de la mort de SearXNG (git absent)
+
+La trace P22 (annexée à l'erreur de search_web) a livré la cause exacte :
+`searx/version.py` exécute `git show …` au chargement — **`git` n'existe pas sur
+Android** → `FileNotFoundError` → le thread SearXNG meurt avant d'ouvrir le
+port 8888. Les tests hôtes passaient car `git` y est présent (divergence
+hôte/appareil) — ni msgspec, ni les dépendances.
+
+Corrections (P24) :
+- `searx/version_frozen.py` généré (mécanisme amont prévu pour les builds sans
+  git) — les appels `git` sont court-circuités ;
+- garde-fou P24b : les `except` de `version.py` élargis à `OSError` (dégradation
+  propre si le module figé manque).
+
+Validé avec `PATH=/nonexistent` (condition appareil) : `searx.version` charge la
+version figée. À suivre : résidu cosmétique `_core…-gnu.so` dans le wheel msgspec
+(jamais chargé sur Android) à nettoyer lors d'un prochain rebuild de wheels.
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

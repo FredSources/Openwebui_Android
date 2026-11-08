@@ -275,6 +275,21 @@ def patch_frontend_engines() -> None:
     )
 
 
+SEARXNG_VERSION_FROZEN = '''\
+"""searx.version_frozen — généré par prepare_src.py (build sans git : Android).
+
+searx/version.py exécute `git show` au démarrage ; sans binaire git, l'import
+échoue (FileNotFoundError) et le thread SearXNG meurt. Ce module figé est le
+mécanisme amont qui court-circuite les appels git.
+"""
+VERSION_STRING = "1.0.0+a30b2d4"
+VERSION_TAG = "1.0.0+a30b2d4"
+DOCKER_TAG = "1.0.0-a30b2d4"
+GIT_URL = "https://github.com/searxng/searxng"
+GIT_BRANCH = "a30b2d47492ab46ae82ce25ee62a31626565cf67"
+'''
+
+
 def copy_searxng() -> None:
     """Embarque SearXNG (vendor figé) dans les sources Python de l'app."""
     import shutil
@@ -288,6 +303,16 @@ def copy_searxng() -> None:
     shutil.copytree(src, dst, ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc"))
     log(f"  SearXNG copié : {src} → {dst}")
     PATCHES.append(("SearXNG embarqué", "copié"))
+    write_searxng_version_frozen()
+
+
+def write_searxng_version_frozen() -> None:
+    """P24 — searx/version.py appelle `git` au démarrage (absent d'Android :
+    FileNotFoundError → le thread SearXNG meurt). Le module `version_frozen`
+    est le mécanisme amont prévu pour les builds sans git."""
+    (SRC / "searx" / "version_frozen.py").write_text(SEARXNG_VERSION_FROZEN, encoding="utf-8")
+    log("  searx/version_frozen.py écrit")
+    PATCHES.append(("searx version_frozen (sans git)", "écrit"))
 
 
 TYPST_TOOL = '''
@@ -416,6 +441,22 @@ def patch_search_error_log() -> None:
         "        return JSONCodec.dumps({'error': detail})",
         "P22 search_web journal searxng",
     )
+
+
+def patch_searx_git_oserror() -> None:
+    """P24b — garde-fou : si version_frozen est absent, les appels `git` doivent
+    dégrader proprement (OSError) au lieu de tuer l'import de SearXNG."""
+    for label, err in (
+        ("version", "Error while getting the version: %s"),
+        ("URL", "Error while getting the git URL & branch: %s"),
+    ):
+        replace_once(
+            SRC / "searx" / "version.py",
+            f'    except subprocess.CalledProcessError as ex:\n        logger.error("{err}", ex.stderr)',
+            f'    except (subprocess.CalledProcessError, OSError) as ex:\n'
+            f'        logger.error("{err}", getattr(ex, "stderr", ex))',
+            f"P24b searx version.py OSError ({label})",
+        )
 
 
 def patch_typst_tool() -> None:
@@ -839,6 +880,7 @@ def main() -> int:
     patch_web_search()
     patch_frontend_engines()
     copy_searxng()
+    patch_searx_git_oserror()
     patch_typst_tool()
     patch_recurrence_thread()
     patch_search_error_log()

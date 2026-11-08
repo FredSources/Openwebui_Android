@@ -1,0 +1,49 @@
+HISTOIRE DE L'IMPRIMERIE
+=========================
+
+1. Les origines en Asie
+-----------------------
+La plus ancienne impression connue avec des planches de bois (xylographie) date
+du VIIe siècle en Chine. Le plus ancien livre imprimé daté est le Sutra du
+Diamant, mis au jour à Dunhuang et daté de l'an 868.
+
+Vers 1040, l'artisan chinois Bi Sheng invente les premiers caractères mobiles
+en argile cuite. On compose le texte lettre par lettre, on imprime, puis on
+démonte la composition pour la réutiliser. En Corée, au XIIIe siècle, des
+caractères mobiles en métal sont utilisés, notamment pour le Jikji, imprimé
+en 1377.
+
+2. Gutenberg et la presse à vis
+-------------------------------
+Vers 1440, à Mayence, Johannes Gutenberg met au point un système complet :
+caractères mobiles en alliage de plomb, encre grasse à base de lin, et presse
+à vis inspirée des pressoirs agricoles.
+
+Vers 1455 paraît la Bible à 42 lignes, dite Bible de Gutenberg. Environ 180
+exemplaires sont tirés, dont une centaine sur papier et le reste sur vélin.
+C'est le premier grand livre imprimé en Europe.
+
+3. L'expansion rapide
+---------------------
+L'imprimerie se répand en quelques décennies : Strasbourg, Paris, Venise,
+Londres. Les livres imprimés avant 1500 sont appelés incunables : on en recense
+environ 27 000 éditions différentes, pour un total estimé à 10 à 12 millions
+d'exemplaires.
+
+Vers 1500, à Venise, Aldo Manuce introduit le format in-octavo, facile à
+transporter, et contribue à standardiser la typographie, dont l'italique.
+
+4. Conséquences culturelles
+---------------------------
+La baisse du prix des livres élargit le lectorat. La diffusion massive des
+thèses de Luther en 1517 doit beaucoup à l'imprimerie. Les scientifiques
+peuvent enfin comparer exactement les mêmes textes et les mêmes figures,
+ce qui accélère la circulation des savoirs.
+
+5. Quelques repères techniques
+------------------------------
+- La presse à vis est restée la technologie dominante jusqu'au XIXe siècle.
+- En 1811, Friedrich Koenig dépose le brevet de la presse à vapeur.
+- La linotype, qui compose des lignes entières de caractères, apparaît en 1886.
+- L'offset, procédé indirect hérité de la lithographie, se généralise au
+  XXe siècle.

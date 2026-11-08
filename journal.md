@@ -693,6 +693,46 @@ Validé avec `PATH=/nonexistent` (condition appareil) : `searx.version` charge l
 version figée. À suivre : résidu cosmétique `_core…-gnu.so` dans le wheel msgspec
 (jamais chargé sur Android) à nettoyer lors d'un prochain rebuild de wheels.
 
+## 2026-11-08 — Confidentialité + jeu de test RAG neutre
+
+**Règle utilisateur** : ne jamais commiter de donnée personnelle (IP même
+locale, identifiants, chemins). Un fichier de test contenait l'IP LAN de
+l'appareil — supprimé avant tout commit ; historique git vérifié propre.
+Règle ajoutée à AGENTS.md (section Confidentialité) + balayage `grep` avant
+tout commit de livrable.
+
+**Jeu de test RAG** (`output/2026-11-08/jeu-test-rag/`) : 3 documents neutres
+(cycle de l'eau, imprimerie, nutrition) + 10 questions calibrées (réponse
+attendue + source) + 3 requêtes hors sujet pour calibrer le seuil de pertinence.
+Zéro information liée à l'utilisateur ou au système.
+
+**Releases** : l'utilisateur a lui-même nettoyé les releases problématiques —
+seule v0.0.7 subsiste (mystère des « releases disparues » résolu : pas de bug
+GitHub). La note de v0.0.7 inclut désormais la version Typst embarquée (ajoutée
+aussi automatiquement aux futures releases).
+
+## 2026-11-08 — v0.0.8 : notes réparées (pycrdt réel) + gestionnaire de fichiers
+
+**Notes — « Tab is not connected. Reconnect before leaving this tab. »** :
+l'éditeur collaboratif attend que la synchro CRDT soit `synced` avant tout
+`flush()` ; notre stub `pycrdt` (accumulation d'octets sans fusion) ne
+synchronise jamais avec le vrai Yjs client → erreur + blocage de l'UI
+(reconnexion obligatoire). Fix : **pycrdt 0.14.8 réel cross-buildé** (wheel
+Rust #8, yrs — même pipeline que msgspec/typst ; `readelf` = bionic ✓), le
+stub n'est plus écrit. Piège corrigé au passage : le stub périmé survivait
+dans `src/` (pas de rmtree) et aurait masqué le module natif — `write_stubs`
+le supprime désormais.
+
+**Gestionnaire de fichiers (P26)** : le Workspace 0.13 n'a aucune section
+« Fichiers » (routes : models/tools/knowledge/skills/prompts uniquement) — ni
+les PDF générés ni les téléversements n'étaient consultables. Ajout :
+- route `/fm` : page HTML autonome (auth session) listant les fichiers avec
+  liens de téléchargement `/api/v1/files/{id}/content` + pagination ;
+- bouton flottant « Fichiers » injecté dans `index.html` (découvrable partout,
+  sans chirurgie sur le JS minifié).
+
+Validé hôte : serveur neuf, marqueur bouton présent, `/fm` → 401 (protégé).
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

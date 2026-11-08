@@ -459,6 +459,96 @@ def patch_searx_git_oserror() -> None:
         )
 
 
+FILES_MANAGER_ROUTE_ANCHOR = "@app.get('/cache/{path:path}')"
+
+
+def patch_files_manager() -> None:
+    """P26 — gestionnaire de fichiers : le Workspace 0.13 n'a aucune section
+    « Fichiers » (ni les PDF générés, ni les téléversements n'y sont listés).
+    Route /fm : page HTML autonome, authentifiée par la session WebView,
+    listant les fichiers avec liens de téléchargement."""
+    handler = '''@app.get('/fm')
+async def local_files_manager_page(request: Request, user=Depends(get_verified_user)):
+    """P26 — gestionnaire de fichiers local (liste + téléchargement)."""
+    import html as _html
+    from datetime import datetime as _dt
+
+    from fastapi.responses import HTMLResponse as _HTMLResponse
+
+    from open_webui.models.files import Files
+
+    page = max(1, int(request.query_params.get('page', '1') or 1))
+    per_page = 50
+    result = await Files.get_file_list(
+        user_id=(None if user.role == 'admin' else user.id),
+        skip=(page - 1) * per_page,
+        limit=per_page,
+    )
+    rows = []
+    for f in result.items:
+        meta = f.meta or {}
+        name = meta.get('name') or f.filename or f.id
+        size = int(meta.get('size') or 0)
+        when = _dt.fromtimestamp(f.created_at).strftime('%Y-%m-%d %H:%M') if f.created_at else ''
+        ctype = meta.get('content_type') or ''
+        rows.append(
+            "<tr><td><a href='/api/v1/files/%s/content' download>%s</a></td>"
+            "<td>%s</td><td>%s</td><td>%s</td></tr>"
+            % (f.id, _html.escape(str(name)), f"{size:,}".replace(",", " ") + " o",
+               when, _html.escape(str(ctype)))
+        )
+    total = getattr(result, 'total', len(rows))
+    prev_link = f"<a href='/fm?page={page - 1}'>← précédente</a>" if page > 1 else ""
+    next_link = f"<a href='/fm?page={page + 1}'>suivante →</a>" if page * per_page < total else ""
+    body = "".join(rows) or "<tr><td colspan='4'>Aucun fichier pour le moment.</td></tr>"
+    page_html = f"""<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fichiers</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; margin: 1rem; background: #171717; color: #e7e7e7; }}
+  h1 {{ font-size: 1.2rem; }} a {{ color: #7db7ff; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: .9rem; }}
+  th, td {{ text-align: left; padding: .45rem .5rem; border-bottom: 1px solid #333; }}
+  th {{ color: #aaa; font-weight: 600; }}
+  .nav {{ margin: 1rem 0; display: flex; gap: 1rem; }}
+  .back {{ margin-top: 1.2rem; }}
+</style></head><body>
+<h1>Fichiers ({total})</h1>
+<table><thead><tr><th>Nom</th><th>Taille</th><th>Ajouté</th><th>Type</th></tr></thead>
+<tbody>{body}</tbody></table>
+<div class="nav">{prev_link}{next_link}</div>
+<div class="back"><a href="/">← retour à l'assistant</a></div>
+</body></html>"""
+    return _HTMLResponse(page_html)
+
+
+'''
+    replace_once(
+        DST / "main.py",
+        FILES_MANAGER_ROUTE_ANCHOR,
+        handler + FILES_MANAGER_ROUTE_ANCHOR,
+        "P26 route /fm gestionnaire de fichiers",
+    )
+
+
+def patch_files_button() -> None:
+    """P26b — bouton flottant « Fichiers » dans index.html (le menu du Workspace
+    n'a aucune entrée Fichiers ; le bouton rend /fm découvrable partout)."""
+    btn = (
+        '<a href="/fm" title="Fichiers : PDF générés et téléversements" '
+        'style="position:fixed;right:12px;bottom:72px;z-index:2147483000;'
+        'width:42px;height:42px;border-radius:50%;background:#3b82f6;color:#fff;'
+        'display:flex;align-items:center;justify-content:center;font-size:20px;'
+        'text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.4)">&#128206;</a>\n</body>'
+    )
+    replace_once(
+        DST / "frontend" / "index.html",
+        "</body>",
+        btn,
+        "P26b bouton flottant Fichiers (index.html)",
+    )
+
+
 def patch_typst_tool() -> None:
     """P11 — outil « compile_typst » (.typ → PDF) dans les outils embarqués."""
     builtin = DST / "tools" / "builtin.py"
@@ -696,7 +786,10 @@ def write_stubs(with_native_pycrdt: bool) -> None:
     log("  shim re2.py écrit")
     PATCHES.append(("shim re2", "écrit"))
     if with_native_pycrdt:
-        log("  pycrdt natif demandé : pas de stub (le wheel local doit exister)")
+        stale = SRC / "pycrdt.py"
+        if stale.exists():
+            stale.unlink()  # un stub périmé masquerait le module natif
+        log("  pycrdt natif : stub retiré (le wheel local fournit le module)")
     else:
         (SRC / "pycrdt.py").write_text(PYCRDT_STUB, encoding="utf-8")
         log("  stub pycrdt.py écrit")
@@ -860,7 +953,7 @@ def copy_tree() -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--with-native-pycrdt", action="store_true",
+    ap.add_argument("--with-native-pycrdt", action="store_true", default=True,
                     help="ne pas générer le stub pycrdt (wheel natif local attendu)")
     args = ap.parse_args()
 
@@ -881,6 +974,8 @@ def main() -> int:
     patch_frontend_engines()
     copy_searxng()
     patch_searx_git_oserror()
+    patch_files_manager()
+    patch_files_button()
     patch_typst_tool()
     patch_recurrence_thread()
     patch_search_error_log()

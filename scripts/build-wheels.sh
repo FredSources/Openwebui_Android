@@ -121,6 +121,7 @@ build_one 'uuid_utils'
 build_one 'orjson'
 build_one 'rpds_py'
 build_one 'typst'
+build_one 'pycrdt'
 
 # msgspec : extension C (setuptools, pas maturin) — build via clang wrapper
 build_msgspec() {

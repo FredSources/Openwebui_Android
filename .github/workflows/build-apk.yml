@@ -141,6 +141,7 @@ jobs:
           mkdir -p .tmp
           OW=$(sed -n 's/.*OPEN_WEBUI_VERSION:-\([0-9.]*\).*/\1/p' scripts/fetch_src.sh | head -1)
           SX=$(git -C vendor/searxng rev-parse --short=7 HEAD)
+          TY=$(sed -n 's/^typst==\([0-9.]*\).*/\1/p' requirements-min.txt | head -1)
           {
             echo "## Composants embarqués"
             echo ""
@@ -148,6 +149,7 @@ jobs:
             echo "|---|---|"
             echo "| Open WebUI | $OW |"
             echo "| SearXNG | \`$SX\` (commit figé) |"
+            echo "| Typst | $TY (compilateur .typ → PDF) |"
             echo "| Python | 3.13 (Chaquopy 17.2) |"
             echo ""
           } > .tmp/release-body.md

@@ -95,6 +95,7 @@ msgspec==0.21.1             # [WHEEL-LOCAL] C ext cross-buildée (setuptools + c
 isodate==0.7.2
 whitenoise==6.12.0
 typst==0.15.2               # [WHEEL-LOCAL] compilateur Typst .typ → PDF (maturin/Rust)
+pycrdt==0.14.8              # [WHEEL-LOCAL] CRDT réel des notes (yrs/Rust) — remplace le stub
 
 # ---------- RAG : embeddings DISTANTS + base vectorielle LOCALE ----------
 # Exigence : la plateforme ne calcule pas d'embeddings → embeddings par API

@@ -94,6 +94,14 @@ variables ci-dessus et refuser de tourner si `$PWD` n'est pas la racine du proje
   de Chaquopy est un **python3.12** distinct (voir décision 2).
 - Ne jamais inventer d'URL ; vérifier avec `curl -sIL` avant de référencer.
 
+## Confidentialité — aucune donnée personnelle dans le dépôt
+
+- Ne jamais commiter d'adresse IP (même locale), de nom d'appareil, de chemin
+  personnel, d'identifiant ou de clé. Vérifier les livrables avant tout commit :
+  `grep -rnE '192\.168\.[0-9]+\.|10\.[0-9]+\.[0-9]+\.' output/`.
+- Les jeux de test et rapports sont **neutres** : aucun lien avec le système de
+  l'utilisateur ni avec ses données (règle validée le 2026-11-08).
+
 ## Licence
 
 Open WebUI est sous **BSD-3-Clause** : l'embarquage dans un APK et la redistribution

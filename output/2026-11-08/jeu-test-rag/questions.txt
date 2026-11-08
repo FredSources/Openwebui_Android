@@ -1,0 +1,64 @@
+JEU DE TEST RAG — QUESTIONS CALIBRÉES
+======================================
+Format : QUESTION / RÉPONSE ATTENDUE / SOURCE (fichier) / LOCALISATION
+
+1. Quelle part de la surface terrestre est couverte d'eau ?
+   Réponse : environ 71 %
+   Source : doc1_cycle_eau.txt — section « Chiffres clés »
+
+2. Quelle est la durée moyenne de résidence d'une molécule d'eau dans
+   l'atmosphère ?
+   Réponse : 9 jours
+   Source : doc1_cycle_eau.txt — section « Durées de résidence »
+
+3. Quelle proportion de l'eau de la Terre est de l'eau douce ?
+   Réponse : 2,5 % (dont deux tiers sous forme de glace)
+   Source : doc1_cycle_eau.txt — section « Chiffres clés »
+
+4. Quelle est l'évaporation océanique annuelle, en kilomètres cubes ?
+   Réponse : environ 434 000 kilomètres cubes par an
+   Source : doc1_cycle_eau.txt — section « Les étapes du cycle »
+
+5. Quel est le plus ancien livre imprimé daté, et de quelle année date-t-il ?
+   Réponse : le Sutra du Diamant, imprimé en 868
+   Source : doc2_imprimerie.txt — section « Les origines en Asie »
+
+6. Qui a inventé les premiers caractères mobiles en argile, et vers quand ?
+   Réponse : Bi Sheng, vers 1040, en Chine
+   Source : doc2_imprimerie.txt — section « Les origines en Asie »
+
+7. Combien d'exemplaires de la Bible de Gutenberg ont-ils été tirés ?
+   Réponse : environ 180 exemplaires (une centaine sur papier, le reste sur vélin)
+   Source : doc2_imprimerie.txt — section « Gutenberg et la presse à vis »
+
+8. Que sont les incunables et combien d'éditions en recense-t-on ?
+   Réponse : les livres imprimés avant 1500 ; environ 27 000 éditions
+   Source : doc2_imprimerie.txt — section « L'expansion rapide »
+
+9. Combien de kilocalories apporte un gramme de lipides ?
+   Réponse : 9 kilocalories (contre 4 pour glucides et protéines)
+   Source : doc3_nutrition.txt — section « Les macronutriments »
+
+10. Quelle est la recommandation de l'Organisation mondiale de la santé
+    concernant la consommation de sel ?
+    Réponse : rester en dessous de 5 grammes par jour
+    Source : doc3_nutrition.txt — section « Les micronutriments »
+
+REQUÊTES HORS SUJET (contrôle du seuil de pertinence)
+-----------------------------------------------------
+Ces requêtes ne doivent idéalement remonter AUCUN extrait pertinent.
+Elles servent à mesurer le taux de faux positifs selon le seuil choisi.
+
+H1. recette de bœuf bourguignon pas à pas
+H2. quel est le meilleur téléphone pliable de 2026
+H3. classement du championnat de football argentin
+
+PROTOCOLE DE MESURE
+-------------------
+- Téléverser les 3 documents dans une même base (sujets volontairement distincts).
+- Poser les 10 questions dans l'ordre, sans autre contexte.
+- Métriques : rappel à 5 (la bonne réponse figure-t-elle dans les 5 premiers
+  extraits ?), MRR (rang de la première réponse correcte), précision top-1.
+- Mesurer séparément le taux de faux positifs sur H1-H3 pour chaque valeur de
+  seuil testée (par exemple 0,60 / 0,65 / 0,70 / 0,75 / 0,80).
+- Le seuil retenu est celui qui maximise le rappel tout en annulant H1-H3.

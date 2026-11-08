@@ -552,6 +552,7 @@ def patch_files_mnt_alias() -> None:
 
 
 FM_CODE = '''
+_FM_VERSION = "@@VERSION@@"
 import html as _html
 import traceback as _tb
 from datetime import datetime as _dt
@@ -593,7 +594,8 @@ def _fm_page(inner: str, title: str = "Fichiers") -> str:
         "<!doctype html><html lang=\\"fr\\"><head><meta charset=\\"utf-8\\">"
         "<meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1\\">"
         f"<title>{_html.escape(title)}</title><style>{_FM_STYLE}</style></head>"
-        f"<body>{back}{inner}</body></html>"
+        f"<body>{back}{inner}<footer style='position:fixed;left:8px;bottom:4px;"
+        f"color:#666;font-size:10px'>OpenWebUI Android {_FM_VERSION}</footer></body></html>"
     )
 
 
@@ -991,6 +993,19 @@ async def fm_delete_raw(request: Request, user=Depends(get_verified_user)):
 '''
 
 
+def _fm_lire_version() -> str:
+    """Version courante (versionName de build.gradle) affichée dans le pied de
+    page /fm — permet de diagnostiquer instantanément la version installée."""
+    try:
+        g = (PROJ / "app" / "build.gradle").read_text(encoding="utf-8")
+        for ligne in g.splitlines():
+            if "versionName" in ligne:
+                return ligne.split("'")[1]
+    except Exception:
+        pass
+    return "?"
+
+
 def patch_files_manager() -> None:
     """P26/P27 — navigateur de fichiers : le Workspace 0.13 n'a aucune section
     « Fichiers ». Routes /fm (dossiers par type, recherche, actions), /fm/preview
@@ -999,7 +1014,7 @@ def patch_files_manager() -> None:
     replace_once(
         DST / "main.py",
         "@app.get('/cache/{path:path}')",
-        FM_CODE + "\n@app.get('/cache/{path:path}')",
+        FM_CODE.replace("@@VERSION@@", _fm_lire_version()) + "\n@app.get('/cache/{path:path}')",
         "P27 navigateur de fichiers /fm",
     )
 

@@ -904,3 +904,15 @@ préférer l'édition ciblée aux découpages regex.
 Rappel de l'audit : execute_code fonctionne (Python 3.14, /mnt/uploads OK) ;
 restent à traiter : compile_typst (infra), search_memories/search_knowledge_files
 (sémantique), create_tool (méthodes non exposées).
+
+## 2026-11-08 — v0.0.18 : version affichée dans l'app + leçon de diagnostic
+
+« Config persistante » sur v0.0.17… mais le sondage par routes a prouvé que le
+serveur qui répondait n'avait PAS les routes v0.0.17 (`POST /fm/fix-index` →
+405) : le processus de l'appli n'avait pas été redémarré après la mise à jour
+et servait l'ancien code. Leçon : la version *installée* ≠ version *en
+exécution* — toujours forcer l'arrêt/relancer après mise à jour.
+
+Correctif de diagnostic : le pied de page du navigateur 📂 affiche la
+**version du code exécuté** (lue dans build.gradle à la génération), pour
+distinguer instantanément les deux.

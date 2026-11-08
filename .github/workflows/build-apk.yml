@@ -64,9 +64,13 @@ jobs:
       - name: Téléchargements (cmdline-tools, Gradle)
         run: |
           mkdir -p downloads
-          curl -fsSL --retry 3 --retry-delay 2 -o downloads/cmdline-tools.zip \
+          # zips mis en cache : téléchargés une seule fois (le CDN sature parfois
+          # en 504 — ne jamais re-télécharger ce qui est déjà présent)
+          [ -s downloads/cmdline-tools.zip ] || curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
+            -o downloads/cmdline-tools.zip \
             https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          curl -fsSL --retry 3 --retry-delay 2 -o downloads/gradle.zip \
+          [ -s downloads/gradle.zip ] || curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
+            -o downloads/gradle.zip \
             https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
 
       - name: Cache Gradle + SDK
@@ -76,6 +80,7 @@ jobs:
             .gradle-cache
             android-sdk
             tools/gradle
+            downloads
           key: build-${{ runner.os }}-${{ hashFiles('gradle.properties', 'app/build.gradle') }}
 
       - name: SDK + Gradle (installés dans le projet)

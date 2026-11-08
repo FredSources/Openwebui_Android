@@ -977,3 +977,25 @@ Correctif P35 :
   refus définitif → `denied` honnête + toast vers les réglages.
 
 Note : `minifyEnabled false` → aucun risque de strip des @JavascriptInterface.
+
+## 2026-11-08 — v0.0.22 : « no attribute get_collections » sur le nettoyage d'index
+
+Le bouton ⚙ « Nettoyer l'index des documents disparus » levait AttributeError.
+Cause : la route /fm/fix-index (P31) appelait
+`ASYNC_VECTOR_DB_CLIENT.get_collections()` — méthode qui n'existait **ni** sur
+le wrapper async **ni** sur LocalVectorDB (elle n'appartient à aucune interface
+VectorDBBase : seuls les backends qdrant l'ont en interne).
+
+Correctif P36 :
+- `LocalVectorDB.get_collections()` implémenté (SELECT DISTINCT collection) —
+  la base locale sait désormais s'énumérer ;
+- route corrigée : énumération via le client **synchrone** (`ASYNC_VECTOR_DB_CLIENT.sync`,
+  propriété) avec `hasattr` + repli → message « Index non inspectable » si le
+  backend ne l'implémente pas ; index vide = « Aucune orphelin » (pas d'erreur).
+- Test fonctionnel local : insertion 2 collections → liste correcte → suppression
+  → liste mise à jour. ✓
+
+Leçon de méthode : ma route P31 avait été testée par sonde HTTP (400/405) mais
+jamais **exécutée** — un appel à une méthode inexistante ne se voit pas dans un
+test de présence de route. Toute nouvelle route de maintenance doit être
+*exécutée* au moins une fois (serveur de test sur 8090).

@@ -89,6 +89,14 @@ class LocalVectorDB(VectorDBBase):
         return rows
 
     # ---------- API ----------
+    def get_collections(self) -> List[str]:
+        """P36 — liste des collections existantes (nécessaire au nettoyage des
+        collections orphelines : la route /fm/fix-index appelait cette méthode
+        qui n'existait sur aucun backend)."""
+        with self._lock:
+            cur = self._conn.execute('SELECT DISTINCT collection FROM vectors')
+            return sorted(row[0] for row in cur.fetchall())
+
     def has_collection(self, collection_name: str) -> bool:
         with self._lock:
             cur = self._conn.execute(

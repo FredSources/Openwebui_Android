@@ -950,7 +950,23 @@ async def fm_fix_index(request: Request, user=Depends(get_verified_user)):
         result = await Files.get_file_list(user_id=None, skip=0, limit=100000)
         connus = {"file-" + f.id for f in result.items}
         orphelins = []
-        for nom in await ASYNC_VECTOR_DB_CLIENT.get_collections():
+        # P36 : get_collections() n'existe ni sur le wrapper async ni sur tous
+        # les backends — on passe par le client synchrone, avec repli propre.
+        client = ASYNC_VECTOR_DB_CLIENT.sync
+        inspectable = hasattr(client, "get_collections")
+        noms = []
+        if inspectable:
+            try:
+                noms = list(client.get_collections() or [])
+            except Exception:
+                inspectable = False
+        if not inspectable:
+            return _HTMLResponse(_fm_page(
+                "<h1>&#9888; Index non inspectable</h1>"
+                "<p>Le backend vectoriel en cours ne permet pas d'énumérer les "
+                "collections : aucun nettoyage d'orphelin n'est possible.</p>"
+                "<div class='nav'><a href='/fm?folder=maintenance'>&#8592; maintenance</a></div>"))
+        for nom in noms:
             if str(nom).startswith("file-") and str(nom) not in connus:
                 try:
                     await ASYNC_VECTOR_DB_CLIENT.delete(collection_name=str(nom))

@@ -561,41 +561,71 @@ from urllib.parse import quote as _quote
 from fastapi.responses import HTMLResponse as _HTMLResponse, RedirectResponse as _Redirect
 
 _FM_STYLE = """
-  body { font-family: system-ui, sans-serif; margin: 0; background: #171717; color: #e7e7e7; }
-  a { color: #7db7ff; text-decoration: none; }
+  :root {
+    --font: -apple-system, BlinkMacSystemFont, "Inter", "Vazirmatn", ui-sans-serif, system-ui, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif;
+    --bg: #ffffff; --fg: #000000;
+    --side: #f9fafb; --panel: #ffffff;
+    --border: #e5e7eb; --muted: #6b7280; --hover: #f3f4f6;
+    --accent: #3b82f6; --accent-fg: #ffffff;
+    --btn2: #f3f4f6; --btn2-fg: #111827;
+    --danger: #dc2626;
+  }
+  html.dark {
+    --bg: #171717; --fg: #eeeeee;
+    --side: #1f1f1f; --panel: #1f1f1f;
+    --border: #2e2e2e; --muted: #9a9a9a; --hover: #262626;
+    --btn2: #262626; --btn2-fg: #e7e7e7;
+  }
+  html.oled-dark { --bg: #000000; --side: #0a0a0a; --panel: #0a0a0a; }
+  * { box-sizing: border-box; }
+  body { font-family: var(--font); margin: 0; background: var(--bg); color: var(--fg); font-size: 14px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
   .wrap { display: flex; min-height: 100vh; }
-  .side { width: 180px; padding: 14px 10px; background: #1f1f1f; }
-  .side a { display: block; padding: 8px 10px; border-radius: 8px; margin-bottom: 4px; color: #ddd; }
-  .side a.on { background: #3b82f6; color: #fff; }
-  .main { flex: 1; padding: 16px; min-width: 0; }
-  h1 { font-size: 1.15rem; margin: 0 0 12px; }
-  .bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-  input[type=search] { background: #262626; border: 1px solid #444; color: #eee; padding: 8px 10px; border-radius: 8px; min-width: 200px; }
-  button, .btn { background: #3b82f6; color: #fff; border: 0; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: .85rem; }
-  .del { background: #b91c1c; }
+  .side { width: 180px; padding: 14px 10px; background: var(--side); border-right: 1px solid var(--border); }
+  .side a { display: block; padding: 8px 10px; border-radius: 8px; margin-bottom: 4px; color: var(--fg); opacity: .85; }
+  .side a:hover { background: var(--hover); text-decoration: none; }
+  .side a.on { background: var(--accent); color: var(--accent-fg); opacity: 1; font-weight: 500; }
+  .main { flex: 1; padding: 18px 20px; min-width: 0; }
+  h1 { font-size: 1.15rem; margin: 0 0 14px; font-weight: 600; }
+  .bar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+  input[type=search] { background: var(--panel); border: 1px solid var(--border); color: var(--fg); padding: 8px 12px; border-radius: 10px; min-width: 200px; font: inherit; }
+  button, .btn { background: var(--accent); color: var(--accent-fg); border: 0; padding: 8px 14px; border-radius: 10px; cursor: pointer; font-size: .85rem; font-weight: 500; font-family: inherit; }
+  button:hover, .btn:hover { filter: brightness(1.05); text-decoration: none; }
+  .btn2 { background: var(--btn2); color: var(--btn2-fg); }
+  .del { background: var(--danger); color: #fff; }
   table { width: 100%; border-collapse: collapse; font-size: .88rem; }
-  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #2e2e2e; }
-  th { color: #9a9a9a; font-weight: 600; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .02em; }
+  tr:hover td { background: var(--hover); }
   .ico { font-size: 1.2rem; }
-  .nav { margin: 14px 0; display: flex; gap: 14px; }
-  .empty { color: #999; padding: 30px 0; }
-  .err { background: #3b1111; border: 1px solid #7f1d1d; padding: 12px; border-radius: 8px; white-space: pre-wrap; }
+  .nav { margin: 16px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .nav a { padding: 6px 12px; border: 1px solid var(--border); border-radius: 10px; color: var(--fg); background: var(--panel); }
+  .nav a:hover { background: var(--hover); text-decoration: none; }
+  .empty { color: var(--muted); padding: 30px 0; }
+  .err { background: rgba(220, 38, 38, .1); border: 1px solid var(--danger); padding: 12px; border-radius: 10px; white-space: pre-wrap; }
+  .ver { position: fixed; left: 10px; bottom: 6px; color: var(--muted); font-size: 10px; opacity: .7; }
 """
 
 
 def _fm_page(inner: str, title: str = "Fichiers") -> str:
-    back = (
-        "<a href=\\"/\\" title=\\"Retour \\u00e0 Open WebUI\\" "
-        "style=\\"position:fixed;right:12px;top:12px;z-index:10;background:#3b82f6;color:#fff;"
-        "padding:10px 16px;border-radius:24px;text-decoration:none;font-weight:600;"
-        "box-shadow:0 2px 8px rgba(0,0,0,.4)\\">\\u2190 Open WebUI</a>"
+    # P37 — habillage aligné sur Open WebUI : police Inter, palette claire
+    # (#fff/#000), sombre (#171717/#eee) et oled-dark (noir pur) ; le thème est
+    # lu dans localStorage["theme"] comme le fait le frontend. Plus de bouton
+    # « retour assistant » : la navigation Android/back d'Open WebUI suffit.
+    theme_js = (
+        '<script>(function(){var t=null;try{t=localStorage.getItem("theme");}catch(e){}'
+        'var dark=(t==="dark"||t==="oled-dark")'
+        '||(t!=="light"&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);'
+        'var c=document.documentElement.classList;'
+        'if(dark){c.add("dark");if(t==="oled-dark"){c.add("oled-dark");}}else{c.add("light");}'
+        '})();</script>'
     )
     return (
-        "<!doctype html><html lang=\\"fr\\"><head><meta charset=\\"utf-8\\">"
-        "<meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1\\">"
-        f"<title>{_html.escape(title)}</title><style>{_FM_STYLE}</style></head>"
-        f"<body>{back}{inner}<footer style='position:fixed;left:8px;bottom:4px;"
-        f"color:#666;font-size:10px'>OpenWebUI Android {_FM_VERSION}</footer></body></html>"
+        '<!doctype html><html lang="fr"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f'<title>{_html.escape(title)}</title>{theme_js}<style>{_FM_STYLE}</style></head>'
+        f'<body>{inner}<footer class="ver">OpenWebUI Android {_FM_VERSION}</footer></body></html>'
     )
 
 
@@ -720,7 +750,6 @@ def _fm_row(f) -> str:
         f"<td><a href=\\"/fm/preview?id={f.id}\\">{_html.escape(name)}</a></td>"
         f"<td>{size}</td><td>{when}</td><td>{_html.escape(ctype)}</td><td>"
         f"<a class=\\"btn\\" href=\\"/api/v1/files/{f.id}/content\\" download>T\\u00e9l\\u00e9charger</a> "
-        f"<a class=\\"btn\\" href=\\"/fm/preview?id={f.id}\\">Voir</a> "
         f"<form style=\\"display:inline\\" method=\\"post\\" action=\\"/fm/delete\\" "
         f"onsubmit=\\"return confirm('Supprimer ce fichier ?')\\">"
         f"<input type=\\"hidden\\" name=\\"id\\" value=\\"{f.id}\\">"
@@ -732,8 +761,7 @@ def _fm_error(exc: Exception) -> str:
     return _fm_page(
         "<h1>Erreur du gestionnaire de fichiers</h1><div class=\\"err\\">"
         + _html.escape("".join(_tb.format_exception(exc)))
-        + "</div><div class=\\"nav\\"><a href=\\"/fm\\">\\u2190 r\\u00e9essayer</a>"
-        " \\u00b7 <a href=\\"/\\">\\u2190 assistant</a></div>"
+        + "</div><div class=\\"nav\\"><a href=\\"/fm\\">\\u2190 r\\u00e9essayer</a></div>"
     )
 
 
@@ -799,7 +827,6 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 f"<td><a href=\\"/fm/raw?name={_quote(p.name)}\\">{_html.escape(nom_aff)}</a></td>"
                 f"<td>{taille}</td><td>{quand}</td><td>sur disque</td><td>"
                 f"<a class=\\"btn\\" href=\\"/fm/raw?name={_quote(p.name)}\\" download>T\\u00e9l\\u00e9charger</a> "
-                f"<a class=\\"btn\\" href=\\"/fm/raw?name={_quote(p.name)}\\">Voir</a> "
                 f"<form style=\\"display:inline\\" method=\\"post\\" action=\\"/fm/delete-raw\\" "
                 f"onsubmit=\\"return confirm('Supprimer ce fichier ?')\\">"
                 f"<input type=\\"hidden\\" name=\\"name\\" value=\\"{_html.escape(p.name)}\\">"
@@ -850,8 +877,7 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
             f"<div class=\\"bar\\"><form method=\\"get\\" action=\\"/fm\\">"
             f"<input type=\\"hidden\\" name=\\"folder\\" value=\\"{folder}\\">"
             f"<input type=\\"search\\" name=\\"q\\" value=\\"{_html.escape(q)}\\" placeholder=\\"Rechercher un fichier\\">"
-            "<button>Chercher</button></form>"
-            "<a class=\\"btn\\" href=\\"/\\">\\u2190 assistant</a></div>"
+            "<button>Chercher</button></form></div>"
             f"<table><thead><tr><th></th><th>Nom ({total})</th><th>Taille</th><th>Modifi\\u00e9</th>"
             f"<th>Type</th><th>Actions</th></tr></thead><tbody>{body}</tbody></table>"
             f"<div class=\\"nav\\">{prev_link}{next_link}</div>"

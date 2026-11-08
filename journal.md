@@ -999,3 +999,18 @@ Leçon de méthode : ma route P31 avait été testée par sonde HTTP (400/405) m
 jamais **exécutée** — un appel à une méthode inexistante ne se voit pas dans un
 test de présence de route. Toute nouvelle route de maintenance doit être
 *exécutée* au moins une fois (serveur de test sur 8090).
+
+## 2026-11-08 — v0.0.23 : /fm à l'identique visuelle d'Open WebUI (P37)
+
+Demande utilisateur : retirer le bouton « retour assistant » (doublon avec la
+navigation Open WebUI/Android) et aligner le visuel du navigateur de fichiers.
+
+- P37 : refonte `_FM_STYLE` — police Inter (pile officielle Open WebUI),
+  palettes exactes du frontend (#fff/#000 clair, #171717/#eee sombre,
+  noir pur oled-dark), thème lu dans localStorage["theme"] comme Open WebUI
+  (dark/light/oled-dark + prefers-color-scheme en repli), coins arrondis,
+  table survol, boutons secondaires, en-têtes de colonnes discrets.
+- Boutons supprimés : pilule flottante « ← Open WebUI », liens « ← assistant »
+  (page d'erreur + barre du navigateur), bouton « Voir » (×2) — le nom du
+  fichier est déjà le lien vers l'aperçu ; il restait Télécharger + Suppr.
+- Version conservée en pied de page discret (outil de diagnostic v0.0.18).

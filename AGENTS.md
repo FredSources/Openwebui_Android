@@ -119,3 +119,12 @@ sont autorisés **avec attribution** (conserver la notice de licence dans l'app)
 
 `app/build/outputs/apk/release/app-release.apk` signé (ou `debug` pour le test),
 installable par `adb install` ou téléchargement direct, avec `README.md` de build.
+
+## Serveurs de test — ne JAMAIS prendre le port de l'appli
+
+L'appli Android sert sur **8080** (réseau partagé avec Termux). Tout serveur de
+test (smoke, expérimentation) doit utiliser le port **8090** — un serveur de
+test sur 8080 empêche l'appli de démarrer et fait échouer TOUS les diagnostics
+(« fantômes » : le test parle à l'ancien serveur, l'utilisateur aussi).
+Après tout test : vérifier qu'aucun processus de test ne survit
+(`pgrep -f 'venv313/bin/pyth[o]n'`) (règle issue des incidents du 2026-11-07 et 2026-11-08).

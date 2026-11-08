@@ -22,7 +22,7 @@ export SCARF_NO_ANALYTICS=true
 export HF_HUB_OFFLINE=1
 exec .venv313/bin/python -c "
 import time, android_main
-android_main.start_server(8080)
+android_main.start_server(8090)
 print('smoke: serveur démarré (8080) + SearXNG (8888)', flush=True)
 while True:
     time.sleep(60)

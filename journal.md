@@ -916,3 +916,12 @@ exécution* — toujours forcer l'arrêt/relancer après mise à jour.
 Correctif de diagnostic : le pied de page du navigateur 📂 affiche la
 **version du code exécuté** (lue dans build.gradle à la génération), pour
 distinguer instantanément les deux.
+
+## 2026-11-08 — Bis du piège du zombie (et régulation)
+
+La « config persistante » de l'utilisateur : mon serveur de test (smoke) tournait
+**toujours sur 8080** — l'appli Android ne pouvait pas démarrer son propre
+serveur, et toutes les interactions (utilisateur ET mes sondes) parlaient à la
+base de test. D'où une config « indestructible » et des panneaux absents.
+Régulation : `smoke.sh` sert désormais sur **8090** (règle AGENTS.md), et un
+`pgrep` de vérification est exigé après chaque test.

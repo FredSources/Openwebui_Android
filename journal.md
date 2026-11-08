@@ -638,6 +638,26 @@ regroupés en 6 causes. Corrections —
 Embeddings : le relay de l'utilisateur ne sert pas /embeddings (404) — attendons
 l'URL + le modèle configurés côté appareil pour corriger (soupçon : nom de modèle).
 
+## 2026-11-08 — v1.0.5 : Pyodide restauré (execute_code) + fix mémoire
+
+**execute_code** : l'utilisateur veut l'exécution Python (analyse CSV/Excel/PDF,
+calculs, graphiques). P23 restaure `pyodide/` (61 Mo : cœur + paquets) dans les
+assets frontend — parti de `pyodide.worker` qui charge le runtime depuis
+`/pyodide/` (local ; le CDN jsdelivr ne sert qu'aux paquets). Contrepartie
+explicite de P13, la règle « pas de calcul local » ne vise que les embeddings
+(D15). `code_interpreter.enable` est réactivé (env + force config) — la
+désactivation de v1.0.3 n'avait de toute façon jamais remplacé la valeur `true`
+déjà en base (le helper ne force que les valeurs falsy).
+
+**add_memory / update_memory** « 'dict' object has no attribute 'id' » : notre
+`LocalVectorDB._write` consommait `item.id` (attributs) alors que le pipeline
+mémoire passe des **dicts bruts** — normalisation dict→VectorItem à l'entrée.
+Validé hôte : dicts + modèles acceptés, query OK.
+
+Reste ouvert : msgspec (recherche web) lie `libc.so.6`/`libm.so.6` (glibc) au
+lieu du bionic — le wrapper ndk-cc est correct isolément, la commande de lien
+réelle de setuptools reste à profiler (logging wrapper en place).
+
 ## Points ouverts
 
 - Version Open WebUI cible à figer (release stable recommandée).

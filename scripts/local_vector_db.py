@@ -108,6 +108,9 @@ class LocalVectorDB(VectorDBBase):
         self._write(collection_name, items)
 
     def _write(self, collection_name: str, items: List[VectorItem]) -> None:
+        # Les appelants passent indifféremment des VectorItem ou des dicts bruts
+        # (ex. upsert_memory_vectors_or_reindex) — normalisation ici.
+        norm = [VectorItem(**item) if isinstance(item, dict) else item for item in items]
         payload = [
             (
                 collection_name,
@@ -118,7 +121,7 @@ class LocalVectorDB(VectorDBBase):
                 if item.metadata is not None
                 else None,
             )
-            for item in items
+            for item in norm
         ]
         with self._lock:
             self._conn.executemany(

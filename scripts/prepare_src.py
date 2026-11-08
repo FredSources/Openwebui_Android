@@ -682,10 +682,11 @@ def write_local_vector_db() -> None:
 def slim_frontend() -> None:
     """P13 — allège le frontend embarqué (gain de démarrage + taille APK).
 
-    Supprimé : source maps (debug), pyodide (interpréteur Python DANS le
-    navigateur), wasm (ONNX Runtime Web = ML navigateur). Ces deux derniers
-    contredisent la règle « pas de calcul local » et pèsent ~82 Mo ; les
-    source maps sont inutiles en production (~83 Mo).
+    Supprimé : source maps (debug, ~83 Mo) et wasm (ONNX Runtime Web = ML
+    navigateur, inutile ici). P23 : `pyodide/` est CONSERVÉ (61 Mo) — c'est le
+    runtime de l'outil execute_code (analyse CSV/Excel/PDF, calculs, graphiques
+    dans le navigateur) ; il est restauré contre la règle « pas de calcul
+    local » qui ne vise que les embeddings (D15).
     """
     import shutil
 
@@ -696,13 +697,13 @@ def slim_frontend() -> None:
     for f in front.rglob("*.map"):
         freed += f.stat().st_size
         f.unlink()
-    for name in ("pyodide", "wasm"):
+    for name in ("wasm",):
         d = front / name
         if d.is_dir():
             freed += sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
             shutil.rmtree(d)
-    log(f"  P13 frontend allégé : {freed / 1e6:.0f} Mo retirés (maps, pyodide, wasm)")
-    PATCHES.append(("frontend allégé (maps/pyodide/wasm)", f"-{freed / 1e6:.0f} Mo"))
+    log(f"  P13 frontend allégé : {freed / 1e6:.0f} Mo retirés (maps, wasm) — pyodide conservé (P23)")
+    PATCHES.append(("frontend allégé (maps/wasm, pyodide conservé)", f"-{freed / 1e6:.0f} Mo"))
 
 
 def frontend_out_of_python() -> None:

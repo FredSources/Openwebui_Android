@@ -957,3 +957,23 @@ Reste à traiter (suite audit) : display_file (recherche du fichier écrit par l
 bac à sable hors UPLOAD_DIR, message d'erreur trompeur), query_knowledge_bases
 ([] alors que search_knowledge_bases trouve), search_memories (requête vide →
 [] au lieu d'énumérer), ask_user (doit rester seul dans l'appel — à documenter).
+
+## 2026-11-08 — v0.0.21 : notifications natives (le réglage ne pouvait pas s'activer)
+
+Cause : le bouton « Notifications » du frontend fait
+`"Notification" in window ? await Notification.requestPermission() : "denied"`
+— or l'API web Notification **n'existe pas dans une WebView Android** → le
+tombait toujours sur `denied` → « Response notifications cannot be activ… ».
+
+Correctif P35 :
+- pont natif `AndroidNotify` (permissionState / requestPermission / show) →
+  vraies notifications Android (canal « openwebui », BigTextStyle, icône
+  vectorielle dédiée `ic_notification.xml`, tap → ouvre l'appli) ;
+- shim `window.Notification` injecté dans `index.html` (P35) : le frontend croit
+  manipuler l'API web standard, tout passe par le pont natif ;
+- permission POST_NOTIFICATIONS : déjà demandée au démarrage
+  (`requestAppPermissions`) ; le retour du dialogue système résout la promesse
+  JS `Notification.requestPermission()` (via `window.__notifPermResolve`) —
+  refus définitif → `denied` honnête + toast vers les réglages.
+
+Note : `minifyEnabled false` → aucun risque de strip des @JavascriptInterface.

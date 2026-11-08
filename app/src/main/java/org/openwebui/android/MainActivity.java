@@ -364,6 +364,19 @@ public class MainActivity extends Activity {
 
     @SuppressLint("SetJavaScriptEnabled")
     /** Demande les permissions dangereuses non encore accordées (prompt système). */
+    /** P35 — canal de notification Android (obligatoire depuis API 26). */
+    private void ensureNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            android.app.NotificationChannel ch = new android.app.NotificationChannel(
+                    "openwebui", "Open WebUI", android.app.NotificationManager.IMPORTANCE_DEFAULT);
+            ch.setDescription("Réponses et événements Open WebUI");
+            android.app.NotificationManager nm = getSystemService(android.app.NotificationManager.class);
+            if (nm != null) {
+                nm.createNotificationChannel(ch);
+            }
+        }
+    }
+
     private void requestAppPermissions() {
         List<String> needed = new ArrayList<>();
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -375,6 +388,7 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             needed.add(Manifest.permission.POST_NOTIFICATIONS);
+            getSharedPreferences("owui", MODE_PRIVATE).edit().putBoolean("notif_asked", true).apply();
         }
         if (!needed.isEmpty()) {
             requestPermissions(needed.toArray(new String[0]), PERMISSION_REQUEST_CODE);
@@ -386,7 +400,21 @@ public class MainActivity extends Activity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         // relance le chargement au cas où il attendait quelque chose
         if (requestCode == PERMISSION_REQUEST_CODE) {
-            mainHandler.post(() -> loadWhenReady(0));
+            // P35 : résoudre la promesse Notification.requestPermission() côté JS
+            boolean accorde = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU;
+            for (int i = 0; i < permissions.length; i++) {
+                if (Manifest.permission.POST_NOTIFICATIONS.equals(permissions[i])) {
+                    accorde = grantResults[i] == PackageManager.PERMISSION_GRANTED;
+                }
+            }
+            final String res = accorde ? "granted" : "denied";
+            mainHandler.post(() -> {
+                if (webView != null) {
+                    webView.evaluateJavascript(
+                            "window.__notifPermResolve && window.__notifPermResolve('" + res + "')", null);
+                }
+                loadWhenReady(0);
+            });
         }
     }
 
@@ -524,6 +552,71 @@ public class MainActivity extends Activity {
                 }
             }
         }, "AndroidDownload");
+
+        // P35 — pont Notifications : l'API web Notification n'existe pas dans
+        // une WebView Android ; ce pont la shim vers les notifications natives.
+        ensureNotificationChannel();
+        webView.addJavascriptInterface(new Object() {
+            @android.webkit.JavascriptInterface
+            public String permissionState() {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                    return "granted";
+                }
+                if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                        == PackageManager.PERMISSION_GRANTED) {
+                    return "granted";
+                }
+                boolean demande = getSharedPreferences("owui", MODE_PRIVATE)
+                        .getBoolean("notif_asked", false);
+                if (demande && !shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+                    return "denied";  // refus définitif → réglage système requis
+                }
+                return "default";     // pas encore demandé : on peut demander
+            }
+
+            @android.webkit.JavascriptInterface
+            public void requestPermission() {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                        && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                                != PackageManager.PERMISSION_GRANTED) {
+                    getSharedPreferences("owui", MODE_PRIVATE).edit().putBoolean("notif_asked", true).apply();
+                    requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                            PERMISSION_REQUEST_CODE);
+                }
+            }
+
+            @android.webkit.JavascriptInterface
+            public void show(String title, String body) {
+                try {
+                    ensureNotificationChannel();
+                    android.app.NotificationManager nm =
+                            getSystemService(android.app.NotificationManager.class);
+                    Intent intent = new Intent(getApplicationContext(), MainActivity.class);
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    android.app.PendingIntent pi = android.app.PendingIntent.getActivity(
+                            getApplicationContext(),
+                            (int) (System.currentTimeMillis() & 0x7FFFFFFF), intent,
+                            android.app.PendingIntent.FLAG_IMMUTABLE);
+                    android.app.Notification.Builder b =
+                            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                                    ? new android.app.Notification.Builder(
+                                            getApplicationContext(), "openwebui")
+                                    : new android.app.Notification.Builder(getApplicationContext()))
+                            .setSmallIcon(R.drawable.ic_notification)
+                            .setContentTitle(title != null && !title.isEmpty() ? title : "Open WebUI")
+                            .setContentText(body != null ? body : "")
+                            .setStyle(new android.app.Notification.BigTextStyle()
+                                    .bigText(body != null ? body : ""))
+                            .setAutoCancel(true)
+                            .setContentIntent(pi);
+                    nm.notify((int) (System.nanoTime() & 0x7FFFFFFF), b.build());
+                } catch (Exception e) {
+                    mainHandler.post(() -> android.widget.Toast.makeText(
+                            getApplicationContext(), "Notification impossible : " + e,
+                            android.widget.Toast.LENGTH_SHORT).show());
+                }
+            }
+        }, "AndroidNotify");
 
         // moteur vocal natif (dictée STT mode « web »)
         webView.addJavascriptInterface(new AndroidSpeech(webView), "AndroidSpeech");

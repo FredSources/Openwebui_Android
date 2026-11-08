@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icône de notification (blanc sur transparent, exigence Android : le
+     système applique lui-même la teinte du canal). P35. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- bulle de dialogue -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M4,4h16a2,2 0,0 1,2 2v10a2,2 0,0 1,-2 2h-8l-5,4v-4h-3a2,2 0,0 1,-2 -2v-10a2,2 0,0 1,2 -2z" />
+    <!-- points de texte -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M8,9h8v2h-8z M8,12h5v2h-5z" />
+</vector>

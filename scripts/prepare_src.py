@@ -1023,11 +1023,32 @@ def patch_files_button() -> None:
     """P26b — bouton flottant « Fichiers » dans index.html (le menu du Workspace
     n'a aucune entrée Fichiers ; le bouton rend /fm découvrable partout).
     P32 : capture du Blob à la source (les URL blob: ne sont pas fetchables
-    depuis le pont natif — « TypeError: Failed to fetch »)."""
+    depuis le pont natif — « TypeError: Failed to fetch »).
+    P35 : shim window.Notification → pont natif AndroidNotify (l'API web
+    Notification n'existe pas dans une WebView Android : le réglage
+    « Notifications » d'Open WebUI ne pouvait pas s'activer)."""
+    notif_shim = (
+        '<script>(function(){if(window.__notifShim){return;}window.__notifShim=1;'
+        'var b=(typeof AndroidNotify!=="undefined")?AndroidNotify:null;'
+        'function N(t,o){this.title=t;this.body=(o&&o.body)||"";'
+        'try{if(b){b.show(String(t),String(this.body));}}catch(e){}}'
+        'N.prototype.close=function(){};'
+        'Object.defineProperty(N,"permission",{get:function(){'
+        'try{return b?b.permissionState():"denied";}catch(e){return "denied";}}});'
+        'N.requestPermission=function(cb){var p=new Promise(function(res){'
+        'try{if(!b){res("denied");return;}'
+        'var s=b.permissionState();'
+        'if(s!=="default"){res(s);return;}'
+        'window.__notifPermResolve=function(r){window.__notifPermResolve=null;res(r);};'
+        'b.requestPermission();}catch(e){res("denied");}});'
+        'if(cb){p.then(cb);}return p;};'
+        'window.Notification=N;})();</script>\n'
+    )
     btn = (
         '<script>(function(){var o=URL.createObjectURL.bind(URL);'
         'URL.createObjectURL=function(b){try{window.__dlBlob=b;}catch(e){}return o(b);};'
         '})();</script>\n'
+        + notif_shim +
         '<a href="/fm" title="Fichiers : PDF générés et téléversements" '
         'style="position:fixed;right:12px;bottom:72px;z-index:2147483000;'
         'width:42px;height:42px;border-radius:50%;background:#3b82f6;color:#fff;'
@@ -1038,7 +1059,7 @@ def patch_files_button() -> None:
         DST / "frontend" / "index.html",
         "</body>",
         btn,
-        "P26b/P32 bouton Fichiers + capture du Blob",
+        "P26b/P32/P35 bouton Fichiers + capture du Blob + shim Notification",
     )
 
 

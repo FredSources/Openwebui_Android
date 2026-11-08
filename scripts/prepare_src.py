@@ -1071,6 +1071,85 @@ def patch_delete_tools() -> None:
         "P29d registrement delete_skill")
 
 
+def patch_tool_status() -> None:
+    """P33/P34 — honnêteté des outils (audit 2026-11-08) : fetch_url expose le
+    statut HTTP réel (redirections suivies avec ré-validation SSRF, pages
+    anti-bot signalées) ; execute_code reflète l'échec réel ('status: error'
+    quand stderr porte une exception, au lieu du 'success' codé en dur)."""
+    builtin = DST / "tools" / "builtin.py"
+    text = builtin.read_text(encoding="utf-8")
+    if "_probe_fetch_url" in text:
+        log("  P33 sonde HTTP fetch_url : déjà appliqué")
+    else:
+        builtin.write_text(text + "\n\n" + PROBE_HELPER, encoding="utf-8")
+        log("  P33 sonde HTTP de fetch_url ajoutée")
+    replace_once(
+        builtin,
+        """    try:
+        content, _ = await get_content_from_url(__request__, url)""",
+        """    try:
+        # P33 : sonde HTTP préalable — sans statut visible, fetch_url renvoyait
+        # du contenu faux sans le signaler (404 → page d'accueil ou vide,
+        # 302 → corps de la redirection, anti-bot → « Just a moment... »).
+        verify_ssl = await Config.get('web.loader.ssl_verification')
+        statut, url_finale, chaine = await asyncio.to_thread(
+            _probe_fetch_url, url, verify_ssl)
+        if statut in (301, 302, 303, 307, 308):
+            return JSONCodec.dumps({
+                'error': f'Redirection HTTP {statut} non suivie (trop de sauts) : {url_finale}',
+                'status_code': statut,
+                'chain': chaine,
+            }, ensure_ascii=False)
+        if statut == 0 or statut >= 400:
+            return JSONCodec.dumps({
+                'error': f'Échec HTTP {statut if statut else "réseau"} pour {url}',
+                'status_code': statut,
+                'chain': chaine,
+            }, ensure_ascii=False)
+
+        content, _ = await get_content_from_url(__request__, url_finale)""",
+        "P33a fetch_url : statut HTTP préalable",
+    )
+    replace_once(
+        builtin,
+        """        return content
+    except Exception as e:
+        log.warning(f'fetch_url error: {e}')""",
+        """        # P33 : provenance exacte + signalement des pages anti-bot
+        entete = f'[HTTP {statut} — {url_finale}]'
+        if len(chaine) > 1:
+            entete += f' (redirections : {" -> ".join(chaine)})'
+        bas = (content or '').lower()
+        if any(m in bas for m in ('just a moment', 'cf-browser-verification',
+                                  'checking your browser', 'attention required',
+                                  'enable javascript and cookies', 'g-recaptcha')):
+            entete += '\\n[AVERTISSEMENT : page anti-bot / interstitielle — contenu probablement incomplet]'
+        return f'{entete}\\n\\n{content or ""}'
+    except Exception as e:
+        log.warning(f'fetch_url error: {e}')""",
+        "P33b fetch_url : entête + anti-bot",
+    )
+    replace_once(
+        builtin,
+        """        response = {
+            'status': 'success',
+            'stdout': stdout,
+            'stderr': stderr,
+            'result': result,
+        }""",
+        """        # P34 : « success » codé en dur même sur exception (le traceback
+        # restait caché dans stderr) — refléter l'échec réel de l'exécution.
+        echec = bool((stderr or '').strip())
+        response = {
+            'status': 'error' if echec else 'success',
+            'stdout': stdout,
+            'stderr': stderr,
+            'result': result,
+        }""",
+        "P34 execute_code : status réel",
+    )
+
+
 def patch_typst_tool() -> None:
     """P11 — outil « compile_typst » (.typ → PDF) dans les outils embarqués."""
     builtin = DST / "tools" / "builtin.py"
@@ -1360,6 +1439,40 @@ async def delete_tool(
         return JSONCodec.dumps({'error': str(e)})
 '''
 
+PROBE_HELPER = '''
+def _probe_fetch_url(url: str, verify_ssl: bool = True, max_hops: int = 5):
+    """P33 — sonde HTTP légère qui renvoie (statut final, URL finale, chaîne de
+    redirections). Les redirections sont suivies saut par saut avec ré-validation
+    SSRF (validate_url) — jamais de contournement de la garde anti-SSRF."""
+    from urllib.parse import urljoin
+    from open_webui.retrieval.web.utils import (
+        WEB_LOADER_HEADERS, validate_url, get_ssrf_safe_requests_session,
+    )
+
+    chaine = [url]
+    courante = url
+    statut = 0
+    for _ in range(max_hops):
+        try:
+            validate_url(courante)
+            session = get_ssrf_safe_requests_session()
+            session.headers = WEB_LOADER_HEADERS
+            session.verify = True if verify_ssl is None else verify_ssl
+            r = session.get(courante, stream=True, timeout=30, allow_redirects=False)
+        except Exception as exc:
+            return 0, courante, chaine + [f'ERREUR: {exc}']
+        statut = r.status_code
+        loc = r.headers.get('Location')
+        r.close()
+        if statut in (301, 302, 303, 307, 308) and loc:
+            courante = urljoin(courante, loc)
+            chaine.append(courante)
+            continue
+        return statut, courante, chaine
+    return statut, courante, chaine + ['ERREUR: trop de redirections']
+'''
+
+
 RE2_SHIM = '''\
 """re2 — shim sur `re` (google-re2 est natif et non fourni sur Android).
 
@@ -1590,6 +1703,7 @@ def main() -> int:
     patch_files_button()
     patch_typst_tool()
     patch_delete_tools()
+    patch_tool_status()
     patch_recurrence_thread()
     patch_search_error_log()
     write_null_vector_db()

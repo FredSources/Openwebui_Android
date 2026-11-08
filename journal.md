@@ -933,3 +933,27 @@ n'est pas fetchable depuis le contexte natif). Correctif P32 : monkey-patch de
 `URL.createObjectURL` dans `index.html` — l'objet Blob est capturé
 (`window.__dlBlob`) et transmis **directement** en base64 au pont natif, sans
 aucun fetch. Le fetch sur l'URL blob n'est plus qu'un repli.
+
+## 2026-11-08 — v0.0.20 : honnêteté des outils fetch_url / execute_code (audit DeepSeek)
+
+Audit externe (52 outils) : « un seul outil est réellement problématique
+(fetch_url), un second est fragile (execute_code) ». Confirmé au code :
+
+- fetch_url ne recevait AUCUN statut HTTP de `get_content_from_url` → un 404
+  renvoyait la page d'accueil ou du vide **sans erreur**, un 302 renvoyait le
+  corps de la redirection, une page anti-bot « Just a moment... » passait pour
+  du contenu. P33 : sonde HTTP préalable `_probe_fetch_url` — statut réel,
+  redirections suivies saut par saut **avec ré-validation SSRF** (validate_url
+  à chaque hop), échec réseau/HTTP renvoyé en erreur JSON avec `status_code` +
+  chaîne de redirections, en-tête `[HTTP xxx — url]` sur tout contenu,
+  détection des interstitiels anti-bot (Cloudflare & co).
+- execute_code renvoyait `'status': 'success'` **codé en dur**, même quand une
+  exception restait dans stderr → l'agent croyait à une réussite. P34 :
+  `status: error` dès que stderr est non vide (inclut « session disconnected »).
+- Mesures locales (venv313) : 404 → statut 404 ; /redirect/2 → 2 sauts suivis →
+  200 final avec chaîne ; page normale → 200. ✓
+
+Reste à traiter (suite audit) : display_file (recherche du fichier écrit par le
+bac à sable hors UPLOAD_DIR, message d'erreur trompeur), query_knowledge_bases
+([] alors que search_knowledge_bases trouve), search_memories (requête vide →
+[] au lieu d'énumérer), ask_user (doit rester seul dans l'appel — à documenter).

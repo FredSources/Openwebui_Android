@@ -47,6 +47,9 @@ CHECKS = [
     ("P42a \\n littéraux write_note", "open_webui/tools/builtin.py", "P42 : \\n littéraux"),
     ("P45a rrule create_automation", "open_webui/tools/builtin.py", "P45 : \\n littéraux convertis"),
     ("P46a détection paquets serveur", "open_webui/tools/builtin.py", "_pyodide_packages"),
+    ("P48 jetons normalisés", "open_webui/models/knowledge.py", "nom_norm"),
+    ("P51 uploads injectés", "open_webui/tools/builtin.py", "_uploads_pour_sable"),
+    ("P52 bootstrap réseau", "open_webui/tools/builtin.py", "SANDBOX_NET_BOOTSTRAP"),
 ]
 
 
@@ -135,8 +138,11 @@ def check_pyodide_paquets() -> None:
         return
     for cible in cibles:
         with open(cible, encoding="utf-8", errors="ignore") as fh:
-            if 'packages:["micropip","numpy","pandas","sympy"]' not in fh.read():
-                err(f"P38 : paquets de boot numpy/pandas/sympy absents — {cible}")
+            contenu = fh.read()
+        if 'packages:["micropip","numpy","pandas","sympy"]' not in contenu:
+            err(f"P38 : paquets de boot numpy/pandas/sympy absents — {cible}")
+        if "L.catch(()=>{L=null})" not in contenu:
+            err(f"P49a : init du worker non réinitialisable — {cible}")
     # P44 : la voie worker doit être activée (sinon l'iframe contourne P38/P41)
     am = PROJ / "app" / "src" / "main" / "python" / "android_main.py"
     if am.exists() and 'ENABLE_PYODIDE_FILE_PERSISTENCE", "true"' not in am.read_text(encoding="utf-8", errors="ignore"):

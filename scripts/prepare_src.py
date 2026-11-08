@@ -1507,7 +1507,7 @@ def _pyodide_packages(code: str) -> list:
         'seaborn': 'seaborn', 'sympy': 'sympy', 'mpmath': 'mpmath',
         'bs4': 'beautifulsoup4', 'requests': 'requests', 'lxml': 'lxml',
         'docx': 'python-docx', 'pptx': 'python-pptx', 'openpyxl': 'openpyxl',
-        'tiktoken': 'tiktoken', 'pytz': 'pytz', 'regex': 'regex',
+        'pytz': 'pytz', 'regex': 'regex',
         'dateutil': 'python-dateutil', 'six': 'six', 'packaging': 'packaging',
         'pymupdf': 'pymupdf', 'fitz': 'pymupdf', 'statsmodels': 'statsmodels',
     }
@@ -1567,7 +1567,7 @@ def patch_pyodide_detection() -> None:
     replace_once(
         DST / "config.py",
         "- This Python environment runs via Pyodide in the browser. **Do not install packages** — `pip install`, `subprocess`, and `micropip.install()` are not available.",
-        "- This Python environment runs via Pyodide in the browser. **Do not install packages** — `pip install`, `subprocess`, and `micropip.install()` are not available.\n- Libraries bundled and available on demand: numpy, pandas, matplotlib, scipy, scikit-learn, seaborn, sympy, mpmath, pillow (PIL), requests, beautifulsoup4 (bs4), lxml, python-docx (docx), python-pptx (pptx), openpyxl, tiktoken, pytz, pymupdf (fitz), statsmodels. No other third-party library (no plotly, pypdf).",
+        "- This Python environment runs via Pyodide in the browser. **Do not install packages** — `pip install`, `subprocess`, and `micropip.install()` are not available.\n- Libraries bundled and available on demand: numpy, pandas, matplotlib, scipy, scikit-learn, seaborn, sympy, mpmath, pillow (PIL), requests, beautifulsoup4 (bs4), lxml, python-docx (docx), python-pptx (pptx), openpyxl, pytz, pymupdf (fitz), statsmodels. No other third-party library (no plotly, pypdf, tiktoken).\n- Network: the sandbox has no TCP. socket.create_connection always raises OSError. Use urllib/requests over HTTP only; check the `network_available` flag (set on first run) before trying. Writes to /mnt/uploads/ are saved to the app file browser.",
         "P46f prompt : bibliothèques disponibles documentées",
     )
 
@@ -1593,6 +1593,199 @@ def patch_extra_wheels() -> None:
     noms = ", ".join(Path(s).name.split("-")[0] for s in srcs)
     log(f"  P47 wheels supplémentaires embarqués : {noms}")
     PATCHES.append((f"wheels extra ({noms})", f"{len(srcs)} copié(s)"))
+
+
+UPLOADS_SABLE_HELPER = '''
+def _uploads_pour_sable(max_par: int = 8 * 1024 * 1024, max_total: int = 24 * 1024 * 1024) -> list:
+    """P51 — alignement des deux magasins de fichiers (audit 22:59) : le
+    dossier uploads de l'app (compile_typst, téléversements) est injecté dans
+    le /mnt/uploads du bac à sable avant exécution — il n'y a plus deux espaces
+    de fichiers disjoint. Plafonds : 8 Mo par fichier, 24 Mo au total."""
+    from open_webui.config import UPLOAD_DIR as _UD
+
+    sortie = []
+    total = 0
+    try:
+        for ent in (sorted(_UD.iterdir()) if _UD.is_dir() else []):
+            if not ent.is_file():
+                continue
+            taille = ent.stat().st_size
+            if taille > max_par or total + taille > max_total:
+                continue
+            sortie.append({'name': ent.name, 'data': ent.read_bytes()})
+            total += taille
+    except Exception:
+        pass
+    return sortie
+'''
+
+SANDBOX_NET_BOOTSTRAP = '''
+# --- P52 : vérité réseau du bac à sable (audit 22:59) ---
+# Les sockets wasm mentent (create_connection renvoie « ouvert ») alors que le
+# HTTP sortant est soumis à CORS : on les fait échouer proprement et on expose
+# network_available, calculé par une vraie sonde HTTP (le flag survit aux
+# exécutions suivantes dans le même noyau).
+try:
+    network_available
+except NameError:
+    import socket as _sock
+
+    def _sock_indispo(*a, **k):
+        raise OSError('pas de TCP dans le bac à sable (wasm) : utilisez urllib/requests en HTTP')
+    _sock.create_connection = _sock_indispo
+    _sock.socket = _sock_indispo
+    try:
+        import urllib.request as _up
+        _up.urlopen('https://httpbin.org/get', timeout=3).read(64)
+        network_available = True
+    except Exception:
+        network_available = False
+# --- fin P52 ---
+
+'''
+
+
+def patch_sandbox_hardening() -> None:
+    """P49/P51/P52 — durcissement du bac à sable (audit 22:59) :
+    P49 : noyau récupérable — un OOM/kill condamnait toute la session ;
+    P51 : les deux magasins de fichiers sont alignés (uploads injectés dans
+    /mnt/uploads avant exécution) ;
+    P52 : les sockets ne mentent plus + flag network_available ;
+    P50 : tiktoken retiré de la liste (tables BPE non embarquées → réseau)."""
+    builtin = DST / "tools" / "builtin.py"
+    text = builtin.read_text(encoding="utf-8")
+    if "_uploads_pour_sable(" in text:
+        log("  P51/P52 helpers bac à sable : déjà appliqués")
+    else:
+        decl = "SANDBOX_NET_BOOTSTRAP = " + repr(SANDBOX_NET_BOOTSTRAP) + "\n"
+        builtin.write_text(text + "\n\n" + UPLOADS_SABLE_HELPER + "\n" + decl, encoding="utf-8")
+        log("  P51/P52 helpers bac à sable ajoutés")
+    replace_once(
+        builtin,
+        """                        'session_id': (__metadata__.get('session_id') if __metadata__ else None),
+                        'files': (__metadata__.get('files', []) if __metadata__ else []),""",
+        """                        'session_id': (__metadata__.get('session_id') if __metadata__ else None),
+                        'files': (__metadata__.get('files', []) if __metadata__ else []) + _uploads_pour_sable(),""",
+        "P51a execute_code : uploads injectés dans /mnt/uploads",
+    )
+    replace_once(
+        builtin,
+        """        # Sanitize code (strips ANSI codes and markdown fences)
+        code = sanitize_code(code)""",
+        """        # Sanitize code (strips ANSI codes and markdown fences)
+        code = sanitize_code(code)
+
+        # P52 : vérité réseau (bootstrap placé en tête de code)
+        code = SANDBOX_NET_BOOTSTRAP + code""",
+        "P52a execute_code : bootstrap réseau",
+    )
+    root = DST / "frontend" / "_app" / "immutable"
+    _patch_first_match(
+        str(root / "workers" / "pyodide.worker-*.js"),
+        'async function j(e=[]){L||(L=$e(e)),await L,e.length>0&&self.pyodide&&await self.pyodide.pyimport("micropip").install(e)}',
+        'async function j(e=[]){if(!L){L=$e(e);L.catch(()=>{L=null})}await L,e.length>0&&self.pyodide&&await self.pyodide.pyimport("micropip").install(e)}',
+        "P49a worker : init réinitialisée après échec",
+    )
+    _patch_first_match(
+        str(root / "nodes" / "0.*.js"),
+        'Pe=v=>{clearTimeout(me),U.removeEventListener("message",_e),U.removeEventListener("error",Pe),F&&F(',
+        'Pe=v=>{clearTimeout(me),U.removeEventListener("message",_e),U.removeEventListener("error",Pe),(()=>{try{U.terminate()}catch(e){}})(),Xt.set(null),F&&F(',
+        "P49b frontend : worker mort remplacé (onerror)",
+    )
+    _patch_first_match(
+        str(root / "nodes" / "0.*.js"),
+        'F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h,files:ge.files||[]},(be,Ge)=>typeof Ge=="bigint"?Ge.toString():Ge)))',
+        'ge.stderr&&/memory|out of bounds|RuntimeError|disconnected/i.test(ge.stderr)&&(Xt.set(null),(()=>{try{U.terminate()}catch(e){}})()),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h,files:ge.files||[]},(be,Ge)=>typeof Ge=="bigint"?Ge.toString():Ge)))',
+        "P49c frontend : worker mort remplacé (stderr fatale)",
+    )
+    _patch_first_match(
+        str(root / "nodes" / "0.*.js"),
+        "if(E){const be=await Ra(E);be&&k.push({name:ge,data:be})}",
+        "if(v?.data){k.push({name:ge,data:v.data})}else if(E){const be=await Ra(E);be&&k.push({name:ge,data:be})}",
+        "P51b frontend : fichiers inline acceptés",
+    )
+
+
+def patch_search_files() -> None:
+    """P48 — search_knowledge_files (audit 22:59) : le matching était un ILIKE
+    SQL brut — « rapport vulnerabilites » ne trouvait jamais
+    « rapport-vulnerabilites.json » (espace ≠ tiret), et le nom de la base
+    n'était pas cherché. Normalisation espace/tiret/underscore + tous les
+    jetons requis + recherche étendue au nom de la base."""
+    replace_once(
+        DST / "models" / "knowledge.py",
+        """                if filter:
+                    query_key = filter.get('query')
+                    if query_key:
+                        if filter.get('include_content'):""",
+        """                if filter:
+                    query_key = filter.get('query')
+                    if query_key:
+                        # P48 : normalisation espace/tiret/underscore + jetons
+                        # (audit : « rapport vulnerabilites » ne trouvait pas
+                        # « rapport-vulnerabilites.json » ; chaque jeton doit
+                        # être présent, le tiret/espace/underscore sont équivalents)
+                        from sqlalchemy import and_ as _and
+                        import re as _re
+
+                        def _norm(s):
+                            return _re.sub(r'[\\s_\\-]+', ' ', (s or '').lower()).strip()
+
+                        nom_norm = func.replace(func.replace(func.lower(File.filename), '-', ' '), '_', ' ')
+                        jetons = [j for j in _norm(query_key).split(' ') if j]
+                        if filter.get('include_content'):""",
+        "P48a search_files_by_id : normalisation des jetons",
+    )
+    replace_once(
+        DST / "models" / "knowledge.py",
+        """                            content_text = File.data['content'].as_string()
+                            content_text = func.substr(content_text, 1, RAG_FILE_CONTENT_SEARCH_MAX_CHARS)
+                            stmt = stmt.filter(
+                                or_(
+                                    File.filename.ilike(f'%{query_key}%'),
+                                    content_text.ilike(f'%{query_key}%'),
+                                )
+                            )
+                        else:
+                            stmt = stmt.filter(File.filename.ilike(f'%{query_key}%'))""",
+        """                            content_text = File.data['content'].as_string()
+                            content_text = func.substr(content_text, 1, RAG_FILE_CONTENT_SEARCH_MAX_CHARS)
+                            cont_norm = func.replace(func.replace(func.lower(content_text), '-', ' '), '_', ' ')
+                            stmt = stmt.filter(
+                                _and(*[
+                                    or_(nom_norm.like(f'%{j}%'), cont_norm.like(f'%{j}%'))
+                                    for j in jetons
+                                ]) if jetons else True
+                            )
+                        else:
+                            stmt = stmt.filter(
+                                _and(*[nom_norm.like(f'%{j}%') for j in jetons]) if jetons else True
+                            )""",
+        "P48b search_files_by_id : matching par jetons normalisés",
+    )
+    replace_once(
+        DST / "tools" / "builtin.py",
+        """                result = await Knowledges.search_files_by_id(
+                    knowledge_id=kb_id,
+                    user_id=user_id,
+                    filter={'query': query},
+                    skip=0,
+                    limit=count + skip,
+                )""",
+        """                # P48 : si la requête correspond au NOM de la base, toute sa
+                # liste est pertinente (la recherche ne visait que les noms de
+                # fichiers — audit 2026-11-08).
+                q_norm = ' '.join((query or '').lower().replace('-', ' ').replace('_', ' ').split())
+                k_norm = ' '.join((knowledge.name or '').lower().replace('-', ' ').replace('_', ' ').split())
+                result = await Knowledges.search_files_by_id(
+                    knowledge_id=kb_id,
+                    user_id=user_id,
+                    filter={'query': '' if (q_norm and q_norm in k_norm) else query},
+                    skip=0,
+                    limit=count + skip,
+                )""",
+        "P48c search_knowledge_files : nom de la base recherché",
+    )
 
 
 def patch_pyodide_packages() -> None:
@@ -2181,6 +2374,8 @@ def main() -> int:
     patch_automation_rrule()
     patch_upload_harvest()
     patch_note_newlines()
+    patch_search_files()
+    patch_sandbox_hardening()
     patch_recurrence_thread()
     patch_search_error_log()
     write_null_vector_db()

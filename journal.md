@@ -1174,3 +1174,41 @@ Correctif : wheels déplacés vers `wheels-extra/` (racine, VERSIONNÉS comme le
 53 wheels amont de src-assets/frontend/pyodide/) ; patch_extra_wheels lit ce
 dossier. Le contrôle check_apk a donc fait son travail : un garde-fou qui
 échoue est un garde-fou qui fonctionne.
+
+## 2026-11-08 — v0.0.29 : rapport 22:59 traité en 5 points (P48–P52)
+
+1. Deux magasins de fichiers (P51) : compile_typst écrit dans le dossier
+   uploads, le bac à sable vivait dans son IndexedDB — deux espaces disjoints.
+   Les uploads (8 Mo/fichier, 24 Mo total) sont injectés dans /mnt/uploads
+   avant chaque exécution ; la remontée P41 fait le chemin inverse. Un seul
+   espace de fichiers désormais.
+
+2. Réseau incohérent (P52) : socket.create_connection mentait (« ouvert »)
+   alors que le HTTP sortant est soumis à CORS. Les sockets wasm échouent
+   désormais proprement (OSError explicite) et un flag `network_available`
+   (vraie sonde HTTP, mémoire entre exécutions) documente la réalité.
+
+3. search_knowledge_files (P48) : le matching était un ILIKE SQL brut —
+   « rapport vulnerabilites » ne trouvait jamais « rapport-vulnerabilites.json ».
+   Normalisation espace/tiret/underscore + tous les jetons requis + recherche
+   du nom de la base. TESTÉ de bout en bout sur la base de test (5 cas) :
+   espace ✓, ordre inversé ✓, underscore ✓, json ✓, hors sujet → [] ✓.
+
+4. Noyau non récupérable (P49) : un OOM/kill condamnait toute la session
+   (5 tentatives en échec). Le worker réinitialise son init en cas d'échec
+   (L.catch → L=null) et le frontend remplace le worker mort sur erreur fatale
+   (onerror OU stderr mémoire/RuntimeError/disconnected) — la conversation
+   survit à un dépassement de mémoire.
+
+5. tiktoken (P50) : retiré de la liste (tables BPE non embarquées → tentative
+   de téléchargement réseau). Le prompt documente la liste RÉELLE + le
+   comportement réseau.
+
+Note sécurité (règle confidentialité) : un fichier contenant une clé a été
+trouvé dans /mnt/uploads de l'appareil — suppression faite et clé révoquée
+côté Albert/etalab (le seul geste efficace, correctement effectué). Rien de
+tout cela n'a touché le dépôt. Rappel : P51 rend les uploads VISIBLES dans le
+bac à sable — ne jamais y déposer de secrets.
+
+Justification de l'évolution de scripts/check_patches.py : contrôle ÉTENDU
+(P48/P51/P52 backend, P49a worker) — aucun affaiblissement.

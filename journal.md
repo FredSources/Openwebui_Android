@@ -1014,3 +1014,37 @@ navigation Open WebUI/Android) et aligner le visuel du navigateur de fichiers.
   (page d'erreur + barre du navigateur), bouton « Voir » (×2) — le nom du
   fichier est déjà le lien vers l'aperçu ; il restait Télécharger + Suppr.
 - Version conservée en pied de page discret (outil de diagnostic v0.0.18).
+
+## 2026-11-08 — v0.0.24 : Pyodide pandas/sympy + comportements outils corrigés (P38–P40)
+
+Contexte : l'appli de l'utilisateur tourne sur 8080 (tests maintenus sur 8090,
+règle respectée — aucun contact avec l'instance utilisateur).
+
+- P38 — bac à sable Pyodide : le worker ne préinstallait que micropip ;
+  numpy/pandas/sympy (wheels déjà embarqués + pyodide-lock.json offline,
+  364 paquets) n'étaient disponibles que via la détection regex d'import.
+  Ils sont désormais chargés au boot : `packages:["micropip","numpy","pandas","sympy"]`.
+- P39a — search_memories (« corriger le comportement », choix utilisateur) :
+  la recherche de contenu cassait en français. Exécuté avant/après :
+  | requête | avant | après |
+  |---|---|---|
+  | « sonde d'audit » (apostrophe droite) vs contenu « Sonde d'audit » | [] | [1] |
+  | « sonde audit » (mots séparés) | [] | [1] |
+  | apostrophe typographique | [1] | [1] |
+  | requête vide (parcours) | [1,2] | [1,2] (inchangé) |
+  | hors sujet | [] | [] (pas de faux positif) |
+  Normalisation apostrophes/quotes + casefold + tous les mots requis.
+- P39b — query_knowledge_bases : l'index sémantique des bases n'est rempli
+  qu'à la création/édition ; toute base créée pendant la panne d'embeddings
+  (audit passes 1-2) restait invisible. Auto-réparation : les bases accessibles
+  non indexées sont réindexées (embed_knowledge_base_metadata) avant la
+  recherche — la description de l'outil (sémantique sur nom+description)
+  devient enfin vraie.
+- P40 — FAB retour vers Open WebUI sur TOUTES les pages /fm : jumeau du bouton
+  📂 du SPA (même style, icône 💬), navigable depuis chaque page.
+
+Justification de l'évolution de scripts/check_patches.py (règle diagnostic) :
+contrôle ÉTENDU aux patchs P31/P33/P36/P38/P39 (aucun affaiblissement). Le
+contrôle P38 cible la destination FINALE du frontend (src-assets/ après le
+déplacement P15) avec repli sur le chemin pré-déplacement — leçon : vérifier
+les chemins APRÈS la chaîne complète de génération.

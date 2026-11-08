@@ -38,6 +38,11 @@ CHECKS = [
     ("P30b alias /mnt/uploads (display_file)", "open_webui/tools/builtin.py", "startswith('/mnt/uploads/')"),
     ("P30c orientation view_note", "open_webui/tools/builtin.py", "utilisez view_note"),
     ("P30 taille/humaine (fm)", "open_webui/main.py", "def _fm_size("),
+    ("P31 purge index /fm/delete", "open_webui/main.py", "P31 : purger aussi l'index vectoriel"),
+    ("P33 sonde HTTP fetch_url", "open_webui/tools/builtin.py", "def _probe_fetch_url("),
+    ("P36 get_collections LocalVectorDB", "open_webui/retrieval/vector/dbs/local.py", "def get_collections("),
+    ("P39a recherche mémoires normalisée", "open_webui/utils/memory.py", "_norm_memory_text"),
+    ("P39b auto-réparation index KB", "open_webui/tools/builtin.py", "P39b : réparer l'index sémantique"),
 ]
 
 
@@ -110,6 +115,26 @@ def check_build_gradle() -> None:
         err("P16 : extractPackages sans searx")
 
 
+def check_pyodide_paquets() -> None:
+    """P38 : le worker Pyodide doit préinstaller numpy/pandas/sympy au boot.
+    P15 déplace le frontend vers src-assets/ en fin de prepare → on contrôle
+    la destination finale (nom de fichier haché → vérification par glob)."""
+    import glob as _glob
+
+    cibles = _glob.glob(
+        str(PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "workers" / "pyodide.worker-*.js")
+    ) or _glob.glob(
+        str(SRC / "open_webui" / "frontend" / "_app" / "immutable" / "workers" / "pyodide.worker-*.js")
+    )
+    if not cibles:
+        err("P38 : worker pyodide introuvable dans frontend/_app/immutable/workers/")
+        return
+    for cible in cibles:
+        with open(cible, encoding="utf-8", errors="ignore") as fh:
+            if 'packages:["micropip","numpy","pandas","sympy"]' not in fh.read():
+                err(f"P38 : paquets de boot numpy/pandas/sympy absents — {cible}")
+
+
 def check_compilation() -> None:
     for p in SRC.rglob("*.py"):
         try:
@@ -136,6 +161,7 @@ def main() -> int:
     check_shims()
     check_searxng()
     check_frontend()
+    check_pyodide_paquets()
     check_build_gradle()
     check_compilation()
     check_typo_courantes()

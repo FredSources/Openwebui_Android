@@ -621,11 +621,20 @@ def _fm_page(inner: str, title: str = "Fichiers") -> str:
         'if(dark){c.add("dark");if(t==="oled-dark"){c.add("oled-dark");}}else{c.add("light");}'
         '})();</script>'
     )
+    # P40 — FAB retour vers Open WebUI : jumeau du bouton 📂 du SPA (même
+    # style, autre icône 💬), présent sur TOUTES les pages /fm.
+    retour = (
+        '<a href="/" title="Retour à Open WebUI" '
+        'style="position:fixed;right:12px;bottom:72px;z-index:2147483000;'
+        'width:42px;height:42px;border-radius:50%;background:#3b82f6;color:#fff;'
+        'display:flex;align-items:center;justify-content:center;font-size:20px;'
+        'text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.4)">&#128172;</a>'
+    )
     return (
         '<!doctype html><html lang="fr"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         f'<title>{_html.escape(title)}</title>{theme_js}<style>{_FM_STYLE}</style></head>'
-        f'<body>{inner}<footer class="ver">OpenWebUI Android {_FM_VERSION}</footer></body></html>'
+        f'<body>{inner}{retour}<footer class="ver">OpenWebUI Android {_FM_VERSION}</footer></body></html>'
     )
 
 
@@ -1213,6 +1222,88 @@ def patch_tool_status() -> None:
     )
 
 
+def patch_memory_search() -> None:
+    """P39a — search_memories : la recherche de contenu promette par la
+    description cassait en français (apostrophe typographique vs droite — testé :
+    « sonde d'audit » ne trouvait pas « Sonde d'audit ») et refusait les
+    requêtes multi-mots. Normalisation apostrophes + casse ignorée + tous les
+    mots requis (dans contenu ou chemin). Comportement de parcours (requête
+    vide) inchangé."""
+    replace_once(
+        DST / "utils" / "memory.py",
+        '''def _memory_matches_query(memory, query: str) -> bool:
+    value = query.strip().lower()
+    if not value:
+        return True
+    return value in (memory.content or '').lower() or value in (memory.path or '').lower()''',
+        '''def _norm_memory_text(value: str) -> str:
+    """P39a : apostrophes/quotes typographiques normalisées, casse ignorée."""
+    table = {0x2019: 39, 0x2018: 39, 0x02BC: 39, 0x0060: 39, 0x00B4: 39}
+    return (value or '').translate(table).casefold()
+
+
+def _memory_matches_query(memory, query: str) -> bool:
+    value = _norm_memory_text(query).strip()
+    if not value:
+        return True
+    haystack = _norm_memory_text(f'{memory.content or ""}\\n{memory.path or ""}')
+    return all(word in haystack for word in value.split())''',
+        "P39a recherche mémoires normalisée",
+    )
+
+
+def patch_kb_backfill() -> None:
+    """P39b — query_knowledge_bases : l'index sémantique des bases n'est rempli
+    qu'à la création/édition (embed_knowledge_base_metadata) ; toute base créée
+    pendant une panne d'embedding restait invisible alors que la description
+    promet une recherche sémantique sur les noms/descriptions. On répare
+    l'index au fil des pages avant de chercher."""
+    replace_once(
+        DST / "tools" / "builtin.py",
+        "            accessible_ids = [kb.id for kb in accessible_knowledge_bases.items]",
+        '''            accessible_ids = [kb.id for kb in accessible_knowledge_bases.items]
+
+            # P39b : réparer l'index sémantique des bases au fil des pages —
+            # toute base non indexée (créée pendant une panne d'embedding) le
+            # devient maintenant, puis la recherche sémantique s'applique.
+            from open_webui.routers.knowledge import embed_knowledge_base_metadata
+
+            try:
+                _existants = await ASYNC_VECTOR_DB_CLIENT.get(
+                    collection_name=KNOWLEDGE_BASES_COLLECTION)
+                _ids_indexees = set(_existants.ids[0]) if _existants and _existants.ids else set()
+            except Exception:
+                _ids_indexees = set()
+            for _kb in accessible_knowledge_bases.items:
+                if _kb.id not in _ids_indexees:
+                    await embed_knowledge_base_metadata(
+                        __request__, _kb.id, _kb.name, _kb.description or '')''',
+        "P39b query_knowledge_bases : auto-réparation d'index",
+    )
+
+
+def patch_pyodide_packages() -> None:
+    """P38 — paquets scientifiques garantis au démarrage du bac à sable Pyodide.
+    Le worker ne préinstallait que micropip : numpy/pandas/sympy (wheels déjà
+    embarqués + lock offline) n'étaient disponibles que si la détection regex
+    d'import réussissait — constat d'audit : ModuleNotFoundError systématiques.
+    On les charge au boot via le mécanisme locké de loadPyodide."""
+    import glob as _glob
+
+    cibles = sorted(
+        _glob.glob(str(DST / "frontend" / "_app" / "immutable" / "workers" / "pyodide.worker-*.js"))
+    )
+    if not cibles:
+        raise SystemExit("PATCH EN ÉCHEC [P38] : worker pyodide introuvable")
+    for cible in cibles:
+        replace_once(
+            Path(cible),
+            'packages:["micropip"]',
+            'packages:["micropip","numpy","pandas","sympy"]',
+            "P38 pyodide : numpy/pandas/sympy au démarrage",
+        )
+
+
 def patch_typst_tool() -> None:
     """P11 — outil « compile_typst » (.typ → PDF) dans les outils embarqués."""
     builtin = DST / "tools" / "builtin.py"
@@ -1767,6 +1858,9 @@ def main() -> int:
     patch_typst_tool()
     patch_delete_tools()
     patch_tool_status()
+    patch_memory_search()
+    patch_kb_backfill()
+    patch_pyodide_packages()
     patch_recurrence_thread()
     patch_search_error_log()
     write_null_vector_db()

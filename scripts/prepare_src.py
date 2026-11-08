@@ -1127,16 +1127,16 @@ def patch_delete_tools() -> None:
         PATCHES.append(("outils delete_note/delete_skill/delete_tool", "ajoutés"))
     replace_once(DST / "utils" / "tools.py",
         "    create_tool,",
-        "    create_tool,\n    delete_note,\n    delete_skill,\n    delete_tool,",
-        "P29a imports delete_*")
+        "    create_tool,\n    delete_file,\n    delete_note,\n    delete_skill,\n    delete_tool,\n    list_tools,",
+        "P29a imports delete_*/list_tools")
     replace_once(DST / "utils" / "tools.py",
         "builtin_functions.extend([search_notes, view_note, write_note, replace_note_content])",
-        "builtin_functions.extend([search_notes, view_note, write_note, replace_note_content, delete_note])",
-        "P29b registrement delete_note")
+        "builtin_functions.extend([search_notes, view_note, write_note, replace_note_content, delete_note, delete_file])",
+        "P29b registrement delete_note/delete_file")
     replace_once(DST / "utils" / "tools.py",
         "            builtin_functions.append(create_tool)",
-        "            builtin_functions.append(create_tool)\n            builtin_functions.append(delete_tool)",
-        "P29c registrement delete_tool")
+        "            builtin_functions.append(create_tool)\n            builtin_functions.append(delete_tool)\n            builtin_functions.append(list_tools)",
+        "P29c registrement delete_tool/list_tools")
     replace_once(DST / "utils" / "tools.py",
         "        builtin_functions.append(create_skill)",
         "        builtin_functions.append(create_skill)\n        builtin_functions.append(delete_skill)",
@@ -1188,6 +1188,7 @@ def patch_tool_status() -> None:
     except Exception as e:
         log.warning(f'fetch_url error: {e}')""",
         """        # P33 : provenance exacte + signalement des pages anti-bot
+        content = __import__('re').sub(r'\\n{3,}', '\\n\\n', content or '')
         entete = f'[HTTP {statut} — {url_finale}]'
         if len(chaine) > 1:
             entete += f' (redirections : {" -> ".join(chaine)})'
@@ -1567,7 +1568,7 @@ def patch_pyodide_detection() -> None:
     replace_once(
         DST / "config.py",
         "- This Python environment runs via Pyodide in the browser. **Do not install packages** — `pip install`, `subprocess`, and `micropip.install()` are not available.",
-        "- This Python environment runs via Pyodide in the browser. **Do not install packages** — `pip install`, `subprocess`, and `micropip.install()` are not available.\n- Libraries bundled and available on demand: numpy, pandas, matplotlib, scipy, scikit-learn, seaborn, sympy, mpmath, pillow (PIL), requests, beautifulsoup4 (bs4), lxml, python-docx (docx), python-pptx (pptx), openpyxl, pytz, pymupdf (fitz), statsmodels. No other third-party library (no plotly, pypdf, tiktoken).\n- Network: the sandbox has no TCP. socket.create_connection always raises OSError. Use urllib/requests over HTTP only; check the `network_available` flag (set on first run) before trying. Writes to /mnt/uploads/ are saved to the app file browser.",
+        "- This Python environment runs via Pyodide in the browser. **Do not install packages** — `pip install`, `subprocess`, and `micropip.install()` are not available.\n- Libraries bundled and available on demand: numpy, pandas, matplotlib, scipy, scikit-learn, seaborn, sympy, mpmath, pillow (PIL), requests, beautifulsoup4 (bs4), lxml, python-docx (docx), python-pptx (pptx), openpyxl, pytz, pymupdf (fitz), statsmodels. No other third-party library (no plotly, pypdf, tiktoken).\n- Network: the sandbox has no TCP. socket.create_connection always raises OSError. Outbound HTTP goes through the browser and is filtered by CORS: a request fails with ConnectionError whenever the target site does not send CORS headers — this does NOT mean the site is down. To probe a URL reliably, use fetch_url; for an API, try fetch_url first and fall back to requests here (or the reverse) — the two paths have different egresses. Check the `network_available` flag (set on first run) before trying.\n- Files: everything in /mnt/uploads/ is saved to the app file browser; the app's uploads are also visible there.",
         "P46f prompt : bibliothèques disponibles documentées",
     )
 
@@ -1706,6 +1707,268 @@ def patch_sandbox_hardening() -> None:
     )
 
 
+EXTRA_TOOLS_2 = '''
+async def delete_file(
+    file_id: str,
+    __request__: Request = None,
+    __user__: dict = None,
+) -> str:
+    """
+    Delete a file permanently by file_id (uploads, chat files, knowledge files) — irreversible.
+
+    :param file_id: id of the file to delete
+    :return: JSON confirmation of the deletion
+    """
+    try:
+        from open_webui.models.files import Files
+
+        f = await Files.get_file_by_id(file_id)
+        if f is None:
+            return JSONCodec.dumps({'error': f'Fichier introuvable : {file_id}'})
+        user = __user__ or {}
+        if user.get('role') != 'admin' and getattr(f, 'user_id', None) not in (None, user.get('id')):
+            return JSONCodec.dumps({'error': 'Accès refusé'})
+        try:
+            from open_webui.storage.provider import Storage
+            await Storage.delete_file(f.path)
+        except Exception:
+            pass
+        try:
+            from open_webui.retrieval.vector.async_client import ASYNC_VECTOR_DB_CLIENT
+            await ASYNC_VECTOR_DB_CLIENT.delete(collection_name=f'file-{f.id}')
+        except Exception:
+            pass
+        await Files.delete_file_by_id(f.id)
+        return JSONCodec.dumps({'status': 'supprimé', 'id': f.id}, ensure_ascii=False)
+    except Exception as e:
+        log.exception(f'delete_file error: {e}')
+        return JSONCodec.dumps({'error': str(e)})
+
+
+async def list_tools(
+    __request__: Request = None,
+    __user__: dict = None,
+) -> str:
+    """
+    List workspace tools and the functions they expose — to verify a creation or a deletion.
+
+    :return: JSON list of tools with id, name, and exposed function names
+    """
+    try:
+        import re as _re
+        from open_webui.models.tools import Tools
+
+        out = []
+        for t in Tools.get_tools():
+            contenu = getattr(t, 'content', '') or ''
+            fns = sorted(set(_re.findall(r'^\\s*(?:async )?def ([A-Za-z_]\\w*)\\s*\\(', contenu, _re.M)))
+            out.append({'id': t.id, 'name': t.name, 'functions': fns})
+        return JSONCodec.dumps(out, ensure_ascii=False)
+    except Exception as e:
+        log.exception(f'list_tools error: {e}')
+        return JSONCodec.dumps({'error': str(e)})
+'''
+
+
+def patch_audit_suite() -> None:
+    """P54–P59 — rapport utilisateur (outils) :
+    P54 : découverte des KB par le CONTENU (une KB mal nommée était invisible ;
+    fallback lexical sur les fichiers nom+contenu) ;
+    P55 : search_knowledge_files cherche désormais le contenu aussi (le nom de
+    l'outil promet une recherche plein texte) — même moteur normalisé que P48 ;
+    P57 : write_note enregistre la lecture — « créer puis ajuster » sans
+    relecture imposée ;
+    P58/P59 : delete_file + list_tools (vérifiables) — rien ne permettait
+    d'effacer un fichier ni de contrôler un tool créé."""
+    builtin = DST / "tools" / "builtin.py"
+    text = builtin.read_text(encoding="utf-8")
+    if "async def delete_file(" in text:
+        log("  P58/P59 delete_file/list_tools : déjà appliqué")
+    else:
+        builtin.write_text(text + "\n\n" + EXTRA_TOOLS_2, encoding="utf-8")
+        log("  P58/P59 outils delete_file/list_tools ajoutés")
+    # P55 — moteur du modèle normalisé (search_knowledge_files agrégé)
+    replace_once(
+        DST / "models" / "knowledge.py",
+        """                # Apply filename / content search
+                search_filter = None
+                if filter:
+                    q = filter.get('query')
+                    if q:
+                        if filter.get('include_content'):
+                            # Use ->> (as_string) instead of CAST(-> AS TEXT)
+                            # to avoid PostgreSQL \"invalid memory alloc request
+                            # size\" on large extracted-content rows (#24670).
+                            content_text = File.data['content'].as_string()
+                            content_text = func.substr(content_text, 1, RAG_FILE_CONTENT_SEARCH_MAX_CHARS)
+                            search_filter = or_(
+                                File.filename.ilike(f'%{q}%'),
+                                content_text.ilike(f'%{q}%'),
+                            )
+                        else:
+                            search_filter = File.filename.ilike(f'%{q}%')
+                        stmt = stmt.filter(search_filter)""",
+        '''                # Apply filename / content search
+                search_filter = None
+                if filter:
+                    q = filter.get('query')
+                    if q:
+                        # P55 : normalisation espace/tiret/underscore + jetons
+                        # (même moteur que search_files_by_id — P48)
+                        from sqlalchemy import and_ as _and
+                        import re as _re
+
+                        def _norm(s):
+                            return _re.sub(r'[\\s_\\-]+', ' ', (s or '').lower()).strip()
+
+                        nom_norm = func.replace(func.replace(func.lower(File.filename), '-', ' '), '_', ' ')
+                        jetons = [j for j in _norm(q).split(' ') if j]
+                        if filter.get('include_content'):
+                            # Use ->> (as_string) instead of CAST(-> AS TEXT)
+                            # to avoid PostgreSQL "invalid memory alloc request
+                            # size" on large extracted-content rows (#24670).
+                            content_text = File.data['content'].as_string()
+                            content_text = func.substr(content_text, 1, RAG_FILE_CONTENT_SEARCH_MAX_CHARS)
+                            cont_norm = func.replace(func.replace(func.lower(content_text), '-', ' '), '_', ' ')
+                            search_filter = _and(*[
+                                or_(nom_norm.like(f'%{j}%'), cont_norm.like(f'%{j}%'))
+                                for j in jetons
+                            ]) if jetons else True
+                        else:
+                            search_filter = _and(*[nom_norm.like(f'%{j}%') for j in jetons]) if jetons else True
+                        stmt = stmt.filter(search_filter)''',
+        "P55a search_knowledge_files (modèle) : jetons normalisés",
+    )
+    # P55 — les deux autres appels cherchent le contenu
+    replace_once(
+        builtin,
+        """            result = await Knowledges.search_files_by_id(
+                knowledge_id=knowledge_id,
+                user_id=user_id,
+                filter={'query': query},
+                skip=skip,
+                limit=count,
+            )""",
+        """            result = await Knowledges.search_files_by_id(
+                knowledge_id=knowledge_id,
+                user_id=user_id,
+                filter={'query': query, 'include_content': True},
+                skip=skip,
+                limit=count,
+            )""",
+        "P55b search_knowledge_files : contenu recherché",
+    )
+    replace_once(
+        builtin,
+        """            result = await Knowledges.search_knowledge_files(
+                filter={
+                    'query': query,
+                    'user_id': user_id,
+                    'group_ids': user_group_ids,
+                },""",
+        """            result = await Knowledges.search_knowledge_files(
+                filter={
+                    'query': query,
+                    'include_content': True,
+                    'user_id': user_id,
+                    'group_ids': user_group_ids,
+                },""",
+        "P55c search_knowledge_files : contenu (agrégé)",
+    )
+    # P54 — search_knowledge_bases : fallback par le contenu des fichiers
+    replace_once(
+        builtin,
+        """                    'updated_at': knowledge_base.updated_at,
+                }
+            )
+
+        return JSONCodec.dumps(knowledge_bases, ensure_ascii=False)""",
+        """                    'updated_at': knowledge_base.updated_at,
+                }
+            )
+
+        # P54 : découverte par le CONTENU — une KB mal nommée était invisible
+        # (« sécurité IA open source » ne trouvait rien sur une KB « Test »).
+        if query and not knowledge_bases:
+            tous = await Knowledges.search_knowledge_bases(
+                user_id,
+                filter={'user_id': user_id, 'group_ids': user_group_ids},
+                skip=0,
+                limit=50,
+            )
+            for kb in tous.items:
+                r = await Knowledges.search_files_by_id(
+                    knowledge_id=kb.id, user_id=user_id,
+                    filter={'query': query, 'include_content': True}, skip=0, limit=5)
+                if r and r.items:
+                    knowledge_bases.append({
+                        'id': kb.id, 'name': kb.name,
+                        'description': kb.description or '',
+                        'file_count': len(r.items), 'updated_at': kb.updated_at,
+                        'matched_files': len(r.items), 'source': 'content',
+                    })
+
+        return JSONCodec.dumps(knowledge_bases, ensure_ascii=False)""",
+        "P54a search_knowledge_bases : fallback contenu",
+    )
+    # P54 — query_knowledge_bases : idem
+    replace_once(
+        builtin,
+        """                        'similarity': round(distance, 4),
+                    }
+                )
+
+        return JSONCodec.dumps(matching_knowledge_bases, ensure_ascii=False)""",
+        """                        'similarity': round(distance, 4),
+                    }
+                )
+
+        # P54 : idem search_knowledge_bases — découverte par le contenu des
+        # fichiers quand l'index sémantique des noms/descriptions reste muet.
+        if query and not matching_knowledge_bases:
+            tous = await Knowledges.search_knowledge_bases(
+                user_id,
+                filter={'user_id': user_id, 'group_ids': user_group_ids},
+                skip=0,
+                limit=50,
+            )
+            for kb in tous.items:
+                r = await Knowledges.search_files_by_id(
+                    knowledge_id=kb.id, user_id=user_id,
+                    filter={'query': query, 'include_content': True}, skip=0, limit=5)
+                if r and r.items:
+                    matching_knowledge_bases.append({
+                        'id': kb.id, 'name': kb.name,
+                        'description': kb.description or '',
+                        'similarity': None, 'matched_files': len(r.items),
+                        'source': 'content',
+                    })
+
+        return JSONCodec.dumps(matching_knowledge_bases, ensure_ascii=False)""",
+        "P54b query_knowledge_bases : fallback contenu",
+    )
+    # P57 — write_note : la page vient d'être écrite, on enregistre la lecture
+    replace_once(
+        builtin,
+        """        if not new_note:
+            return JSONCodec.dumps({'error': 'Failed to create note'})""",
+        """        if not new_note:
+            return JSONCodec.dumps({'error': 'Failed to create note'})
+
+        # P57 : la note vient d'être écrite par l'agent — on enregistre la
+        # lecture de sa page pour permettre une édition immédiate (le garde-fou
+        # anti-conflit exigeait une relecture même juste après création).
+        try:
+            _page = get_page(new_note.data, None)
+            if not hasattr(__request__.state, 'note_page_revisions'):
+                __request__.state.note_page_revisions = {}
+            __request__.state.note_page_revisions[(user_id, new_note.id, _page['id'])] = _page.get('revision', 0)
+        except Exception:
+            pass""",
+        "P57 write_note : page marquée comme lue",
+    )
+
+
 def patch_search_files() -> None:
     """P48 — search_knowledge_files (audit 22:59) : le matching était un ILIKE
     SQL brut — « rapport vulnerabilites » ne trouvait jamais
@@ -1780,7 +2043,7 @@ def patch_search_files() -> None:
                 result = await Knowledges.search_files_by_id(
                     knowledge_id=kb_id,
                     user_id=user_id,
-                    filter={'query': '' if (q_norm and q_norm in k_norm) else query},
+                    filter={'query': '' if (q_norm and q_norm in k_norm) else query, 'include_content': True},
                     skip=0,
                     limit=count + skip,
                 )""",
@@ -2375,6 +2638,7 @@ def main() -> int:
     patch_upload_harvest()
     patch_note_newlines()
     patch_search_files()
+    patch_audit_suite()
     patch_sandbox_hardening()
     patch_recurrence_thread()
     patch_search_error_log()

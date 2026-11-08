@@ -50,6 +50,10 @@ CHECKS = [
     ("P48 jetons normalisés", "open_webui/models/knowledge.py", "nom_norm"),
     ("P51 uploads injectés", "open_webui/tools/builtin.py", "_uploads_pour_sable"),
     ("P52 bootstrap réseau", "open_webui/tools/builtin.py", "SANDBOX_NET_BOOTSTRAP"),
+    ("P54 fallback contenu KB", "open_webui/tools/builtin.py", "'source': 'content'"),
+    ("P57 write_note auto-lecture", "open_webui/tools/builtin.py", "P57 : la note vient d'être écrite"),
+    ("P58 list_tools", "open_webui/tools/builtin.py", "async def list_tools("),
+    ("P59 delete_file", "open_webui/tools/builtin.py", "async def delete_file("),
 ]
 
 

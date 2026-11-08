@@ -1212,3 +1212,40 @@ bac à sable — ne jamais y déposer de secrets.
 
 Justification de l'évolution de scripts/check_patches.py : contrôle ÉTENDU
 (P48/P51/P52 backend, P49a worker) — aucun affaiblissement.
+
+## 2026-11-08 — v0.0.30 : rapport outils/execute_code traité (P53–P61)
+
+- P53 : statsmodels « absent » → sa dépendance patsy n'était pas embarquée
+  (statsmodels dépend de numpy/scipy/pandas/patsy/packaging ; seule patsy
+  manquait). Wheel officielle récupérée (sha256 conforme au lock) dans
+  wheels-extra/.
+
+- P54 (sévérité haute) : query/search_knowledge_bases ne cherchaient que le
+  nom/description — une KB mal nommée était invisible. Fallback par le
+  CONTENU des fichiers (nom + contenu, moteur normalisé P48/P55) quand la
+  recherche nominative reste muette. TESTÉ : « securite ia open source » et
+  « systemes embarques » trouvent par le contenu ; hors sujet → [].
+
+- P55 : search_knowledge_files cherchait par nom alors que son nom promet le
+  plein texte (« test » → 0 malgré 97 occurrences). Le contenu est désormais
+  cherché (include_content) avec le moteur normalisé, dans les 3 chemins
+  d'appel. TESTÉ (3 cas, base de test).
+
+- P57 : write_note enregistre la lecture de la page créée — le workflow
+  « créer puis ajuster » ne subit plus le garde-fou read_required.
+
+- P58/P59 : list_tools (vérifie créations/suppressions de tools) et
+  delete_file (efface uploads/fichiers de chat/KB avec purge de l'index).
+  Les artefacts de test du rapport deviennent supprimables par l'utilisateur.
+
+- P60 : le prompt du bac à sable documente la réalité réseau (CORS — un
+  ConnectionError ne signifie pas qu'un site est mort) et la règle de
+  redondance fetch_url ↔ requests (egress différents).
+
+- P61 : fetch_url comprime les lignes vides (pages brutes noyées dans du vide).
+
+Reste ouvert (prochain tour) : A3 seuil de pertinence de query_knowledge_files
+(scores permissifs), invocation des tools créés dans la même session.
+
+Justification scripts/check_patches.py et check_apk.py : contrôles ÉTENDUS
+(P53–P59) — aucun affaiblissement.

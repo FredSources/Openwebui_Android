@@ -101,6 +101,11 @@ def _prepare_env(files_dir: str | None = None) -> Path:
     _load_env_file(data_dir)
 
     os.environ.setdefault("DATA_DIR", str(data_dir))
+    # P44 — le bac à sable Pyodide DOIT passer par le worker (et non l'iframe
+    # par défaut) : seul le worker embarque les paquets scientifiques au boot
+    # (P38), la persistance /mnt/uploads (IDBFS) et la remontée des fichiers
+    # (P41). Sans ça : ModuleNotFoundError systématiques côté appareil.
+    os.environ.setdefault("ENABLE_PYODIDE_FILE_PERSISTENCE", "true")
     log.warning("espace applicatif : HOME=%s DATA_DIR=%s", home, data_dir)
     # Frontend : extrait par MainActivity dans $HOME/frontend (assets, versionné) ;
     # repli sur le paquet Python pour les tests hôte.

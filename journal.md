@@ -1090,3 +1090,32 @@ Justification de l'évolution de scripts/check_patches.py (règle diagnostic) :
 contrôle ÉTENDU aux chaînes P41 (worker→frontend→execute_code, 3 maillons dont
 2 à nom haché → glob) et P42 (marqueurs write_note/replace_note_content) —
 aucun affaiblissement.
+
+## 2026-11-08 — v0.0.26 : cause racine de la régression Pyodide (P44/P44b) + rrule (P45)
+
+Audit 22:59 : 4 corrections confirmées, 2 anomalies restantes. Investigation
+poussée sur la régression scientifique (qui résistait à la preuve chromium) :
+
+CAUSE RACINE (P44) — `ENABLE_PYODIDE_FILE_PERSISTENCE` vaut `false` par défaut
+(env.py amont) : le SPA choisit alors l'exécuteur IFRAME (`class ap`) et non le
+WORKER (`hp`). Or TOUTES mes corrections Pyodide (P38 boot, P41a remontée de
+fichiers) vivaient dans le worker — l'iframe ne chargeait que `micropip` au
+boot et ne comptait que sur la détection regex littérale d'imports. Mes tests
+chromium validaient le worker — la bonne voie — mais l'appareil ne la prenait
+pas. Fix : `ENABLE_PYODIDE_FILE_PERSISTENCE=true` dans android_main
+(_prepare_env) → le worker sert désormais, avec boot numpy/pandas/sympy,
+persistance IDBFS de /mnt/uploads et remontée des fichiers (P41).
+P44b (filet) : le boot de l'iframe embarque aussi numpy/pandas/sympy.
+
+Anomalie N°2 (rrule) — P45 : la cause est la docstring d'OUTIL elle-même, qui
+montre « DTSTART:...\nRRULE:... » avec \n littéral ; les LLM la copient telle
+quelle et le parseur RRULE refuse (« Unknown string format »). Normalisation
+inconditionnelle dans create_automation/update_automation (un \n littéral n'a
+aucun sens en RRULE). Testé : « DTSTART:20250101T090000\nRRULE:FREQ=DAILY »
+littéral → vraie ligne ✓.
+
+Justification de l'évolution de scripts/check_patches.py (règle diagnostic) :
+contrôle ÉTENDU (P44 activation de la voie worker, P44b boot iframe, P45 rrule)
+— aucun affaiblissement. Leçon méthodologique : une preuve sur banc doit
+reproduire le SÉLECTEUR de chemin de l'appareil (flag/feature), pas seulement
+le composant cible.

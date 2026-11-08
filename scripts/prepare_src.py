@@ -1453,6 +1453,47 @@ def patch_note_newlines() -> None:
     )
 
 
+def patch_pyodide_universel() -> None:
+    """P44b — filet de sécurité : même si le flag ENABLE_PYODIDE_FILE_PERSISTENCE
+    est désactivé (l'iframe est alors utilisée), le bac à sable embarque
+    numpy/pandas/sympy au boot. Sans ça, seul le worker portait les paquets de
+    boot (P38) et l'iframe retombait en ModuleNotFoundError."""
+    root = DST / "frontend" / "_app" / "immutable"
+    _patch_first_match(
+        str(root / "chunks" / "*.js"),
+        "packages: ['micropip']",
+        "packages: ['micropip','numpy','pandas','sympy']",
+        "P44b pyodide iframe : paquets de boot",
+    )
+
+
+def patch_automation_rrule() -> None:
+    """P45 — create/update_automation : la docstring elle-même montre « \\n »
+    littéral entre DTSTART et RRULE ; les LLM la copient telle quelle et le
+    parseur refuse (« Unknown string format »). Conversion inconditionnelle :
+    un \\n littéral n'a aucun sens dans un RRULE."""
+    norm = r'''        # P45 : \n littéraux convertis (la docstring les montre ainsi — les
+        # LLM la copient ; le parseur RRULE exige de vrais sauts de ligne)
+        if rrule:
+            rrule = rrule.replace('\\r', '').replace('\\n', '\n').replace('\\t', ' ')
+'''
+    replace_once(
+        DST / "tools" / "builtin.py",
+        "        # Validate the RRULE",
+        norm + "        # Validate the RRULE",
+        "P45a create_automation : rrule normalisé",
+    )
+    replace_once(
+        DST / "tools" / "builtin.py",
+        "        new_rrule = rrule if rrule is not None else automation.data.get('rrule', '')",
+        r'''        # P45 : idem create_automation — \n littéraux convertis
+        if rrule is not None:
+            rrule = rrule.replace('\\r', '').replace('\\n', '\n').replace('\\t', ' ')
+        new_rrule = rrule if rrule is not None else automation.data.get('rrule', '')''',
+        "P45b update_automation : rrule normalisé",
+    )
+
+
 def patch_pyodide_packages() -> None:
     """P38 — paquets scientifiques garantis au démarrage du bac à sable Pyodide.
     Le worker ne préinstallait que micropip : numpy/pandas/sympy (wheels déjà
@@ -2033,6 +2074,8 @@ def main() -> int:
     patch_memory_recall()
     patch_kb_backfill()
     patch_pyodide_packages()
+    patch_pyodide_universel()
+    patch_automation_rrule()
     patch_upload_harvest()
     patch_note_newlines()
     patch_recurrence_thread()

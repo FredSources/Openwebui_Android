@@ -45,6 +45,7 @@ CHECKS = [
     ("P39b auto-réparation index KB", "open_webui/tools/builtin.py", "P39b : réparer l'index sémantique"),
     ("P41c fichiers produits enregistrés", "open_webui/tools/builtin.py", "fichiers_sortie"),
     ("P42a \\n littéraux write_note", "open_webui/tools/builtin.py", "P42 : \\n littéraux"),
+    ("P45a rrule create_automation", "open_webui/tools/builtin.py", "P45 : \\n littéraux convertis"),
 ]
 
 
@@ -135,6 +136,17 @@ def check_pyodide_paquets() -> None:
         with open(cible, encoding="utf-8", errors="ignore") as fh:
             if 'packages:["micropip","numpy","pandas","sympy"]' not in fh.read():
                 err(f"P38 : paquets de boot numpy/pandas/sympy absents — {cible}")
+    # P44 : la voie worker doit être activée (sinon l'iframe contourne P38/P41)
+    am = PROJ / "app" / "src" / "main" / "python" / "android_main.py"
+    if am.exists() and 'ENABLE_PYODIDE_FILE_PERSISTENCE", "true"' not in am.read_text(encoding="utf-8", errors="ignore"):
+        err("P44 : ENABLE_PYODIDE_FILE_PERSISTENCE non activé dans android_main.py")
+    # P44b : filet de sécurité, le boot de l'iframe embarque aussi les paquets
+    chunks = _glob.glob(str(PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "*.js"))
+    if chunks and not any(
+        "packages: ['micropip','numpy','pandas','sympy']" in open(c, encoding="utf-8", errors="ignore").read()
+        for c in chunks
+    ):
+        err("P44b : boot de l'iframe sans paquets scientifiques")
 
 
 def check_p41_harvest() -> None:

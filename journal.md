@@ -878,3 +878,29 @@ conserve les données ; l'effacement interne donne le contrôle total.
 **check_patches en action** : le gardien a bloqué la génération sur une erreur
 de syntaxe du code injecté (guillemets imbriqués dans un onsubmit) — preuve
 en direct de son utilité.
+
+## 2026-11-08 — v0.0.17 : cohérence index/fichiers + outils de suppression
+
+Audit 48 outils (37 OK, 5 en échec) — cause racine de l'incohérence
+`query_knowledge_files` vs `view_knowledge_file` : **ma route `/fm/delete`
+supprimait la ligne en base sans purger l'index vectoriel** (l'API officielle
+le fait : `ASYNC_VECTOR_DB_CLIENT.delete(file-<id>)`) → chunks orphelins citant
+des fichiers disparus. Correctifs :
+
+- P31 : `/fm/delete` purge aussi l'index vectoriel ; bouton *Nettoyer l'index
+  des documents disparus* dans ⚙ Maintenance (`/fm/fix-index`) — soigne les
+  orphelins déjà accumulés (l'état de l'appareil utilisateur).
+- P29 : outils `delete_note`, `delete_skill`, `delete_tool` (aucun n'existait :
+  toute sonde d'écriture était définitive — demande utilisateur).
+- compile_typst : diagnostic enrichi (paquet typst présent sur chaque chemin ?
+  espace disque libre ?) — pour trancher « module absent » vs « extraction
+  ratée » sur l'appareil.
+
+Incident de méthode : une découpe automatisée a tronqué `prepare_src.py`
+(1074 lignes perdues) — restauré par `git checkout` + ré-application des ajouts
+non committés. Leçons : toujours un commit avant manipulation lourde, et
+préférer l'édition ciblée aux découpages regex.
+
+Rappel de l'audit : execute_code fonctionne (Python 3.14, /mnt/uploads OK) ;
+restent à traiter : compile_typst (infra), search_memories/search_knowledge_files
+(sémantique), create_tool (méthodes non exposées).

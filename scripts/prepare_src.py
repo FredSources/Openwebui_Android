@@ -352,9 +352,22 @@ async def compile_typst(
         except Exception as _exc:
             import os as _os
             import sys as _sys
+            paquets = []
+            for base in list(_sys.path)[:8]:
+                try:
+                    d = _os.path.join(base, 'typst')
+                    if _os.path.isdir(d):
+                        paquets.append(d + ' -> ' + str(sorted(_os.listdir(d))[:6]))
+                except Exception:
+                    pass
+            try:
+                libre = _os.statvfs(_os.environ.get('HOME', '/')).f_bavail * 4096
+            except Exception:
+                libre = -1
             raise RuntimeError(
                 f"import typst impossible : {_exc} | python={_sys.version.split()[0]} | "
-                f"HOME={_os.environ.get('HOME', '')} | chemins={_sys.path[:5]}"
+                f"HOM"
+                f"E={_os.environ.get('HOME', '')} | libres={libre}o | paquets={paquets}"
             ) from _exc
 
         from open_webui.models.files import FileForm, Files
@@ -812,6 +825,8 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 f"<p>Donnees de l'appli : <code>{_html.escape(str(_DD))}</code></p>"
                 f"<p>Base de donnees : {_fm_size(taille_db)} &mdash; Fichiers : {total} &mdash; "
                 f"<a href='/fm/raw?name=webui.db'>telecharger une sauvegarde de la base</a></p>"
+                "<form method='post' action='/fm/fix-index'>"
+                "<button>&#128465; Nettoyer l'index des documents disparus</button></form>"
                 "<p><i>La configuration ne provient jamais de l'APK ; elle vit uniquement ici. "
                 "Si elle reapparait apres effacement, c'est Android qui l'a restauree "
                 "(sauvegarde automatique desactivee depuis v0.0.15).</i></p>"
@@ -895,6 +910,13 @@ async def fm_delete(request: Request, user=Depends(get_verified_user)):
                 await Storage.delete_file(f.path)
             except Exception:
                 pass
+            # P31 : purger aussi l'index vectoriel (sinon l'index cite des
+            # fichiers disparus — incohérence signalée en audit)
+            try:
+                from open_webui.retrieval.vector.async_client import ASYNC_VECTOR_DB_CLIENT
+                await ASYNC_VECTOR_DB_CLIENT.delete(collection_name=f'file-{f.id}')
+            except Exception:
+                pass
             await Files.delete_file_by_id(f.id)
     except Exception:
         pass
@@ -913,6 +935,33 @@ async def fm_reset(request: Request, user=Depends(get_verified_user)):
         "<h1>&#9989; Reinitialisation demandee</h1>"
         "<p>Forcez l'arret de l'appli puis relancez-la : comptes, conversations, "
         "fichiers et reglages seront effaces.</p>"))
+
+
+@app.post('/fm/fix-index')
+async def fm_fix_index(request: Request, user=Depends(get_verified_user)):
+    """P31 : supprime les collections orphelines de l'index vectoriel
+    (fichiers supprimés dont les chunks restent indexés)."""
+    try:
+        from open_webui.models.files import Files
+        from open_webui.retrieval.vector.async_client import ASYNC_VECTOR_DB_CLIENT
+
+        result = await Files.get_file_list(user_id=None, skip=0, limit=100000)
+        connus = {"file-" + f.id for f in result.items}
+        orphelins = []
+        for nom in await ASYNC_VECTOR_DB_CLIENT.get_collections():
+            if str(nom).startswith("file-") and str(nom) not in connus:
+                try:
+                    await ASYNC_VECTOR_DB_CLIENT.delete(collection_name=str(nom))
+                    orphelins.append(str(nom))
+                except Exception:
+                    pass
+        msg = (str(len(orphelins)) + " collection(s) orpheline(s) supprimée(s)." if orphelins
+               else "Aucune collection orpheline : l'index est cohérent.")
+        return _HTMLResponse(_fm_page(
+            "<h1>&#9989; Index v\u00e9rifi\u00e9</h1><p>" + _html.escape(msg) + "</p>"
+            "<div class='nav'><a href='/fm?folder=maintenance'>&#8592; maintenance</a></div>"))
+    except Exception as exc:
+        return _HTMLResponse(_fm_error(exc), status_code=500)
 
 
 @app.get('/fm/raw')
@@ -971,6 +1020,35 @@ def patch_files_button() -> None:
         btn,
         "P26b bouton flottant Fichiers (index.html)",
     )
+
+
+def patch_delete_tools() -> None:
+    """P29 — outils de suppression définitive : delete_note, delete_skill,
+    delete_tool (aucun n'existait : toute sonde d'écriture était irréversible)."""
+    builtin = DST / "tools" / "builtin.py"
+    text = builtin.read_text(encoding="utf-8")
+    if "async def delete_note(" in text:
+        log("  P29 delete_* : déjà appliqué")
+    else:
+        builtin.write_text(text + "\n\n" + DELETE_TOOLS, encoding="utf-8")
+        log("  P29 outils delete_note/delete_skill/delete_tool ajoutés")
+        PATCHES.append(("outils delete_note/delete_skill/delete_tool", "ajoutés"))
+    replace_once(DST / "utils" / "tools.py",
+        "    create_tool,",
+        "    create_tool,\n    delete_note,\n    delete_skill,\n    delete_tool,",
+        "P29a imports delete_*")
+    replace_once(DST / "utils" / "tools.py",
+        "builtin_functions.extend([search_notes, view_note, write_note, replace_note_content])",
+        "builtin_functions.extend([search_notes, view_note, write_note, replace_note_content, delete_note])",
+        "P29b registrement delete_note")
+    replace_once(DST / "utils" / "tools.py",
+        "            builtin_functions.append(create_tool)",
+        "            builtin_functions.append(create_tool)\n            builtin_functions.append(delete_tool)",
+        "P29c registrement delete_tool")
+    replace_once(DST / "utils" / "tools.py",
+        "        builtin_functions.append(create_skill)",
+        "        builtin_functions.append(create_skill)\n        builtin_functions.append(delete_skill)",
+        "P29d registrement delete_skill")
 
 
 def patch_typst_tool() -> None:
@@ -1176,6 +1254,91 @@ class Doc:
         return f"<pycrdt.Doc stub, {len(self._updates)} update(s)>"
 '''
 
+
+DELETE_TOOLS = '''
+async def delete_note(
+    note_id: str,
+    __request__: Request = None,
+    __user__: dict = None,
+) -> str:
+    """
+    Delete a note permanently (irreversible).
+
+    :param note_id: id of the note to delete
+    :return: JSON confirmation of the deletion
+    """
+    try:
+        from open_webui.models.notes import Notes
+
+        note = await Notes.get_note_by_id(note_id)
+        if note is None:
+            return JSONCodec.dumps({'error': f'Note introuvable : {note_id}'})
+        user = __user__ or {}
+        if user.get('role') != 'admin' and getattr(note, 'user_id', None) not in (None, user.get('id')):
+            return JSONCodec.dumps({'error': 'Accès refusé'})
+        ok = await Notes.delete_note_by_id(note_id)
+        return JSONCodec.dumps(
+            {'status': 'supprimée' if ok else 'erreur', 'id': note_id}, ensure_ascii=False)
+    except Exception as e:
+        log.exception(f'delete_note error: {e}')
+        return JSONCodec.dumps({'error': str(e)})
+
+
+async def delete_skill(
+    skill_id: str,
+    __request__: Request = None,
+    __user__: dict = None,
+) -> str:
+    """
+    Delete a private skill permanently (irreversible).
+
+    :param skill_id: id of the skill to delete
+    :return: JSON confirmation of the deletion
+    """
+    try:
+        from open_webui.models.skills import Skills
+
+        skill = await Skills.get_skill_by_id(skill_id)
+        if skill is None:
+            return JSONCodec.dumps({'error': f'Skill introuvable : {skill_id}'})
+        user = __user__ or {}
+        if user.get('role') != 'admin' and getattr(skill, 'user_id', None) not in (None, user.get('id')):
+            return JSONCodec.dumps({'error': 'Accès refusé'})
+        ok = await Skills.delete_skill_by_id(skill_id)
+        return JSONCodec.dumps(
+            {'status': 'supprimé' if ok else 'erreur', 'id': skill_id}, ensure_ascii=False)
+    except Exception as e:
+        log.exception(f'delete_skill error: {e}')
+        return JSONCodec.dumps({'error': str(e)})
+
+
+async def delete_tool(
+    tool_id: str,
+    __request__: Request = None,
+    __user__: dict = None,
+) -> str:
+    """
+    Delete a custom tool permanently, freeing its id (irreversible).
+
+    :param tool_id: id of the tool to delete
+    :return: JSON confirmation of the deletion
+    """
+    try:
+        from open_webui.models.tools import Tools
+
+        tool = await Tools.get_tool_by_id(tool_id)
+        if tool is None:
+            return JSONCodec.dumps({'error': f'Outil introuvable : {tool_id}'})
+        user = __user__ or {}
+        if user.get('role') != 'admin' and getattr(tool, 'user_id', None) not in (None, user.get('id')):
+            return JSONCodec.dumps({'error': 'Accès refusé'})
+        await Tools.delete_tool_by_id(tool_id)
+        return JSONCodec.dumps(
+            {'status': 'supprimé', 'id': tool_id}, ensure_ascii=False)
+    except Exception as e:
+        log.exception(f'delete_tool error: {e}')
+        return JSONCodec.dumps({'error': str(e)})
+'''
 
 RE2_SHIM = '''\
 """re2 — shim sur `re` (google-re2 est natif et non fourni sur Android).
@@ -1406,6 +1569,7 @@ def main() -> int:
     patch_files_mnt_alias()
     patch_files_button()
     patch_typst_tool()
+    patch_delete_tools()
     patch_recurrence_thread()
     patch_search_error_log()
     write_null_vector_db()

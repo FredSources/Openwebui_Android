@@ -1573,17 +1573,18 @@ def patch_pyodide_detection() -> None:
 
 
 def patch_extra_wheels() -> None:
-    """P47 — wheels supplémentaires embarqués depuis vendor/wheels-extra/ :
-    statsmodels et pymupdf existent en wasm dans la distribution Pyodide
-    (sha256 conformes au lock pyodide-lock.json) mais l'amont n'en embarquait
-    que 53 pour garder l'APK léger. Copiés dans pyodide/, ils deviennent
-    installables hors ligne par le bac à sable (détection P46)."""
+    """P47 — wheels supplémentaires embarqués depuis wheels-extra/ (VERSIONNÉS,
+    comme les 53 wheels amont de src-assets/) : statsmodels et pymupdf existent
+    en wasm dans la distribution Pyodide (sha256 conformes au lock
+    pyodide-lock.json) mais l'amont n'en embarquait que 53 pour garder l'APK
+    léger. Copiés dans pyodide/, ils deviennent installables hors ligne par le
+    bac à sable (détection P46)."""
     import glob as _glob
     import shutil as _shutil
 
-    srcs = sorted(_glob.glob(str(PROJ / "vendor" / "wheels-extra" / "*.whl")))
+    srcs = sorted(_glob.glob(str(PROJ / "wheels-extra" / "*.whl")))
     if not srcs:
-        log("  P47 wheels supplémentaires : aucun wheel dans vendor/wheels-extra/")
+        log("  P47 wheels supplémentaires : aucun wheel dans wheels-extra/")
         return
     dest_dir = DST / "frontend" / "pyodide"
     dest_dir.mkdir(parents=True, exist_ok=True)

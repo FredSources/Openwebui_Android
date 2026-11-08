@@ -1161,3 +1161,16 @@ Justification de l'évolution de scripts/check_apk.py (règle diagnostic) :
 contrôle ÉTENDU — les wheels statsmodels/pymupdf doivent figurer dans l'APK
 (aucun affaiblissement). Gain : extraction/lecture PDF native (pymupdf) et
 régressions/stats (statsmodels) dans execute_code.
+
+## 2026-11-08 — v0.0.28 (suite) : build bloqué par check_apk — wheels non versionnés
+
+Le build CI a échoué à « Vérification de la chaîne APK » (check_apk, contrôle
+P47 ajouté) : les wheels statsmodels/pymupdf étaient absents de l'artefact.
+Cause : `vendor/wheels-extra/` est couvert par la règle `.gitignore:/vendor/`
+— les wheels n'avaient jamais été committés, la CI les cherchait en vain et
+P47 sautait silencieusement.
+
+Correctif : wheels déplacés vers `wheels-extra/` (racine, VERSIONNÉS comme les
+53 wheels amont de src-assets/frontend/pyodide/) ; patch_extra_wheels lit ce
+dossier. Le contrôle check_apk a donc fait son travail : un garde-fou qui
+échoue est un garde-fou qui fonctionne.

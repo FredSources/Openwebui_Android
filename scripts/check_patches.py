@@ -43,6 +43,8 @@ CHECKS = [
     ("P36 get_collections LocalVectorDB", "open_webui/retrieval/vector/dbs/local.py", "def get_collections("),
     ("P39a recherche mémoires normalisée", "open_webui/utils/memory.py", "_norm_memory_text"),
     ("P39b auto-réparation index KB", "open_webui/tools/builtin.py", "P39b : réparer l'index sémantique"),
+    ("P41c fichiers produits enregistrés", "open_webui/tools/builtin.py", "fichiers_sortie"),
+    ("P42a \\n littéraux write_note", "open_webui/tools/builtin.py", "P42 : \\n littéraux"),
 ]
 
 
@@ -135,6 +137,30 @@ def check_pyodide_paquets() -> None:
                 err(f"P38 : paquets de boot numpy/pandas/sympy absents — {cible}")
 
 
+def check_p41_harvest() -> None:
+    """P41 : la remontée des fichiers /mnt/uploads repose sur 3 maillons
+    (worker → frontend → execute_code) ; les deux premiers ont des noms hachés
+    → vérification par glob sur la destination finale (src-assets/)."""
+    import glob as _glob
+
+    workers = _glob.glob(
+        str(PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "workers" / "pyodide.worker-*.js")
+    )
+    if workers and not any(
+        "out.push({name:n,data:btoa(s)" in open(c, encoding="utf-8", errors="ignore").read()
+        for c in workers
+    ):
+        err("P41a : worker pyodide sans remontée des fichiers /mnt/uploads")
+    nodes = _glob.glob(
+        str(PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "nodes" / "0.*.js")
+    )
+    if nodes and not any(
+        "files:ge.files||[]" in open(c, encoding="utf-8", errors="ignore").read()
+        for c in nodes
+    ):
+        err("P41b : frontend sans transmission des fichiers produits")
+
+
 def check_compilation() -> None:
     for p in SRC.rglob("*.py"):
         try:
@@ -162,6 +188,7 @@ def main() -> int:
     check_searxng()
     check_frontend()
     check_pyodide_paquets()
+    check_p41_harvest()
     check_build_gradle()
     check_compilation()
     check_typo_courantes()

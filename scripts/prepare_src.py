@@ -1252,6 +1252,34 @@ def _memory_matches_query(memory, query: str) -> bool:
     )
 
 
+def patch_memory_recall() -> None:
+    """P43 — search_memories, rappel (audit 2026-11-08 22:20) : une formulation
+    voisine renvoyait [] alors que la mémoire existait. Deux paliers : tous les
+    mots (précision) puis au moins la moitié (rappel). Le tri reste inchangé."""
+    replace_once(
+        DST / "utils" / "memory.py",
+        """    if query:
+        rows = [memory for memory in rows if _memory_matches_query(memory, query)]""",
+        r'''    if query:
+        # P43 : rappel en deux paliers — tous les mots d'abord (précision),
+        # puis au moins la moitié des mots (rappel : une formulation voisine
+        # renvoyait [] — audit 2026-11-08 22:20). Le tri reste inchangé.
+        _mots = _norm_memory_text(query).split()
+
+        def _score(m):
+            _hay = _norm_memory_text(f'{m.content or ""}\n{m.path or ""}')
+            return sum(1 for w in _mots if w in _hay)
+
+        _exactes = [memory for memory in rows if _score(memory) == len(_mots)]
+        if _exactes:
+            rows = _exactes
+        else:
+            _seuil = max(1, (len(_mots) + 1) // 2)
+            rows = [memory for memory in rows if _score(memory) >= _seuil]''',
+        "P43 search_memories : rappel à deux paliers",
+    )
+
+
 def patch_kb_backfill() -> None:
     """P39b — query_knowledge_bases : l'index sémantique des bases n'est rempli
     qu'à la création/édition (embed_knowledge_base_metadata) ; toute base créée
@@ -1279,6 +1307,149 @@ def patch_kb_backfill() -> None:
                     await embed_knowledge_base_metadata(
                         __request__, _kb.id, _kb.name, _kb.description or '')''',
         "P39b query_knowledge_bases : auto-réparation d'index",
+    )
+
+
+WORKER_HARVEST_JS = (
+    'self.postMessage({id:e,result:self.result,stdout:self.stdout,stderr:self.stderr,'
+    "files:(()=>{try{const out=[];const dir='/mnt/uploads';"
+    "for(const n of self.pyodide.FS.readdir(dir)){if(n==='.'||n==='..')continue;"
+    "const p=dir+'/'+n;const st=self.pyodide.FS.stat(p);"
+    "if(!self.pyodide.FS.isFile(st.mode))continue;"
+    "const d=self.pyodide.FS.readFile(p,{encoding:'binary'});"
+    'if(d.length>26214400)continue;'
+    "let s='';const CH=32768;for(let i=0;i<d.length;i+=CH)"
+    's+=String.fromCharCode.apply(null,d.subarray(i,i+CH));'
+    "out.push({name:n,data:btoa(s),size:d.length});}"
+    "return out;}catch(err){return [];}})()})}self.onmessage="
+)
+
+
+def _patch_first_match(pattern: str, old: str, new: str, name: str) -> None:
+    """Fichiers à nom haché : on repère celui qui porte l'ancre et on le patche
+    (idempotent via replace_once)."""
+    import glob as _glob
+
+    for cible in sorted(_glob.glob(pattern)):
+        text = Path(cible).read_text(encoding="utf-8", errors="ignore")
+        if new in text and old not in text:
+            log(f"  {name}: déjà appliqué")
+            PATCHES.append((name, "déjà appliqué"))
+            return
+        if old in text:
+            replace_once(Path(cible), old, new, name)
+            return
+    raise SystemExit(f"PATCH EN ÉCHEC [{name}] : aucune ancre dans {pattern}")
+
+
+def patch_upload_harvest() -> None:
+    """P41 — contrat /mnt/uploads (audit 2026-11-08 22:20) : le prompt système
+    promet « écrivez dans /mnt/uploads/ pour retrouver vos fichiers dans le
+    navigateur de fichiers » ; côté Pyodide ce dossier vit dans l'IndexedDB du
+    navigateur et n'atteignait jamais le dossier uploads de l'app
+    (getExternalFilesDir()/files/data/uploads). Chaîne : le worker renvoie les
+    fichiers produits → le frontend les transmet → execute_code les enregistre
+    dans UPLOAD_DIR. Les fichiers d'entrée déjà présents sont ignorés (même
+    taille)."""
+    root = DST / "frontend" / "_app" / "immutable"
+    _patch_first_match(
+        str(root / "workers" / "pyodide.worker-*.js"),
+        'self.postMessage({id:e,result:self.result,stdout:self.stdout,stderr:self.stderr})}self.onmessage=',
+        WORKER_HARVEST_JS,
+        "P41a worker : fichiers /mnt/uploads renvoyés",
+    )
+    _patch_first_match(
+        str(root / "nodes" / "0.*.js"),
+        'F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h},(be,Ge)=>typeof Ge=="bigint"?Ge.toString():Ge)))',
+        'F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h,files:ge.files||[]},(be,Ge)=>typeof Ge=="bigint"?Ge.toString():Ge)))',
+        "P41b frontend : fichiers transmis au backend",
+    )
+    replace_once(
+        DST / "tools" / "builtin.py",
+        "        else:\n            return JSONCodec.dumps({'error': f'Unknown code interpreter engine: {engine}'})\n\n        # Handle image outputs",
+        '''        else:
+            return JSONCodec.dumps({'error': f'Unknown code interpreter engine: {engine}'})
+
+        # P41 : remontée des fichiers écrits dans /mnt/uploads vers le dossier
+        # uploads de l'app — le prompt système promet « écrivez dans
+        # /mnt/uploads/ pour les retrouver dans le navigateur de fichiers ».
+        fichiers_sortie = []
+        if isinstance(output, dict):
+            for _f in (output.get('files') or []):
+                try:
+                    import base64 as _b64
+                    import os as _os2
+                    from open_webui.config import UPLOAD_DIR as _UD
+
+                    _nom = _os2.path.basename(str(_f.get('name') or ''))
+                    _don = _f.get('data')
+                    if not _nom or not _don:
+                        continue
+                    _brut = _b64.b64decode(_don)
+                    _dest = _UD / _nom
+                    if _dest.exists() and _dest.stat().st_size == len(_brut):
+                        continue  # déjà présent à l'identique (fichier d'entrée)
+                    _UD.mkdir(parents=True, exist_ok=True)
+                    _dest.write_bytes(_brut)
+                    fichiers_sortie.append(_nom)
+                except Exception:
+                    pass
+
+        # Handle image outputs''',
+        "P41c execute_code : enregistrement des fichiers produits",
+    )
+    replace_once(
+        DST / "tools" / "builtin.py",
+        """        echec = bool((stderr or '').strip())
+        response = {
+            'status': 'error' if echec else 'success',
+            'stdout': stdout,
+            'stderr': stderr,
+            'result': result,
+        }""",
+        """        echec = bool((stderr or '').strip())
+        response = {
+            'status': 'error' if echec else 'success',
+            'stdout': stdout,
+            'stderr': stderr,
+            'result': result,
+            'files': fichiers_sortie,
+        }""",
+        "P41d execute_code : fichiers signalés au modèle",
+    )
+
+
+def patch_note_newlines() -> None:
+    """P42 — \\n littéraux dans write_note / replace_note_content (audit
+    2026-11-08 22:20, reproductible) : les LLM écrivent souvent des séquences
+    \\n visibles au lieu de sauts de ligne. Conversion uniquement quand le
+    texte ne contient aucun saut réel — jamais de mélange contenu/échappements."""
+    norm = r'''        # P42 : \n littéraux → vrais sauts de ligne (uniquement si le texte
+        # n'en contient aucun : jamais de mélange contenu réel / échappements).
+        if '\n' not in content and '\\n' in content:
+            content = content.replace('\\n', '\n').replace('\\t', '\t')
+'''
+    replace_once(
+        DST / "tools" / "builtin.py",
+        "        form = NoteForm(\n            title=title,\n            data={'content': {'md': content}},",
+        norm + "\n        form = NoteForm(\n            title=title,\n            data={'content': {'md': content}},",
+        "P42a write_note : \\n littéraux convertis",
+    )
+    replace_once(
+        DST / "tools" / "builtin.py",
+        "        if operations is not None:\n            if not isinstance(operations, list)",
+        r'''        # P42 : idem write_note — \n littéraux → vrais sauts de ligne
+        if content is not None and '\n' not in content and '\\n' in content:
+            content = content.replace('\\n', '\n').replace('\\t', '\t')
+        if operations:
+            for _op in operations:
+                if isinstance(_op, dict):
+                    _c = _op.get('content')
+                    if isinstance(_c, str) and '\n' not in _c and '\\n' in _c:
+                        _op['content'] = _c.replace('\\n', '\n').replace('\\t', '\t')
+        if operations is not None:
+            if not isinstance(operations, list)''',
+        "P42b replace_note_content : \\n littéraux convertis",
     )
 
 
@@ -1859,8 +2030,11 @@ def main() -> int:
     patch_delete_tools()
     patch_tool_status()
     patch_memory_search()
+    patch_memory_recall()
     patch_kb_backfill()
     patch_pyodide_packages()
+    patch_upload_harvest()
+    patch_note_newlines()
     patch_recurrence_thread()
     patch_search_error_log()
     write_null_vector_db()

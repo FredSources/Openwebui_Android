@@ -1048,3 +1048,45 @@ contrôle ÉTENDU aux patchs P31/P33/P36/P38/P39 (aucun affaiblissement). Le
 contrôle P38 cible la destination FINALE du frontend (src-assets/ après le
 déplacement P15) avec repli sur le chemin pré-déplacement — leçon : vérifier
 les chemins APRÈS la chaîne complète de génération.
+
+## 2026-11-08 — v0.0.25 : contrat /mnt/uploads tenu (P41) + audit 22:20 (P42, P43)
+
+Audit 22:20 (3 anomalies + demande de vérification du mapping /mnt/uploads).
+Tests menés sur ports de test uniquement (8090/8091/8092) ; instance utilisateur
+sur 8080 jamais touchée (sondage lecture-seule) ; tout le banc a été tué après
+usage (0 survivant vérifié).
+
+- Mapping /mnt/uploads VÉRIFIÉ : dataHome = getExternalFilesDir() →
+  files/ ; DATA_DIR = files/data ; UPLOAD_DIR = files/data/uploads — exactement
+  le chemin attendu. Mais le /mnt/uploads de Pyodide vivait dans l'IndexedDB du
+  navigateur : les fichiers écrits n'atteignaient JAMAIS ce dossier. P41
+  (contrat du prompt système « écrivez dans /mnt/uploads pour les retrouver
+  dans le navigateur ») : le worker renvoie les fichiers produits → le frontend
+  les transmet → execute_code les enregistre dans UPLOAD_DIR (dédup par taille)
+  et les signale au modèle. Test E2E chromium : fichier écrit dans /mnt/uploads
+  renvoyé (rapport-test.txt, 35 o) ✓. Entrées déjà présentes ignorées.
+
+- Anomalie 1 (paquets scientifiques) : PROUVÉE comme couverte par P38
+  (v0.0.24). Matrice exécutée dans chromium réel avec les octets STRICTEMENT
+  identiques à ceux servis par l'appareil (worker appareil == worker local,
+  wheels servies en 200, lock 200) :
+  | chemin | test | résultat |
+  |---|---|---|
+  | boot (P38, sans packages dans le message) | import numpy/pandas/sympy | numpy=2.4.3 pandas=3.0.2 sympy=1.14.0 ✓ |
+  | message (regex → micropip) | import scipy/matplotlib | scipy=1.18.0 matplotlib=3.10.8 ✓ |
+  L'audit a dû être tourné sur l'état antérieur à P38 — à retester sur v0.0.25
+  après force-stop.
+
+- Anomalie 2 (rappel mémoire irrégulier) — P43 : recherche à deux paliers
+  (tous les mots → au moins la moitié). Testé : « préférence de présentation
+  des rapports » → trouvé (avant : []) ; « rapports de diagnostic avec
+  tableaux » → trouvé ; hors sujet → [] (pas de faux positif).
+
+- Anomalie 3 (\n littéraux) — P42 : write_note et replace_note_content
+  convertissent les \n/\t littéraux en vrais sauts, UNIQUEMENT si le texte ne
+  contient aucun saut réel (jamais de mélange contenu/échappements). Testé.
+
+Justification de l'évolution de scripts/check_patches.py (règle diagnostic) :
+contrôle ÉTENDU aux chaînes P41 (worker→frontend→execute_code, 3 maillons dont
+2 à nom haché → glob) et P42 (marqueurs write_note/replace_note_content) —
+aucun affaiblissement.

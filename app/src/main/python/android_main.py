@@ -82,6 +82,21 @@ def _prepare_env(files_dir: str | None = None) -> Path:
     data_dir = home / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
 
+    # Réinitialisation complète demandée depuis /fm : efface TOUTES les données
+    # (base, uploads, vecteurs, cache) puis repart de zéro.
+    if (data_dir / "reset-requested").exists():
+        import shutil as _sh
+
+        log.warning("réinitialisation complète demandée : effacement des données…")
+        for enfant in data_dir.iterdir():
+            try:
+                if enfant.is_dir():
+                    _sh.rmtree(enfant)
+                else:
+                    enfant.unlink()
+            except Exception:
+                pass
+
     # configuration utilisateur (RAG distant, etc.) — avant toute lecture d'env
     _load_env_file(data_dir)
 

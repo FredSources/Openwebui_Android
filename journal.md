@@ -858,3 +858,23 @@ anciens fichiers sont à effacer au démarrage.
   invisible est désormais impossible par conception.
 - Tailles du navigateur : calcul robuste (max disque / métadonnées / contenu en
   base) — un 0 n'apparaît plus si une source connaît la vraie taille.
+
+## 2026-11-08 — v0.0.16 : téléchargements blob + panneau de maintenance
+
+**Téléchargements blob** (demande utilisateur) : les exports de l'interface
+(export de base de données, etc.) passent par des URL `blob:` que le
+DownloadManager refuse. Pont JavaScript ajouté dans la WebView : le blob est lu
+en JS, transmis en base64 au bridge `AndroidDownload`, puis écrit dans
+Téléchargements avec notification. Les URL http/https gardent le DownloadManager.
+
+**Panneau de maintenance** (📂 → ⚙ Maintenance) : chemin exact des données,
+taille de la base, sauvegarde `webui.db`, et bouton *Tout effacer* — la
+réinitialisation (`data/reset-requested`) efface toutes les données au prochain
+démarrage. La page explique aussi la persistance : la configuration ne provient
+jamais de l'APK (vérifié : aucune base dans le paquet) — elle « survit » par la
+sauvegarde Android (désactivée depuis v0.0.15) ou parce qu'une mise à jour
+conserve les données ; l'effacement interne donne le contrôle total.
+
+**check_patches en action** : le gardien a bloqué la génération sur une erreur
+de syntaxe du code injecté (guillemets imbriqués dans un onsubmit) — preuve
+en direct de son utilité.

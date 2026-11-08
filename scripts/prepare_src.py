@@ -792,11 +792,39 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
             )
         body = "".join(rows_l) or "<tr><td colspan=\\"6\\" class=\\"empty\\">Aucun fichier ici pour le moment.</td></tr>"
         tabs = [("all", "\\U0001f4c1 Tous"), ("pdf", "\\U0001f4c4 PDF"), ("img", "\\U0001f5bc Images"),
-                ("doc", "\\U0001f4c3 Documents"), ("other", "\\U0001f4e6 Autres")]
+                ("doc", "\\U0001f4c3 Documents"), ("other", "\\U0001f4e6 Autres"),
+                ("maintenance", "\\u2699\\ufe0f Maintenance")]
         side = "".join(
             f"<a href=\\"/fm?folder={k}&q={_quote(q)}\\" class=\\"{'on' if k == folder else ''}\\">{label}</a>"
             for k, label in tabs
         )
+        if folder == 'maintenance':
+            import os as _os3
+            from open_webui.config import DATA_DIR as _DD
+            taille_db = 0
+            for nom_db in ('webui.db', 'webui.db-wal', 'webui.db-shm'):
+                p_db = _DD / nom_db
+                if p_db.is_file():
+                    taille_db += p_db.stat().st_size
+            inner = (
+                "<div class='wrap'><div class='side'>" + side + "</div><div class='main'>"
+                "<h1>\u2699\ufe0f Maintenance</h1>"
+                f"<p>Donnees de l'appli : <code>{_html.escape(str(_DD))}</code></p>"
+                f"<p>Base de donnees : {_fm_size(taille_db)} &mdash; Fichiers : {total} &mdash; "
+                f"<a href='/fm/raw?name=webui.db'>telecharger une sauvegarde de la base</a></p>"
+                "<p><i>La configuration ne provient jamais de l'APK ; elle vit uniquement ici. "
+                "Si elle reapparait apres effacement, c'est Android qui l'a restauree "
+                "(sauvegarde automatique desactivee depuis v0.0.15).</i></p>"
+                "<form method='post' action='/fm/reset'>"
+                "<button class='del'>&#9888; Tout effacer et reinitialiser</button></form>"
+                "<p style='color:#bbb'>Cette action est definitive : comptes, conversations, "
+                "fichiers et reglages.</p>"
+                "<p style='color:#999'>L'effacement s'applique au prochain demarrage (forcez l'arret "
+                "de l'appli puis relancez). Les donnees sont aussi visibles et supprimables depuis "
+                "votre gestionnaire de fichiers : <code>Android/data/org.openwebui.android/</code>.</p>"
+                "<div class='nav'><a href='/fm'>&#8592; navigateur</a></div></div></div>"
+            )
+            return _HTMLResponse(_fm_page(inner, "Maintenance"))
         prev_link = f"<a href=\\"/fm?folder={folder}&q={_quote(q)}&page={page-1}\\">\\u2190 pr\\u00e9c\\u00e9dent</a>" if page > 1 else ""
         next_link = f"<a href=\\"/fm?folder={folder}&q={_quote(q)}&page={page+1}\\">suivant \\u2192</a>" if page * per_page < total else ""
         inner = (
@@ -871,6 +899,20 @@ async def fm_delete(request: Request, user=Depends(get_verified_user)):
     except Exception:
         pass
     return _Redirect('/fm', status_code=303)
+
+
+@app.post('/fm/reset')
+async def fm_reset(request: Request, user=Depends(get_verified_user)):
+    """Demande une reinitialisation complete : appliquee au prochain demarrage."""
+    try:
+        from open_webui.config import DATA_DIR as _DD
+        (_DD / 'reset-requested').write_text('1', encoding='utf-8')
+    except Exception:
+        pass
+    return _HTMLResponse(_fm_page(
+        "<h1>&#9989; Reinitialisation demandee</h1>"
+        "<p>Forcez l'arret de l'appli puis relancez-la : comptes, conversations, "
+        "fichiers et reglages seront effaces.</p>"))
 
 
 @app.get('/fm/raw')

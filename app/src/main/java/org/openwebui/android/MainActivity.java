@@ -449,9 +449,24 @@ public class MainActivity extends Activity {
         webView.setKeepScreenOn(true);
 
         // Téléchargements : la WebView n'en gère aucun par défaut — DownloadManager
-        // + session cookie pour les URL authentifiées (/api/v1/files/…/content)
+        // + session cookie pour les URL authentifiées (/api/v1/files/…/content).
+        // Les URL « blob: » (exports JS de l'interface) sont récupérées par le
+        // bridge JavaScript puis écrites dans Téléchargements.
         webView.setDownloadListener((url, agent, disposition, mime, length) -> {
             try {
+                String name = android.webkit.URLUtil.guessFileName(url, disposition, mime);
+                if (url != null && url.startsWith("blob:")) {
+                    String safeName = name.replace("'", "\\'");
+                    webView.evaluateJavascript(
+                        "(async()=>{try{const r=await fetch('" + url.replace("'", "") + "');"
+                                + "const b=await r.blob();const fr=new FileReader();"
+                                + "fr.onload=()=>AndroidDownload.save(fr.result.split(',')[1],'" + safeName + "');"
+                                + "fr.readAsDataURL(b);}catch(e){AndroidDownload.save('', 'ERREUR:'+e);}})()",
+                        null);
+                    android.widget.Toast.makeText(this, "Préparation : " + name,
+                            android.widget.Toast.LENGTH_SHORT).show();
+                    return;
+                }
                 android.app.DownloadManager dm =
                         (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
                 android.net.Uri uri = android.net.Uri.parse(url);
@@ -460,7 +475,6 @@ public class MainActivity extends Activity {
                 String cookie = android.webkit.CookieManager.getInstance().getCookie(url);
                 if (cookie != null) req.addRequestHeader("Cookie", cookie);
                 if (mime != null) req.setMimeType(mime);
-                String name = android.webkit.URLUtil.guessFileName(url, disposition, mime);
                 req.setTitle(name);
                 req.setNotificationVisibility(
                         android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
@@ -477,6 +491,36 @@ public class MainActivity extends Activity {
                         android.widget.Toast.LENGTH_LONG).show();
             }
         });
+
+        // Bridge de réception des blob: → écriture dans Téléchargements
+        webView.addJavascriptInterface(new Object() {
+            @android.webkit.JavascriptInterface
+            public void save(String base64, String name) {
+                try {
+                    if (base64 == null || base64.isEmpty() || name.startsWith("ERREUR")) {
+                        android.widget.Toast.makeText(getApplicationContext(),
+                                "Échec du téléchargement : " + name,
+                                android.widget.Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    byte[] bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+                    java.io.File dir = android.os.Environment.getExternalStoragePublicDirectory(
+                            android.os.Environment.DIRECTORY_DOWNLOADS);
+                    dir.mkdirs();
+                    java.io.File out = new java.io.File(dir, name);
+                    try (java.io.FileOutputStream fos = new java.io.FileOutputStream(out)) {
+                        fos.write(bytes);
+                    }
+                    android.widget.Toast.makeText(getApplicationContext(),
+                            "Enregistré : " + name + " (" + bytes.length + " o)",
+                            android.widget.Toast.LENGTH_LONG).show();
+                } catch (Exception e) {
+                    android.widget.Toast.makeText(getApplicationContext(),
+                            "Sauvegarde impossible : " + e,
+                            android.widget.Toast.LENGTH_LONG).show();
+                }
+            }
+        }, "AndroidDownload");
 
         // moteur vocal natif (dictée STT mode « web »)
         webView.addJavascriptInterface(new AndroidSpeech(webView), "AndroidSpeech");

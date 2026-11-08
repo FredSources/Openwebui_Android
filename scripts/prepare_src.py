@@ -467,6 +467,77 @@ def patch_searx_git_oserror() -> None:
         )
 
 
+def patch_files_mnt_alias() -> None:
+    """P30 — la convention `/mnt/uploads/` (prompt système, Docker) n'existe pas
+    sur Android : alias vers le dossier uploads réel + messages orientés."""
+    replace_once(
+        DST / "storage" / "provider.py",
+        '    @staticmethod\n'
+        '    def get_file(file_path: str) -> str:\n'
+        '        """Handles downloading of the file from local storage."""\n'
+        '        return file_path',
+        '    @staticmethod\n'
+        '    def get_file(file_path: str) -> str:\n'
+        '        """Handles downloading of the file from local storage."""\n'
+        '        # P30 : convention Docker /mnt/uploads/ → dossier uploads réel\n'
+        '        if str(file_path).startswith("/mnt/uploads/"):\n'
+        '            file_path = os.path.join(UPLOAD_DIR, os.path.basename(file_path))\n'
+        '        return file_path',
+        "P30a alias /mnt/uploads (Storage.get_file)",
+    )
+    replace_once(
+        DST / "tools" / "builtin.py",
+        "        if '/' not in path:\n"
+        "            path = f'/api/v1/files/{path}/content'\n"
+        "        parts = path.split('/')\n"
+        "        if len(parts) != 6 or parts[:4] != ['', 'api', 'v1', 'files'] or parts[-1] != 'content':\n"
+        "            return JSONCodec.dumps(\n"
+        "                {'error': 'Use file_id or /api/v1/files/<file_id>/content for an uploaded file.', 'exists': False}\n"
+        "            )",
+        "        # P30 : fichiers ecrits via la convention /mnt/uploads → uploads reel\n"
+        "        import os as _os\n"
+        "        from urllib.parse import quote as _q\n"
+        "        from open_webui.config import UPLOAD_DIR as _UP\n"
+        "        if path.startswith('/mnt/uploads/'):\n"
+        "            nom = _os.path.basename(path)\n"
+        "            if (_UP / nom).is_file():\n"
+        "                return JSONCodec.dumps({\n"
+        "                    'type': 'file', 'source': 'open_webui', 'exists': True, 'displayed': True,\n"
+        "                    'path': f'/fm/raw?name={_q(nom)}', 'full_path': f'/fm/raw?name={_q(nom)}',\n"
+        "                    'name': nom, 'content_type': 'application/octet-stream',\n"
+        "                    'mime_type': 'application/octet-stream',\n"
+        "                }, ensure_ascii=False)\n"
+        "            return JSONCodec.dumps(\n"
+        "                {'error': f'Fichier introuvable : {nom} (attendu dans /mnt/uploads)', 'exists': False})\n"
+        "        if '/' not in path:\n"
+        "            path = f'/api/v1/files/{path}/content'\n"
+        "        parts = path.split('/')\n"
+        "        if len(parts) != 6 or parts[:4] != ['', 'api', 'v1', 'files'] or parts[-1] != 'content':\n"
+        "            return JSONCodec.dumps(\n"
+        "                {'error': 'Use file_id or /api/v1/files/<file_id>/content for an uploaded file.', 'exists': False}\n"
+        "            )",
+        "P30b display_file : alias /mnt/uploads",
+    )
+    replace_once(
+        DST / "tools" / "builtin.py",
+        "        file = await Files.get_file_by_id(parts[4])\n"
+        "        if not file:\n"
+        "            return JSONCodec.dumps({'error': 'File not found', 'exists': False})",
+        "        file = await Files.get_file_by_id(parts[4])\n"
+        "        if not file:\n"
+        "            try:\n"
+        "                note = await Notes.get_note_by_id(parts[4])\n"
+        "            except Exception:\n"
+        "                note = None\n"
+        "            if note is not None:\n"
+        "                return JSONCodec.dumps({\n"
+        "                    'error': \"C'est une note : utilisez view_note (pas display_file).\",\n"
+        "                    'exists': False})\n"
+        "            return JSONCodec.dumps({'error': 'File not found', 'exists': False})",
+        "P30c display_file : orientation vers view_note",
+    )
+
+
 FM_CODE = '''
 import html as _html
 import traceback as _tb
@@ -553,7 +624,7 @@ def _fm_size(n) -> str:
 
 
 def _fm_real_size(f, meta) -> object:
-    """Taille reelle du fichier sur disque, sinon celle du metadonnees."""
+    """Taille reelle du fichier sur disque, sinon celle des metadonnees."""
     try:
         import os as _os
 
@@ -561,7 +632,38 @@ def _fm_real_size(f, meta) -> object:
 
         return _os.path.getsize(Storage.get_file(f.path))
     except Exception:
-        return _fm_get(meta, "size")
+        v = _fm_get(meta, "size")
+        return v or None
+
+
+def _fm_chemin_local(nom: str):
+    """Fichier du dossier uploads (alias /mnt/uploads) — nom de base uniquement."""
+    import os as _os
+
+    from open_webui.config import UPLOAD_DIR as _UP
+
+    nom = _os.path.basename(nom)
+    p = _UP / nom
+    return p if p.is_file() else None
+
+
+def _fm_orphelins(deja_references) -> list:
+    """Fichiers presents dans le dossier uploads mais absents de la base
+    (ecrits par des outils/skills via /mnt/uploads ou Storage direct)."""
+    import os as _os
+
+    from open_webui.config import UPLOAD_DIR as _UP
+
+    if not _UP.is_dir():
+        return []
+    orphelins = []
+    for p in _UP.iterdir():
+        try:
+            if p.is_file() and _os.path.realpath(p) not in deja_references:
+                orphelins.append(p)
+        except Exception:
+            continue
+    return sorted(orphelins, key=lambda p: p.stat().st_mtime, reverse=True)
 
 
 def _fm_row(f) -> str:
@@ -633,9 +735,46 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 return 0.0
 
         items.sort(key=_key, reverse=True)
-        total = len(items)
+        refs = set()
+        for f in result.items:
+            try:
+                import os as _os2
+                from open_webui.storage.provider import Storage as _St
+                refs.add(_os2.path.realpath(_St.get_file(f.path)))
+            except Exception:
+                pass
+        orph = []
+        import re as _re
+        for p in _fm_orphelins(refs):
+            nom_aff = _re.sub(r'^[0-9a-fA-F-]{36}_', '', p.name)
+            if folder != 'all' and _fm_kind(nom_aff, '') != folder:
+                continue
+            if q and q not in nom_aff.lower():
+                continue
+            orph.append((p, nom_aff))
+        total = len(items) + len(orph)
         page_items = items[(page - 1) * per_page: page * per_page]
-        body = "".join(_fm_row(f) for f in page_items) or "<tr><td colspan=\\"6\\" class=\\"empty\\">Aucun fichier ici pour le moment.</td></tr>"
+        rows_l = [_fm_row(f) for f in page_items]
+        for p, nom_aff in orph:
+            try:
+                st = p.stat()
+                taille = _fm_size(st.st_size)
+                quand = _dt.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M")
+            except Exception:
+                taille, quand = "\\u2014", ""
+            kind_o = _fm_kind(nom_aff, '')
+            rows_l.append(
+                f"<tr><td class=\\"ico\\">{_FM_ICO[kind_o]}</td>"
+                f"<td><a href=\\"/fm/raw?name={_quote(p.name)}\\">{_html.escape(nom_aff)}</a></td>"
+                f"<td>{taille}</td><td>{quand}</td><td>sur disque</td><td>"
+                f"<a class=\\"btn\\" href=\\"/fm/raw?name={_quote(p.name)}\\" download>T\\u00e9l\\u00e9charger</a> "
+                f"<a class=\\"btn\\" href=\\"/fm/raw?name={_quote(p.name)}\\">Voir</a> "
+                f"<form style=\\"display:inline\\" method=\\"post\\" action=\\"/fm/delete-raw\\" "
+                f"onsubmit=\\"return confirm('Supprimer ce fichier ?')\\">"
+                f"<input type=\\"hidden\\" name=\\"name\\" value=\\"{_html.escape(p.name)}\\">"
+                f"<button class=\\"del\\">Suppr.</button></form></td></tr>"
+            )
+        body = "".join(rows_l) or "<tr><td colspan=\\"6\\" class=\\"empty\\">Aucun fichier ici pour le moment.</td></tr>"
         tabs = [("all", "\\U0001f4c1 Tous"), ("pdf", "\\U0001f4c4 PDF"), ("img", "\\U0001f5bc Images"),
                 ("doc", "\\U0001f4c3 Documents"), ("other", "\\U0001f4e6 Autres")]
         side = "".join(
@@ -713,6 +852,31 @@ async def fm_delete(request: Request, user=Depends(get_verified_user)):
             except Exception:
                 pass
             await Files.delete_file_by_id(f.id)
+    except Exception:
+        pass
+    return _Redirect('/fm', status_code=303)
+
+
+@app.get('/fm/raw')
+async def fm_raw(request: Request, user=Depends(get_verified_user)):
+    """Telechargement/apercu direct d'un fichier du dossier uploads (nom de base)."""
+    from fastapi.responses import FileResponse as _FR
+
+    nom = (request.query_params.get('name') or '').strip()
+    p = _fm_chemin_local(nom)
+    if p is None:
+        return _HTMLResponse(_fm_page("<h1>Fichier introuvable</h1><a href=\\"/fm\\">\\u2190 retour</a>"), status_code=404)
+    return _FR(p, filename=p.name)
+
+
+@app.post('/fm/delete-raw')
+async def fm_delete_raw(request: Request, user=Depends(get_verified_user)):
+    """Supprime un fichier orphelin du dossier uploads."""
+    try:
+        form = await request.form()
+        p = _fm_chemin_local(str(form.get('name') or ''))
+        if p is not None:
+            p.unlink()
     except Exception:
         pass
     return _Redirect('/fm', status_code=303)
@@ -1181,6 +1345,7 @@ def main() -> int:
     copy_searxng()
     patch_searx_git_oserror()
     patch_files_manager()
+    patch_files_mnt_alias()
     patch_files_button()
     patch_typst_tool()
     patch_recurrence_thread()
@@ -1193,6 +1358,13 @@ def main() -> int:
     patch_lazy_imports()
     write_stubs(args.with_native_pycrdt)
     log(f"terminé : {len(PATCHES)} opération(s)")
+    # Vérification finale : les patchs sont-ils bien appliqués dans le code généré ?
+    import subprocess
+    import sys as _sys
+
+    verif = subprocess.run([_sys.executable, str(PROJ / "scripts" / "check_patches.py")])
+    if verif.returncode != 0:
+        raise SystemExit("check_patches.py : des patchs sont mal appliqués")
     return 0
 
 

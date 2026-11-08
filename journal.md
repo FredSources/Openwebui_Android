@@ -811,3 +811,29 @@ Premier passage du contrôle sur la v0.0.11 : il a déniché le `.so` résiduel
 étendu (`fix-pycrdt-suffix.py` strip désormais tout `.so` parasite). Le message
 d'erreur de `compile_typst` est aussi devenu auto-diagnostiquant (python, HOME,
 sys.path) pour trancher le « No module named 'typst' » restant côté appareil.
+
+## 2026-11-08 — v0.0.14 : le problème de FICHIERS réglé + check_patches.py
+
+**Racine du problème de fichiers** : le prompt système promet au modèle d'écrire
+dans `/mnt/uploads/` (« l'utilisateur pourra télécharger depuis le navigateur de
+fichiers ») — chemin Docker qui n'existe pas sur Android. Conséquences : outils
+en échec, fichiers invisibles au navigateur, tailles fausses. Correctifs (P30) :
+- alias `/mnt/uploads/` → dossier uploads réel (Storage.get_file + display_file) ;
+- le navigateur liste désormais AUSSI les **fichiers orphelins** (écrits hors
+  base par les outils/skills) avec téléchargement `/fm/raw` et suppression ;
+- tailles justes (taille réelle du disque en priorité) ;
+- display_file oriente vers view_note pour les notes (au lieu de « File not found »).
+
+**check_patches.py** (demande utilisateur) : vérifie l'application réelle des
+patchs P1–P30 dans le code généré (motifs, placement de compile_typst hors des
+blocs de permission, shims, SearXNG, frontend, build.gradle, syntaxe de tous les
+.py, typos courantes) — exécuté en fin de prepare_src : un build s'arrête si un
+patch est mal appliqué.
+
+**Évolution des fichiers de diagnostic — justification** (règle ajoutée à
+AGENTS.md) : `check_patches.py` a été calibré 3 fois à sa création, pour des
+faux positifs avérés : (1) le frontend est déplacé par P15 → contrôle dans
+src-assets/ ; (2) `<dir>_*` apparaît dans un commentaire → contrôle de la ligne
+d'affectation uniquement ; (3) P5 cible `routers/audio/__init__.py` (et non
+`audio/__init__.py`). Le `_os2.sub` (os au lieu de re) trouvé par la page
+d'erreur auto-diagnostiquante est aussi ajouté à la liste des typos proscrites.

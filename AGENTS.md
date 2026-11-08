@@ -102,6 +102,14 @@ variables ci-dessus et refuser de tourner si `$PWD` n'est pas la racine du proje
 - Les jeux de test et rapports sont **neutres** : aucun lien avec le système de
   l'utilisateur ni avec ses données (règle validée le 2026-11-08).
 
+## Fichiers de diagnostic — évolution justifiée
+
+Les scripts de contrôle (`scripts/check_patches.py`, `scripts/check_apk.py`,
+`scripts/fix-*.py`) peuvent évoluer, mais **toute modification doit être
+justifiée** dans le journal (pourquoi le contrôle change : faux positif avéré,
+nouveau piège couvert, portée étendue). Un contrôle ne s'affaiblit jamais sans
+raison écrite (règle utilisateur du 2026-11-08).
+
 ## Licence
 
 Open WebUI est sous **BSD-3-Clause** : l'embarquage dans un APK et la redistribution

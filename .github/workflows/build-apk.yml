@@ -64,14 +64,23 @@ jobs:
       - name: Téléchargements (cmdline-tools, Gradle)
         run: |
           mkdir -p downloads
-          # zips mis en cache : téléchargés une seule fois (le CDN sature parfois
-          # en 504 — ne jamais re-télécharger ce qui est déjà présent)
+          # zips mis en cache : téléchargés une seule fois (le CDN officiel peut
+          # saturer en 504 — chaîne de secours via miroirs + test d'intégrité)
           [ -s downloads/cmdline-tools.zip ] || curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
             -o downloads/cmdline-tools.zip \
             https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          [ -s downloads/gradle.zip ] || curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
-            -o downloads/gradle.zip \
-            https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
+          if [ ! -s downloads/gradle.zip ]; then
+            for u in \
+              https://services.gradle.org/distributions/gradle-8.10.2-bin.zip \
+              https://mirrors.cloud.tencent.com/gradle/gradle-8.10.2-bin.zip \
+              https://mirrors.aliyun.com/macports/distfiles/gradle/gradle-8.10.2-bin.zip; do
+              echo "tentative : $u"
+              curl -fsSL --retry 3 --retry-delay 10 --retry-all-errors -o downloads/gradle.zip "$u" && break
+              rm -f downloads/gradle.zip
+            done
+          fi
+          unzip -t downloads/cmdline-tools.zip >/dev/null && echo "cmdline-tools.zip valide"
+          unzip -t downloads/gradle.zip >/dev/null && echo "gradle.zip valide"
 
       - name: Cache Gradle + SDK
         uses: actions/cache@v4

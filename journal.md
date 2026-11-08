@@ -779,3 +779,15 @@ sur toutes les pages /fm (et aperçu).
 **Conversations conservées à la mise à jour** : comportement normal — une mise
 à jour Android conserve les données de l'appli ; seul « Effacer les données »
 (Réglages → Apps) ou une désinstallation-suppression remet à zéro.
+
+## 2026-11-08 — v0.0.12 : tailles du navigateur corrigées (cause racine FileMeta)
+
+« La taille du fichier est fausse » dans /fm : la colonne montrait « — » et la
+valeur brute était ambiguë (virgule de milliers à la française). Cause racine
+découverte : l'API renvoie `meta` sous forme d'objet **`FileMeta`** (modèle
+Pydantic : name/content_type/size), pas d'un dict — l'ancien `meta.get(...)`
+levait une AttributeError (**= le « internal error » de v0.0.9**) et mon
+`isinstance(meta, dict)` vidait les champs (taille, type). Fix : accès unifié
+`_fm_get()` (dict ou objet) + affichage **humain français** (« 7,6 Ko ») prenant
+la taille réelle du fichier sur disque en priorité, « — » si inconnue.
+Validé hôte : 7 638 o affiché « 7,6 Ko », colonne Type rétablie.

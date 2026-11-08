@@ -505,6 +505,13 @@ def _fm_page(inner: str, title: str = "Fichiers") -> str:
     )
 
 
+def _fm_get(meta, key):
+    """meta est un dict OU un objet FileMeta (reponse API) selon les chemins."""
+    if isinstance(meta, dict):
+        return meta.get(key)
+    return getattr(meta, key, None)
+
+
 def _fm_kind(name: str, ctype: str) -> str:
     n = (name or "").lower()
     c = (ctype or "").lower()
@@ -520,11 +527,40 @@ def _fm_kind(name: str, ctype: str) -> str:
 _FM_ICO = {"pdf": "\\U0001f4c4", "img": "\\U0001f5bc", "doc": "\\U0001f4c3", "other": "\\U0001f4e6"}
 
 
+def _fm_size(n) -> str:
+    """Taille lisible en français : « 1,9 Mo » ; « — » si inconnue."""
+    try:
+        if n is None:
+            return "\\u2014"
+        n = float(n)
+    except Exception:
+        return "\\u2014"
+    if n >= 1 << 30:
+        return f"{n / (1 << 30):.1f}".replace(".", ",") + " Go"
+    if n >= 1 << 20:
+        return f"{n / (1 << 20):.1f}".replace(".", ",") + " Mo"
+    if n >= 1000:
+        return f"{n / 1000:.1f}".replace(".", ",") + " Ko"
+    return f"{int(n)} o"
+
+
+def _fm_real_size(f, meta) -> object:
+    """Taille reelle du fichier sur disque, sinon celle du metadonnees."""
+    try:
+        import os as _os
+
+        from open_webui.storage.provider import Storage
+
+        return _os.path.getsize(Storage.get_file(f.path))
+    except Exception:
+        return _fm_get(meta, "size")
+
+
 def _fm_row(f) -> str:
-    meta = f.meta if isinstance(f.meta, dict) else {}
-    name = str(meta.get("name") or f.filename or f.id)
-    size = int(meta.get("size") or 0)
-    ctype = str(meta.get("content_type") or "")
+    meta = f.meta or {}
+    name = str(_fm_get(meta, "name") or f.filename or f.id)
+    size = _fm_size(_fm_real_size(f, meta))
+    ctype = str(_fm_get(meta, "content_type") or "")
 
     def _fmt(ts) -> str:
         try:
@@ -541,7 +577,7 @@ def _fm_row(f) -> str:
     return (
         f"<tr><td class=\\"ico\\">{_FM_ICO[kind]}</td>"
         f"<td><a href=\\"/fm/preview?id={f.id}\\">{_html.escape(name)}</a></td>"
-        f"<td>{size:,} o</td><td>{when}</td><td>{_html.escape(ctype)}</td><td>"
+        f"<td>{size}</td><td>{when}</td><td>{_html.escape(ctype)}</td><td>"
         f"<a class=\\"btn\\" href=\\"/api/v1/files/{f.id}/content\\" download>T\\u00e9l\\u00e9charger</a> "
         f"<a class=\\"btn\\" href=\\"/fm/preview?id={f.id}\\">Voir</a> "
         f"<form style=\\"display:inline\\" method=\\"post\\" action=\\"/fm/delete\\" "
@@ -574,9 +610,9 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
         result = await Files.get_file_list(user_id=uid, skip=0, limit=10000)
         items = []
         for f in result.items:
-            meta = f.meta if isinstance(f.meta, dict) else {}
-            name = str(meta.get('name') or f.filename or f.id)
-            if folder != 'all' and _fm_kind(name, str(meta.get('content_type') or '')) != folder:
+            meta = f.meta or {}
+            name = str(_fm_get(meta, 'name') or f.filename or f.id)
+            if folder != 'all' and _fm_kind(name, str(_fm_get(meta, 'content_type') or '')) != folder:
                 continue
             if q and q not in name.lower():
                 continue
@@ -629,9 +665,9 @@ async def fm_preview(request: Request, user=Depends(get_verified_user)):
             return _HTMLResponse(_fm_page("<h1>Fichier introuvable</h1><a href=\\"/fm\\">\\u2190 retour</a>"), status_code=404)
         if user.role != 'admin' and f.user_id != user.id:
             return _HTMLResponse(_fm_page("<h1>Acc\\u00e8s refus\\u00e9</h1><a href=\\"/fm\\">\\u2190 retour</a>"), status_code=403)
-        meta = f.meta if isinstance(f.meta, dict) else {}
-        name = str(meta.get('name') or f.filename or f.id)
-        kind = _fm_kind(name, str(meta.get('content_type') or ''))
+        meta = f.meta or {}
+        name = str(_fm_get(meta, 'name') or f.filename or f.id)
+        kind = _fm_kind(name, str(_fm_get(meta, 'content_type') or ''))
         url = f'/api/v1/files/{f.id}/content'
         if kind == 'img':
             view = f"<img src=\\"{url}\\" style=\\"max-width:100%\\">"

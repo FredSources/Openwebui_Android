@@ -119,6 +119,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        dataHome = resolveDataHome();
         loadingText = findViewById(R.id.loading_text);
         progressBar = findViewById(R.id.progress_bar);
         progressLabel = findViewById(R.id.progress_label);
@@ -163,7 +164,7 @@ public class MainActivity extends Activity {
             prepareFrontend();
             writeStatus(45, "Démarrage du serveur Open WebUI…");
             Python py = Python.getInstance();
-            py.getModule("android_main").callAttr("start_server", 8080, getFilesDir().getAbsolutePath());
+            py.getModule("android_main").callAttr("start_server", 8080, dataHome.getAbsolutePath());
         } catch (Exception e) {
             writeStatus(100, "Erreur : " + e);
             mainHandler.post(() -> showError("Erreur Python : " + e.getMessage()));
@@ -184,7 +185,7 @@ public class MainActivity extends Activity {
      */
     private void writeStatus(int percent, String message) {
         try {
-            java.io.File f = new java.io.File(getFilesDir(), "data/startup-status.txt");
+            java.io.File f = new java.io.File(dataHome, "data/startup-status.txt");
             f.getParentFile().mkdirs();
             java.io.FileWriter w = new java.io.FileWriter(f);
             w.write(percent + "|" + message);
@@ -204,8 +205,8 @@ public class MainActivity extends Activity {
      * les assets Python (extrait à l'import, pendant le démarrage du serveur).
      */
     private void prepareFrontend() {
-        java.io.File target = new java.io.File(getFilesDir(), "frontend");
-        java.io.File marker = new java.io.File(getFilesDir(), "frontend.version");
+        java.io.File target = new java.io.File(dataHome, "frontend");
+        java.io.File marker = new java.io.File(dataHome, "frontend.version");
         long current;
         try {
             android.content.pm.PackageManager pm = getPackageManager();
@@ -316,7 +317,7 @@ public class MainActivity extends Activity {
         int pct = -1;
         String msg = null;
         try {
-            java.io.File f = new java.io.File(getFilesDir(), "data/startup-status.txt");
+            java.io.File f = new java.io.File(dataHome, "data/startup-status.txt");
             java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(f));
             String line = r.readLine();
             r.close();
@@ -386,6 +387,62 @@ public class MainActivity extends Activity {
         // relance le chargement au cas où il attendait quelque chose
         if (requestCode == PERMISSION_REQUEST_CODE) {
             mainHandler.post(() -> loadWhenReady(0));
+        }
+    }
+
+    /** Répertoire de données : de préférence l'espace EXTERNE de l'app
+     *  (/sdcard/Android/data/org.openwebui.android/files) — visible dans les
+     *  gestionnaires de fichiers, donc consultable et effaçable par l'utilisateur. */
+    private java.io.File dataHome;
+
+    private java.io.File resolveDataHome() {
+        java.io.File ext = null;
+        try {
+            ext = getExternalFilesDir(null);
+        } catch (Exception ignored) {
+        }
+        java.io.File home = (ext != null) ? ext : getFilesDir();
+        // Purge au démarrage des ANCIENS fichiers (mémoire interne, jamais plus
+        // utilisée) : efface les restes de versions antérieures, y compris la
+        // configuration restaurée par la sauvegarde Android (demande utilisateur :
+        // « effacer les données invisibles »). Ne touche qu'aux entrées de l'app —
+        // jamais au runtime Chaquopy (files/chaquopy).
+        try {
+            deleteRecursive(new java.io.File(getFilesDir(), "data"));
+            deleteRecursive(new java.io.File(getFilesDir(), "frontend"));
+            deleteRecursive(new java.io.File(getFilesDir(), "frontend.version"));
+        } catch (Exception ignored) {
+        }
+        return home;
+    }
+
+    private static void deleteRecursive(java.io.File f) {
+        if (f.isDirectory()) {
+            String[] kids = f.list();
+            if (kids != null) {
+                for (String k : kids) deleteRecursive(new java.io.File(f, k));
+            }
+        }
+        f.delete();
+    }
+
+    private static void copyRecursive(java.io.File src, java.io.File dst) throws java.io.IOException {
+        if (src.isDirectory()) {
+            dst.mkdirs();
+            String[] kids = src.list();
+            if (kids != null) {
+                for (String k : kids) {
+                    copyRecursive(new java.io.File(src, k), new java.io.File(dst, k));
+                }
+            }
+            return;
+        }
+        dst.getParentFile().mkdirs();
+        try (java.io.InputStream in = new java.io.FileInputStream(src);
+             java.io.OutputStream out = new java.io.FileOutputStream(dst)) {
+            byte[] buf = new byte[65536];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
         }
     }
 

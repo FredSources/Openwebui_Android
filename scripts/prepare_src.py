@@ -623,17 +623,33 @@ def _fm_size(n) -> str:
     return f"{int(n)} o"
 
 
-def _fm_real_size(f, meta) -> object:
-    """Taille reelle du fichier sur disque, sinon celle des metadonnees."""
+def _fm_real_size(f, meta):
+    """Taille du fichier : maximum des sources disponibles (disque, metadonnees,
+    contenu en base) — jamais 0 si une source connait la taille reelle."""
+    candidats = []
     try:
         import os as _os
 
         from open_webui.storage.provider import Storage
 
-        return _os.path.getsize(Storage.get_file(f.path))
+        candidats.append((_os.path.getsize(Storage.get_file(getattr(f, "path", None))), "disque"))
     except Exception:
+        pass
+    try:
         v = _fm_get(meta, "size")
-        return v or None
+        if v:
+            candidats.append((int(v), "meta"))
+    except Exception:
+        pass
+    try:
+        contenu = (f.data or {}).get("content")
+        if contenu:
+            candidats.append((len(contenu), "contenu"))
+    except Exception:
+        pass
+    if not candidats:
+        return None
+    return max(candidats)[0]
 
 
 def _fm_chemin_local(nom: str):

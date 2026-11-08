@@ -837,3 +837,24 @@ src-assets/ ; (2) `<dir>_*` apparaît dans un commentaire → contrôle de la li
 d'affectation uniquement ; (3) P5 cible `routers/audio/__init__.py` (et non
 `audio/__init__.py`). Le `_os2.sub` (os au lieu de re) trouvé par la page
 d'erreur auto-diagnostiquante est aussi ajouté à la liste des typos proscrites.
+
+## 2026-11-08 — v0.0.15 : données visibles dans Android/data + purge au démarrage
+
+**Demande utilisateur** : les fichiers doivent être dans
+`/sdcard/Android/data/org.openwebui.android/` (comme les autres applis) et les
+anciens fichiers sont à effacer au démarrage.
+
+- Les données (base, uploads, frontend, statuts) migrent vers l'espace EXTERNE
+  de l'app (`getExternalFilesDir`) — visible et effaçable depuis un gestionnaire
+  de fichiers, donc consultable par l'utilisateur (l'espace interne
+  `/data/data/…` est invisible par conception Android).
+- **Purge au démarrage** des anciens fichiers de la mémoire interne (data/,
+  frontend/, marqueurs) : efface les restes de versions antérieures — et la
+  configuration « fantôme » restaurée par la sauvegarde Android, que
+  l'utilisateur ne parvenait pas à supprimer. Ne touche pas au runtime Chaquopy.
+- Manifeste : `allowBackup=false`, `fullBackupContent=false`,
+  `dataExtractionRules` (aucun transfert), `hasFragileUserData=true` (Android
+  propose de conserver les données à la désinstallation) — la persistance
+  invisible est désormais impossible par conception.
+- Tailles du navigateur : calcul robuste (max disque / métadonnées / contenu en
+  base) — un 0 n'apparaît plus si une source connaît la vraie taille.

@@ -458,10 +458,13 @@ public class MainActivity extends Activity {
                 if (url != null && url.startsWith("blob:")) {
                     String safeName = name.replace("'", "\\'");
                     webView.evaluateJavascript(
-                        "(async()=>{try{const r=await fetch('" + url.replace("'", "") + "');"
-                                + "const b=await r.blob();const fr=new FileReader();"
+                        "(async()=>{try{"
+                                + "var b=window.__dlBlob;var fr=new FileReader();"
                                 + "fr.onload=()=>AndroidDownload.save(fr.result.split(',')[1],'" + safeName + "');"
-                                + "fr.readAsDataURL(b);}catch(e){AndroidDownload.save('', 'ERREUR:'+e);}})()",
+                                + "if(b){fr.readAsDataURL(b);return;}"
+                                + "const r=await fetch('" + url.replace("'", "") + "');"
+                                + "fr.readAsDataURL(await r.blob());"
+                                + "}catch(e){AndroidDownload.save('', 'ERREUR:'+e);}})()",
                         null);
                     android.widget.Toast.makeText(this, "Préparation : " + name,
                             android.widget.Toast.LENGTH_SHORT).show();

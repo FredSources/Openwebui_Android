@@ -925,3 +925,11 @@ serveur, et toutes les interactions (utilisateur ET mes sondes) parlaient à la
 base de test. D'où une config « indestructible » et des panneaux absents.
 Régulation : `smoke.sh` sert désormais sur **8090** (règle AGENTS.md), et un
 `pgrep` de vérification est exigé après chaque test.
+
+## 2026-11-08 — v0.0.19 : téléchargement des blob réparé (« TypeError: Failed to fetch »)
+
+Le pont de téléchargement fetchait l'URL `blob:` — échec systématique (le blob
+n'est pas fetchable depuis le contexte natif). Correctif P32 : monkey-patch de
+`URL.createObjectURL` dans `index.html` — l'objet Blob est capturé
+(`window.__dlBlob`) et transmis **directement** en base64 au pont natif, sans
+aucun fetch. Le fetch sur l'URL blob n'est plus qu'un repli.

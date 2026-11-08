@@ -1021,8 +1021,13 @@ def patch_files_manager() -> None:
 
 def patch_files_button() -> None:
     """P26b — bouton flottant « Fichiers » dans index.html (le menu du Workspace
-    n'a aucune entrée Fichiers ; le bouton rend /fm découvrable partout)."""
+    n'a aucune entrée Fichiers ; le bouton rend /fm découvrable partout).
+    P32 : capture du Blob à la source (les URL blob: ne sont pas fetchables
+    depuis le pont natif — « TypeError: Failed to fetch »)."""
     btn = (
+        '<script>(function(){var o=URL.createObjectURL.bind(URL);'
+        'URL.createObjectURL=function(b){try{window.__dlBlob=b;}catch(e){}return o(b);};'
+        '})();</script>\n'
         '<a href="/fm" title="Fichiers : PDF générés et téléversements" '
         'style="position:fixed;right:12px;bottom:72px;z-index:2147483000;'
         'width:42px;height:42px;border-radius:50%;background:#3b82f6;color:#fff;'
@@ -1033,7 +1038,7 @@ def patch_files_button() -> None:
         DST / "frontend" / "index.html",
         "</body>",
         btn,
-        "P26b bouton flottant Fichiers (index.html)",
+        "P26b/P32 bouton Fichiers + capture du Blob",
     )
 
 

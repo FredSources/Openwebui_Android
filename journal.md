@@ -1483,3 +1483,27 @@ jamais ». En plus, la sonde réseau (P52) se payait au premier appel.
 Note Typst : la chaîne de persistance est VALIDÉE (écriture disque ✓,
 list_files ✓, display_file ✓) — le PDF vit dans files/data/uploads sous
 <uuid>_<nom>.pdf, affiché <nom>.pdf dans 📂.
+
+## 2026-11-09 — v0.0.40 : execute_code « Client session disconnected » — le réaper démasqué (P84)
+
+Audit : 40 outils OK, mais execute_code hors service — toute tentative
+(la plus triviale comprise) renvoie {"status":"error","stderr":"Client session
+disconnected."}, sans traceback. L'audit situait la panne « depuis une session
+de sous-agent » et demandait un rechargement de page.
+
+CAUSE RACINE (trouvée dans socket/main.py) : le SESSION_POOL est nettoyé par
+un RÉAPER après 120 s sans heartbeat (SESSION_POOL_TIMEOUT). Or les timers du
+WebView se FIGENT en arrière-plan — exactement pendant un sous-agent long —
+les heartbeat s'arrêtent, la session du navigateur est supprimée, et tout
+appel d'événement (execute_code !) échoue avec « Client session disconnected »
+jusqu'au rechargement. Le symptôme « un nouveau message ne suffit pas » colle.
+
+- P84 : repli automatique — quand la session demandée est absente/expirée/
+  synthétique (subagent:<chat>), on vise la session VIVANTE de l'utilisateur
+  (même mécanisme que la reprise) et on réécrit l'identifiant porté par
+  l'événement (exigé par le frontend). TESTÉ : session périmée → délivré à la
+  session vivante → réponse reçue.
+
+Réerves de l'audit actées : create_tool invocable seulement dans un chat
+attaché (documenté en P76) ; timer auto-annulable (mécanisme voulu) ;
+ask_user non testé (bloquant par nature).

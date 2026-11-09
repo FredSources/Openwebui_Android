@@ -622,6 +622,8 @@ _FM_STYLE = """
   .btn2 { background: var(--btn2); color: var(--btn2-fg); }
   .del { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
   .del:hover { background: rgba(220, 38, 38, .12); opacity: 1; }
+  td:last-child { white-space: nowrap; }
+  td .btn, td button, td form button { padding: 6px 10px; font-size: .8rem; margin: 2px 4px 2px 0; display: inline-block; }
   table { width: 100%; border-collapse: collapse; font-size: .88rem; }
   th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .02em; }
@@ -2292,6 +2294,52 @@ def patch_web_main_content() -> None:
     )
 
 
+def patch_event_session_fallback() -> None:
+    """P84 — « Client session disconnected. » (audit 2026-11-09) : le réaper du
+    SESSION_POOL supprime une session après 120 s sans heartbeat — les timers
+    du WebView se figeant en arrière-plan (sous-agent long), la session du
+    navigateur est effacée et TOUT execute_code devient impossible jusqu'au
+    rechargement de la page. Repli : on vise la session VIVANTE de
+    l'utilisateur (même mécanisme que la reprise) et on aligne l'identifiant
+    porté par l'événement (exigé par le frontend)."""
+    replace_once(
+        DST / "socket" / "main.py",
+        """        # session_id is client-supplied; only the requesting user's own live session may be targeted.
+        session = SESSION_POOL.get(session_id)
+        if session is None or session.get('id') != request_info.get('user_id'):
+            log.warning(f'Event caller: session {session_id} not owned by requesting user or disconnected')
+            return {'error': 'Client session disconnected.'}""",
+        """        # session_id is client-supplied; only the requesting user's own live session may be targeted.
+        session = SESSION_POOL.get(session_id)
+        # P84 : session expirée (réaper après 120 s sans heartbeat, ex. WebView
+        # en arrière-plan) ou synthétique (sous-agent) — au lieu de couper les
+        # outils (execute_code « Client session disconnected »), on replie sur
+        # la session VIVANTE de l'utilisateur et on aligne l'identifiant de
+        # l'événement (le frontend l'exige pour traiter la réponse).
+        if session is None or session.get('id') != request_info.get('user_id'):
+            repli = await asyncio.to_thread(
+                get_user_chat_session_id, request_info['user_id'], request_info['chat_id']
+            )
+            if not repli or get_user_id_from_session_pool(repli) != request_info['user_id']:
+                for _sid in get_session_ids_by_user_ids([request_info['user_id']]):
+                    if get_user_id_from_session_pool(_sid) == request_info['user_id']:
+                        repli = _sid
+                        break
+            if repli and get_user_id_from_session_pool(repli) == request_info['user_id']:
+                session_id = request_info['session_id'] = repli
+                session = SESSION_POOL.get(session_id)
+                if 'session_id' in (event_data.get('data') or {}):
+                    event_data = {
+                        **event_data,
+                        'data': {**event_data['data'], 'session_id': session_id},
+                    }
+        if session is None or session.get('id') != request_info.get('user_id'):
+            log.warning(f'Event caller: session {session_id} not owned by requesting user or disconnected')
+            return {'error': 'Client session disconnected.'}""",
+        "P84 event_call : repli sur la session vivante",
+    )
+
+
 def patch_search_files() -> None:
     """P48 — search_knowledge_files (audit 22:59) : le matching était un ILIKE
     SQL brut — « rapport vulnerabilites » ne trouvait jamais
@@ -2982,6 +3030,7 @@ def main() -> int:
     patch_search_timeout()
     patch_execute_code_gate()
     patch_web_main_content()
+    patch_event_session_fallback()
     patch_prewarm()
     patch_sandbox_boot()
     patch_audit_suite()

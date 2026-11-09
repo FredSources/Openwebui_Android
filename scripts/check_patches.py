@@ -71,6 +71,10 @@ CHECKS = [
     ("P94 page journaux (/fm)", "open_webui/android_fm.py", "if folder == 'logs':"),
     ("P94 téléchargement journaux", "open_webui/android_fm.py", "async def fm_logs_download("),
     ("P94 bouton journaux (paramètres)", "open_webui/android_fm.py", "Consulter les journaux"),
+    ("P95 reprise appel événementiel", "open_webui/tools/android_tools.py", "def appel_avec_reprise("),
+    ("P95 reprise branchée (builtin)", "open_webui/tools/builtin.py", "_appel_reprise(__event_call__"),
+    ("P95 suite flux live (journaux)", "open_webui/android_logs.py", "def suite("),
+    ("P95 route flux live (/fm)", "open_webui/android_fm.py", "async def fm_logs_live("),
 ]
 
 

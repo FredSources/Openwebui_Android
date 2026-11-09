@@ -84,3 +84,9 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [x] Journaux d'activité dans /fm (P94) : consultation + téléchargement
       (fichier / zip), journal `execute_code` avec stderr sur échec — testé
       (module 12/12, routes réelles harnais 8090, rendu mobile capturé)
+- [x] Audit de divergence amont + minimisation (v0.0.46) : builtin.py 249→223
+      lignes (P41/P94 externalisés dans android_tools), script
+      `scripts/audit_divergence.py` reproductible — testé (7/7 reprise, 12/12
+      journaux, harnais live/désactivation)
+- [x] execute_code : reprise « Client session disconnected » branchée (P95) +
+      paramètre timeout fonctionnel — testé (3ᵉ essai réussi après 2 déconnexions)

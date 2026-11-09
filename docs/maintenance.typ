@@ -198,6 +198,43 @@ propriété Gradle `android.aapt2FromMavenOverride` et le remplacement de
   [Journaux d'activité (P94)], [`src/open_webui/android_logs.py`], [`data/logs/serveur.log` (logging Python complet, tracebacks compris) + `data/logs/exec.log` (journal des exécutions `execute_code` : moteur, statut, délai, extrait stderr sur échec) ; rotation par taille, noms en liste blanche ; consultation et téléchargement (fichier ou zip) dans `/fm` → Journaux, erreurs surlignées, accès authentifié],
 )
 
+= Divergences avec l'amont — audit et minimisation <sec-divergences>
+
+L'arbre `src/` est reconstruit à chaque build depuis le wheel amont
+(`vendor/unpacked/`), puis les patchs sont appliqués. L'audit
+`scripts/audit_divergence.py` mesure l'écart (rapport :
+`docs/audit-divergence.txt`).
+
+#table(
+  columns: (1.1fr, 1fr, 1.6fr),
+  [*Périmètre*], [*Étendue*], [*Détail*],
+  [Fichiers amont modifiés], [19 fichiers, 57 hunks, 540 lignes], [corrections de comportement justifiées, une par incident réel],
+  [Modules ajoutés hors amont], [7 fichiers], [`android_fm.py`, `android_logs.py`, `tools/android_tools.py`, `retrieval/vector/dbs/local.py`, `…/none.py`, migrations],
+  [`tools/builtin.py` (le plus dense)], [23 hunks, 223 lignes], [la logique d'appoint est externalisée dans `android_tools.py` (reprise P95, journal P94, remontée fichiers P41) — l'amont ne garde que des appels d'une ligne],
+)
+
+== Chaîne `execute_code` — divergences comprises <sec-exec-div>
+
+Le rapport utilisateur (« Client session disconnected », exécutions fiables
+vers 0.0.25 puis régressions) a été tracé jusqu'à trois causes, toutes
+corrigées et validées :
+
+- *la reprise n'était pas branchée* — le helper `appel_avec_reprise`
+  (ré-essai après déconnexion de session) était généré dans `android_tools`
+  mais jamais appelé par `execute_code` : le correctif existait sans être
+  câblé. Corrigé : l'outil ré-essaie jusqu'au retour du client dans la
+  fenêtre garantie de 320 s (test : 2 échecs « disconnected » puis succès au
+  3ᵉ essai) ;
+- *`timeout` en `NameError` silencieux* — le paramètre était absent de la
+  signature ; avalé par un `except`, il donnait toujours 120 s. Corrigé :
+  `timeout: int = None` exposé à l'appel ;
+- *réaper de session (120 s sans heartbeat)* — la session est purgée quand la
+  WebView gèle en arrière-plan ; le socket ne ré-essaie pas pour
+  `execute:python`. Couvert par la reprise côté outil.
+
+Le reste de la chaîne (bac à sable Pyodide, préchargement, délais bornés
+P65/P87) est inchangé et validé par la matrice de tests.
+
 = Patchs du code amont <sec-patches>
 
 Tous les patchs sont générés par `scripts/prepare_src.py` (idempotent). Le

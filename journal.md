@@ -1707,3 +1707,38 @@ téléchargement fichier/zip, journal execute_code.
 Run 42711393292 vert (4 min 47) — chaîne complète gardée : verifier_tag ✓
 avant le tag, check_apk contrôle 9 ✓ à la construction, assets nommés
 0.0.45 (debug 239 Mo / release 235 Mo) sous le tag v0.0.45.
+
+## 2026-11-10 — Audit de divergence + fiabilité execute_code (v0.0.46)
+
+Demande : comprendre les divergences avec l'amont (surtout execute_code), où
+est le problème, et minimiser sans rien enlever.
+
+**Cause racine du « Client session disconnected »** (trouvée en relisant les
+divergences) : le helper de reprise `appel_avec_reprise` (P95) était GÉNÉRÉ
+dans android_tools mais **jamais branché** dans builtin.py — le correctif
+existait sans être câblé (exactement la classe « patch perdu silencieux »).
+Deux avaries compagnes : le paramètre `timeout` (P87) n'était pas dans la
+signature (NameError avalé → toujours 120 s) ; le socket ne ré-essaye pas
+pour execute:python quand le réaper purge la session (120 s sans heartbeat,
+WebView en arrière-plan).
+
+Corrections (validées) :
+- execute_code appelle désormais `_appel_reprise` (ré-essais bornés dans la
+  fenêtre 320 s) — test unitaire : 2 échecs disconnected puis succès au 3ᵉ ;
+- `timeout: int = None` ajouté à la signature (le réglage annoncé marche) ;
+- gardes check_patches P95 désormais verts (ils attrapent justement le
+  branchement manquant : ils étaient ROUGES et c'est eux qui ont livré la
+  preuve).
+
+**Minimisation de l'amont** (sans enlever de fonctionnalité) : la logique
+d'appoint de builtin.py a été externalisée dans android_tools.py —
+`remonte_fichiers_sable` (P41) et `journal_exec_appel/exception` (P94).
+builtin.py passe de 249 à 223 lignes modifiées (−26) ; total amont
+566 → 540 lignes. Audit reproductible : scripts/audit_divergence.py +
+docs/audit-divergence.txt.
+
+**Journaux** : désactivables à l'exécution (réglage OWUI_LOGS dans les
+Paramètres, défaut on) — menu retiré + routes 404 quand off ; flux EN DIRECT
+/fm/logs/live (limité à 127.0.0.1) pour lire les logs applicatifs en
+continu (validé : lignes streamées en temps réel). Le \n littéral du gabarit
+(PIÈGE P42) a été remplacé par chr(10) pour ne pas casser le littéral.

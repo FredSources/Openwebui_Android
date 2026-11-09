@@ -587,6 +587,7 @@ except Exception:
 
 _FM_VERSION = "@@VERSION@@"
 import html as _html
+import os as _osj
 import traceback as _tb
 from datetime import datetime as _dt
 from urllib.parse import quote as _quote
@@ -863,6 +864,12 @@ def _fm_error(exc: Exception) -> str:
     )
 
 
+def _journaux_actifs() -> bool:
+    """P95 — les journaux sont-ils actifs ? (réglage OWUI_LOGS, défaut on)."""
+    return _osj.environ.get('OWUI_LOGS', 'on').strip().lower() not in (
+        'off', 'non', '0', 'false', 'desactive', 'aucun')
+
+
 @app.get('/fm')
 async def fm_browser(request: Request, user=Depends(get_verified_user)):
     """P27 — navigateur de fichiers (dossiers par type, recherche, actions)."""
@@ -871,6 +878,9 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
 
         q = (request.query_params.get('q') or '').strip().lower()
         folder = request.query_params.get('folder') or 'all'
+        # P95 : les journaux sont coupables à l'exécution (réglage
+        # OWUI_LOGS=off dans les Paramètres, appliqué au redémarrage).
+        _journaux_on = _journaux_actifs()
         page = max(1, int(request.query_params.get('page') or 1))
         per_page = 50
         uid = None if user.role == 'admin' else user.id
@@ -936,6 +946,8 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 ("settings", "\\u2699\\ufe0f Param\\u00e8tres"),
                 ("maintenance", "\\U0001f6e0\\ufe0f Maintenance"),
                 ("logs", "&#128220; Journaux")]
+        if not _journaux_on:
+            tabs = [t for t in tabs if t[0] != 'logs']
         side = "".join(
             f"<a href=\\"/fm?folder={k}&q={_quote(q)}\\" class=\\"{'on' if k == folder else ''}\\">{label}</a>"
             for k, label in tabs
@@ -952,7 +964,7 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
             connus = ('OLLAMA_BASE_URL', 'OPENAI_API_BASE_URL', 'OPENAI_API_KEY',
                       'RAG_EMBEDDING_ENGINE', 'RAG_OPENAI_API_BASE_URL',
                       'RAG_OPENAI_API_KEY', 'RAG_OPENAI_EMBEDDING_MODEL',
-                      'WEBUI_AUTH', 'ENABLE_SIGNUP', 'DEFAULT_LOCALE')
+                      'WEBUI_AUTH', 'ENABLE_SIGNUP', 'DEFAULT_LOCALE', 'OWUI_LOGS')
             aides = {
                 'OLLAMA_BASE_URL': 'ex. http://100.64.0.2:11434',
                 'OPENAI_API_BASE_URL': 'ex. https://api.openai.com/v1',
@@ -964,6 +976,7 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 'WEBUI_AUTH': 'true / false',
                 'ENABLE_SIGNUP': 'true / false',
                 'DEFAULT_LOCALE': 'ex. fr-FR',
+                'OWUI_LOGS': 'on / off (journaux)',
             }
             reste = chr(10).join(
                 _l for _l in brut.splitlines()
@@ -1002,6 +1015,7 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
 @@WEBUI_AUTH@@
 @@ENABLE_SIGNUP@@
 @@DEFAULT_LOCALE@@
+@@OWUI_LOGS@@
 </div>
 <div class="card"><h2>&#128295; Variables avancées</h2>
 <p class="sub">Toute autre variable, une par ligne au format KEY=VALUE.</p>
@@ -1033,6 +1047,8 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
             page = page.replace('@@DOT_SX@@', '#22c55e' if st.get('searxng') == 'actif' else 'var(--muted)')
             return _HTMLResponse(_fm_page(page, 'Paramètres'))
         if folder == 'logs':
+            if not _journaux_on:
+                return _HTMLResponse(_fm_page("<h1>Journaux d&eacute;sactiv&eacute;s</h1><p>La capture est coup&eacute;e &mdash; r&eacute;glage <code>owui logs</code> dans les Param&egrave;tres (appliqu&eacute; au red&eacute;marrage).</p>"))
             from open_webui import android_logs as _al
             sel = (request.query_params.get('log') or '').strip() or 'serveur.log'
             try:
@@ -1060,6 +1076,7 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 "<h1>&#128220; Journaux</h1>"
                 "<div class='bar'><a class='btn' href='/fm?folder=settings'>&#8592; Paramètres</a>"
                 "<a class='btn2 btn' href='/fm?folder=logs&log=" + _quote(sel) + "'>&#8635; Rafraîchir</a>"
+                "<a class='btn2 btn' href='/fm/logs/live?hist=100'>&#9654; Live</a>"
                 "<a class='btn' href='/fm/logs/download?all=1'>&#128229; Tout télécharger (zip)</a></div>"
                 "<table class='logtable'><thead><tr><th>Nom</th><th>Taille</th><th>Modifié</th><th>Actions</th></tr></thead><tbody>"
                 + rows_log + "</tbody></table>"
@@ -1294,6 +1311,8 @@ async def fm_logs_download(request: Request, user=Depends(get_verified_user)):
     from open_webui import android_logs as _al
     from fastapi.responses import FileResponse as _FR, Response as _Resp
 
+    if not _journaux_actifs():
+        return _HTMLResponse("journaux desactives", status_code=404)
     if (request.query_params.get('all') or '').strip():
         import io as _io
         import zipfile as _zip
@@ -1309,6 +1328,46 @@ async def fm_logs_download(request: Request, user=Depends(get_verified_user)):
     if p is None:
         return _HTMLResponse(_fm_page("<h1>Journal introuvable</h1><a href='/fm?folder=logs'>&#8592; journaux</a>"), status_code=404)
     return _FR(p, filename=p.name, media_type='text/plain')
+
+
+@app.get('/fm/logs/live')
+async def fm_logs_live(request: Request):
+    """P95 — flux EN DIRECT des journaux de l'application (texte brut, suivi
+    de fichier) : les memes lignes que serveur.log / exec.log, rien du
+    systeme. Acces limite a la boucle locale (le serveur n'ecoute que
+    127.0.0.1) — lisible au curl -N ou dans le navigateur de l'appareil."""
+    from fastapi.responses import StreamingResponse as _SR
+    from open_webui import android_logs as _al
+
+    hote = (request.client.host if request.client else '')
+    if hote not in ('127.0.0.1', '::1', 'localhost'):
+        return _HTMLResponse(_fm_page("<h1>Accès refusé</h1>"), status_code=403)
+    if not _journaux_actifs():
+        return _HTMLResponse("journaux desactives", status_code=404)
+    sel = (request.query_params.get('log') or '').strip()
+    try:
+        hist = max(0, min(int(request.query_params.get('hist') or 0), 2000))
+    except Exception:
+        hist = 0
+
+    async def _flux():
+        etats = {}
+        for f in _al.fichiers():
+            etats[f['nom']] = f['taille']
+        if hist:
+            for f in _al.fichiers():
+                if sel and f['nom'] != sel:
+                    continue
+                for l in _al.lecture(f['nom'], hist).splitlines():
+                    yield f['nom'] + " | " + l + chr(10)
+        while True:
+            for nom_f, l in _al.suite(etats):
+                if sel and nom_f != sel:
+                    continue
+                yield nom_f + " | " + l + chr(10)
+            await asyncio.sleep(1)
+
+    return _SR(_flux(), media_type='text/plain; charset=utf-8')
 
 '''
 
@@ -1339,6 +1398,8 @@ def write_android_tools() -> None:
         PROBE_HELPER.strip(),
         PYODIDE_PKGS_HELPER.strip(),
         UPLOADS_SABLE_HELPER.strip(),
+        REPRISE_HELPER.strip(),
+        EXEC_LOG_HELPER.strip(),
         "SANDBOX_NET_BOOTSTRAP = " + repr(SANDBOX_NET_BOOTSTRAP),
     ])
     dst.write_text(ANDROID_TOOLS_HEADER + corps + "\n", encoding="utf-8")
@@ -1354,6 +1415,7 @@ def write_android_tools() -> None:
         "from open_webui.tools.android_tools import (  # noqa: F401\n"
         "    SANDBOX_NET_BOOTSTRAP, _probe_fetch_url, _pyodide_packages, _uploads_pour_sable,\n"
         "    compile_typst, delete_file, delete_note, delete_skill, delete_tool, list_files, list_tools,\n"
+        "    journal_exec_appel, journal_exec_exception, remonte_fichiers_sable,\n"
         ")",
         "P0 builtin : import android_tools",
     )
@@ -1412,6 +1474,33 @@ def _rotation(chemin_f) -> None:
             chemin_f.replace(a1)
     except Exception:
         pass
+
+
+def suite(etats: dict) -> list:
+    """P95 — flux EN DIRECT des journaux de l'application : nouvelles lignes
+    depuis les offsets connus (etats = {nom: offset}, mis a jour en place).
+    Une rotation de fichier repart du debut. Alimente /fm/logs/live — ce sont
+    exactement les lignes de serveur.log / exec.log, rien du systeme."""
+    sorties = []
+    try:
+        for p in sorted(_dir().iterdir()):
+            if not _VALID.match(p.name):
+                continue
+            off = int(etats.get(p.name, 0))
+            taille = p.stat().st_size
+            if taille < off:
+                off = 0
+            if taille == off:
+                continue
+            with open(p, "rb") as f:
+                f.seek(off)
+                brut = f.read(256 * 1024)
+            etats[p.name] = off + len(brut)
+            for l in brut.decode("utf-8", "replace").splitlines():
+                sorties.append((p.name, l))
+    except Exception:
+        pass
+    return sorties
 
 
 def _ecrire(nom: str, ligne: str) -> None:
@@ -1735,24 +1824,11 @@ def patch_tool_status() -> None:
         return JSONCodec.dumps({'error': str(e)})""",
         """        # P94 : journal des exécutions — consultable/téléchargeable dans /fm →
         # Journaux (analyse des erreurs execute_code et autres).
-        try:
-            from open_webui.android_logs import journal_exec as _jx
-            _resume = "%s %s delai=%ss out=%sB err=%sB files=%s" % (
-                engine, response["status"], delai_exec,
-                len(stdout or ""), len(stderr or ""), len(fichiers_sortie))
-            if echec:
-                _resume += " | " + (stderr or "").strip()[-1500:]
-            _jx(_resume)
-        except Exception:
-            pass
+        journal_exec_appel(engine, response, delai_exec, stdout, stderr, fichiers_sortie, echec)
         return JSONCodec.dumps(response, ensure_ascii=False)
     except Exception as e:
         log.exception(f'execute_code error: {e}')
-        try:
-            from open_webui.android_logs import journal_exec as _jx2
-            _jx2("EXCEPTION %s: %s" % (type(e).__name__, e))
-        except Exception:
-            pass
+        journal_exec_exception(e)
         return JSONCodec.dumps({'error': str(e)})""",
         "P94 execute_code : journal exec.log",
     )
@@ -1911,27 +1987,7 @@ def patch_upload_harvest() -> None:
         # P41 : remontée des fichiers écrits dans /mnt/uploads vers le dossier
         # uploads de l'app — le prompt système promet « écrivez dans
         # /mnt/uploads/ pour les retrouver dans le navigateur de fichiers ».
-        fichiers_sortie = []
-        if isinstance(output, dict):
-            for _f in (output.get('files') or []):
-                try:
-                    import base64 as _b64
-                    import os as _os2
-                    from open_webui.config import UPLOAD_DIR as _UD
-
-                    _nom = _os2.path.basename(str(_f.get('name') or ''))
-                    _don = _f.get('data')
-                    if not _nom or not _don:
-                        continue
-                    _brut = _b64.b64decode(_don)
-                    _dest = _UD / _nom
-                    if _dest.exists() and _dest.stat().st_size == len(_brut):
-                        continue  # déjà présent à l'identique (fichier d'entrée)
-                    _UD.mkdir(parents=True, exist_ok=True)
-                    _dest.write_bytes(_brut)
-                    fichiers_sortie.append(_nom)
-                except Exception:
-                    pass
+        fichiers_sortie = remonte_fichiers_sable(output)
 
         # Handle image outputs''',
         "P41c execute_code : enregistrement des fichiers produits",
@@ -2030,6 +2086,87 @@ def patch_automation_rrule() -> None:
         new_rrule = rrule if rrule is not None else automation.data.get('rrule', '')''',
         "P45b update_automation : rrule normalisé",
     )
+
+
+REPRISE_HELPER = '''
+async def appel_avec_reprise(event_call, payload, tentatives: int = 16, pause: float = 10.0):
+    """P95 — appel événementiel avec reprise après « Client session disconnected ».
+    Cause prouvée : la WebView gelée en arrière-plan fige le heartbeat ; le
+    réaper (120 s) ferme la session et l'appel échoue alors que le code n'avait
+    même pas tourné. Au lieu d'échouer, on réessaie jusqu'au retour du client
+    (le socket se reconnecte dès que l'application revient au premier plan) ;
+    la fenêtre globale reste bornée par l'appelant (wait_for 320 s)."""
+    out = None
+    for i in range(max(1, tentatives)):
+        out = await event_call(payload)
+        err = out.get('error') if isinstance(out, dict) else None
+        if err and 'Client session disconnected' in err and i < tentatives - 1:
+            await asyncio.sleep(pause)
+            continue
+        break
+    if isinstance(out, dict) and out.get('error') and 'Client session disconnected' in out['error']:
+        out = {**out, 'error': (
+            'Client session disconnected — application restée en arrière-plan '
+            'trop longtemps : rouvrez l application puis relancez (le code '
+            'n a pas été exécuté).')}
+    return out
+'''
+
+
+EXEC_LOG_HELPER = '''
+def remonte_fichiers_sable(output) -> list:
+    """P41 — remontée des fichiers écrits dans /mnt/uploads vers le dossier
+    uploads de l'app (le prompt système promet « écrivez dans /mnt/uploads/
+    pour les retrouver dans le navigateur de fichiers »). Retourne les noms
+    produits ; ne lève pas sur un fichier invalide."""
+    produits = []
+    if isinstance(output, dict):
+        for _f in (output.get('files') or []):
+            try:
+                import base64 as _b64
+                import os as _os2
+                from open_webui.config import UPLOAD_DIR as _UD
+
+                _nom = _os2.path.basename(str(_f.get('name') or ''))
+                _don = _f.get('data')
+                if not _nom or not _don:
+                    continue
+                _brut = _b64.b64decode(_don)
+                _dest = _UD / _nom
+                if _dest.exists() and _dest.stat().st_size == len(_brut):
+                    continue  # déjà présent à l'identique (fichier d'entrée)
+                _UD.mkdir(parents=True, exist_ok=True)
+                _dest.write_bytes(_brut)
+                produits.append(_nom)
+            except Exception:
+                pass
+    return produits
+
+
+def journal_exec_appel(engine, response, delai_exec, stdout, stderr, fichiers_sortie, echec) -> None:
+    """P94 — journalise une exécution execute_code (statut, tailles, extrait
+    stderr sur échec) dans data/logs/exec.log (consultable/téléchargeable dans
+    /fm → Journaux). Ne lève JAMAIS : le journal ne doit pas casser l'outil."""
+    try:
+        from open_webui.android_logs import journal_exec
+        _r = "%s %s delai=%ss out=%sB err=%sB files=%s" % (
+            engine, response.get("status"), delai_exec,
+            len(stdout or ""), len(stderr or ""), len(fichiers_sortie or []))
+        if echec:
+            _r += " | " + (stderr or "").strip()[-1500:]
+        journal_exec(_r)
+    except Exception:
+        pass
+
+
+def journal_exec_exception(e) -> None:
+    """P94 — journalise une exception execute_code (nom + message)."""
+    try:
+        from open_webui.android_logs import journal_exec
+        journal_exec("EXCEPTION %s: %s" % (type(e).__name__, e))
+    except Exception:
+        pass
+'''
 
 
 PYODIDE_PKGS_HELPER = '''
@@ -2235,6 +2372,15 @@ def patch_sandbox_hardening() -> None:
         except Exception:
             delai_exec = 120""",
         "P52a execute_code : bootstrap réseau",
+    )
+    replace_once(
+        builtin,
+        """async def execute_code(
+    code: str,""",
+        """async def execute_code(
+    code: str,
+    timeout: int = None,""",
+        "P87 execute_code : paramètre timeout exposé (sinon NameError → 120 s)",
     )
     root = DST / "frontend" / "_app" / "immutable"
     _patch_first_match(
@@ -2616,9 +2762,14 @@ def patch_event_timeout() -> None:
         "            output = await __event_call__(",
         """            # P65 : délai garanti — sans réponse du bac à sable, cet outil ne
             # rendait JAMAIS la main et la génération restait suspendue.
+            # P95 : reprise après « Client session disconnected » (le réaper de
+            # session, ex. WebView en arrière-plan, ne doit pas tuer l'exécution
+            # — le code n'avait même pas tourné) : on ré-essaie jusqu'au retour
+            # du client, dans la fenêtre garantie de 320 s.
+            from open_webui.tools.android_tools import appel_avec_reprise as _appel_reprise
             try:
-                output = await asyncio.wait_for(__event_call__(""",
-        "P65a execute_code : wait_for posé",
+                output = await asyncio.wait_for(_appel_reprise(__event_call__,""",
+        "P65a execute_code : wait_for + reprise (P95)",
     )
     replace_once(
         builtin,

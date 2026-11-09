@@ -1434,3 +1434,29 @@ chaque étape → intégration. Résultats :
 Leçons de banc : (1) les harnais de test doivent créer un VRAI user et un
 request avec .app/.state ; (2) un critère de test naïf (« 'read_required' in
 réponse ») peut mordre sur un nom de champ — parser le JSON.
+
+## 2026-11-09 — v0.0.38 : execute_code rapide — print('hello') en 10 ms (P77)
+
+Critère utilisateur : « il fonctionnait sur des anciennes versions sans
+preload et rapidement — print('hello') doit prendre 1 s max ». Donc un coût
+était payé À CHAQUE APPEL. Relue de ma propre chaîne — trois coupables :
+
+- P77a : P51 expédiait TOUS les petits uploads (budget 2 Mo) à chaque appel →
+  transferts de mégaoctets. Désormais : seuls les fichiers CITÉS partent
+  toujours + les très petits (≤ 64 Ko, budget 256 Ko) pour la découvrabilité.
+- P77b : P41 renvoyait tout /mnt/uploads à chaque exécution (les fichiers
+  persistés revenaient sans cesse). Désormais : instantané avant exécution,
+  seuls les fichiers NOUVEAUX/MODIFIÉS remontent (fichiers d'entrée exclus).
+- P77c : micropip ré-installait les paquets déjà chargés → filtre sur
+  loadedPackages.
+
+VALIDATION D'ACCEPTATION (chromium, vrai worker, préchauffé comme sur
+l'appareil) : `x=2+2; print('hello'); x` →
+{"result":4,"stdout":"hello\n","files":[]} en 10 ms. Le critère 1 s est tenu
+avec 100× de marge (en host ; téléphone attendu 50-300 ms).
+
+Incident de méthode : une ancre de patch avait été écrite avec la version
+DÉJÀ patchée (la régénération ne voit que l'amont) — détecté par l'échec du
+générateur, corrigé. Les pgrep/pkill de banc se tuent eux-mêmes si le motif
+apparaît dans leur propre commande : les scripts de test sont renommés et
+arrêtés par PID.

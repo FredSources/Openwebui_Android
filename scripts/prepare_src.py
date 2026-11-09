@@ -1401,6 +1401,7 @@ WORKER_HARVEST_JS = (
     "if(self.__inNames&&self.__inNames.includes(n))continue;"
     "const p=dir+'/'+n;const st=self.pyodide.FS.stat(p);"
     "if(!self.pyodide.FS.isFile(st.mode))continue;"
+    "if(self.__snap&&self.__snap[n]!==undefined&&self.__snap[n]===String(st.size)+'@'+String(Math.floor(st.mtimeMs)))continue;"
     "const d=self.pyodide.FS.readFile(p,{encoding:'binary'});"
     'if(d.length>8388608)continue;if((tot+=d.length)>16777216)continue;'
     "let s='';const CH=32768;for(let i=0;i<d.length;i+=CH)"
@@ -1681,12 +1682,14 @@ def patch_extra_wheels() -> None:
 
 
 UPLOADS_SABLE_HELPER = '''
-def _uploads_pour_sable(code: str = '', max_par: int = 8 * 1024 * 1024, max_total: int = 2 * 1024 * 1024) -> list:
-    """P51/P71 — alignement des deux magasins de fichiers (audit 2026-11-08) : le
-    dossier uploads de l'app est injecté dans le /mnt/uploads du bac à sable.
-    Les fichiers CITÉS dans le code partent toujours ; les autres tant que le
-    total reste sous 2 Mo (découvrabilité) — au-delà, seul le mentionné part,
-    pour alléger les messages (l'injection totale faisait traîner execute_code)."""
+def _uploads_pour_sable(code: str = '', max_par: int = 8 * 1024 * 1024, max_total: int = 256 * 1024) -> list:
+    """P51/P77 — alignement des deux magasins : le dossier uploads de l'app est
+    injecté dans le /mnt/uploads du bac à sable (les fichiers déjà injectés y
+    PERSISTENT via IndexedDB).
+    P77 : seuls les fichiers CITÉS dans le code partent systématiquement ; les
+    petits fichiers (≤ 64 Ko, budget 256 Ko) suivent pour la découvrabilité —
+    au-delà, rien ne part : l'expédition totale faisait de CHAQUE appel un
+    transfert de mégaoctets (print('hello') mettait des secondes)."""
     from open_webui.config import UPLOAD_DIR as _UD
 
     texte = code or ''
@@ -1700,7 +1703,7 @@ def _uploads_pour_sable(code: str = '', max_par: int = 8 * 1024 * 1024, max_tota
             if taille > max_par:
                 continue
             mentionne = ent.name in texte or ent.stem in texte
-            if not mentionne and total + taille > max_total:
+            if not mentionne and (taille > 64 * 1024 or total + taille > max_total):
                 continue
             sortie.append({'name': ent.name, 'data': ent.read_bytes()})
             total += taille
@@ -1773,7 +1776,7 @@ def patch_sandbox_hardening() -> None:
     _patch_first_match(
         str(root / "workers" / "pyodide.worker-*.js"),
         'async function j(e=[]){L||(L=$e(e)),await L,e.length>0&&self.pyodide&&await self.pyodide.pyimport("micropip").install(e)}',
-        'async function j(e=[]){if(!L){L=$e(e);L.catch(()=>{L=null})}await L,e.length>0&&self.pyodide&&await self.pyodide.pyimport("micropip").install(e)}',
+        'async function j(e=[]){if(!L){L=$e(e);L.catch(()=>{L=null})}await L,e.length>0&&self.pyodide&&(e=e.filter(x=>!(x in self.pyodide.loadedPackages)),e.length>0&&await self.pyodide.pyimport("micropip").install(e))}',
         "P49a worker : init réinitialisée après échec",
     )
     _patch_first_match(
@@ -2179,8 +2182,8 @@ def patch_prewarm() -> None:
     _patch_first_match(
         str(root / "workers" / "pyodide.worker-*.js"),
         "async function He(e,t,r){self.stdout=null",
-        "async function He(e,t,r){self.__inNames=(r||[]).map(x=>x.name);self.stdout=null",
-        "P71a worker : fichiers d'entrée mémorisés",
+        "async function He(e,t,r){self.__inNames=(r||[]).map(x=>x.name);self.__snap={};try{for(const n of self.pyodide.FS.readdir('/mnt/uploads')){if(n==='.'||n==='..')continue;const st=self.pyodide.FS.stat('/mnt/uploads/'+n);self.__snap[n]=String(st.size)+'@'+String(Math.floor(st.mtimeMs))}}catch(x){}self.stdout=null",
+        "P71a worker : entrées + instantané avant exécution",
     )
 
 

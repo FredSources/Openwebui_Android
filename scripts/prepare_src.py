@@ -592,6 +592,7 @@ _FM_STYLE = """
     --side: #f9fafb; --panel: #ffffff;
     --border: #e5e7eb; --muted: #6b7280; --hover: #f3f4f6;
     --accent: #3b82f6; --accent-fg: #ffffff;
+    --btn-primary: #000000; --btn-primary-fg: #ffffff;
     --btn2: #f3f4f6; --btn2-fg: #111827;
     --danger: #dc2626;
   }
@@ -599,26 +600,28 @@ _FM_STYLE = """
     --bg: #171717; --fg: #eeeeee;
     --side: #1f1f1f; --panel: #1f1f1f;
     --border: #2e2e2e; --muted: #9a9a9a; --hover: #262626;
+    --btn-primary: #eeeeee; --btn-primary-fg: #171717;
     --btn2: #262626; --btn2-fg: #e7e7e7;
   }
   html.oled-dark { --bg: #000000; --side: #0a0a0a; --panel: #0a0a0a; }
   * { box-sizing: border-box; }
   body { font-family: var(--font); margin: 0; background: var(--bg); color: var(--fg); font-size: 14px; }
-  a { color: var(--accent); text-decoration: none; }
+  a { color: var(--fg); text-decoration: none; }
   a:hover { text-decoration: underline; }
   .wrap { display: flex; min-height: 100vh; }
   .side { width: 180px; padding: 14px 10px; background: var(--side); border-right: 1px solid var(--border); }
   .side a { display: block; padding: 8px 10px; border-radius: 8px; margin-bottom: 4px; color: var(--fg); opacity: .85; }
   .side a:hover { background: var(--hover); text-decoration: none; }
-  .side a.on { background: var(--accent); color: var(--accent-fg); opacity: 1; font-weight: 500; }
+  .side a.on { background: var(--hover); color: var(--fg); opacity: 1; font-weight: 500; }
   .main { flex: 1; padding: 18px 20px; min-width: 0; }
   h1 { font-size: 1.15rem; margin: 0 0 14px; font-weight: 600; }
   .bar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
   input[type=search] { background: var(--panel); border: 1px solid var(--border); color: var(--fg); padding: 8px 12px; border-radius: 10px; min-width: 200px; font: inherit; }
-  button, .btn { background: var(--accent); color: var(--accent-fg); border: 0; padding: 8px 14px; border-radius: 10px; cursor: pointer; font-size: .85rem; font-weight: 500; font-family: inherit; }
-  button:hover, .btn:hover { filter: brightness(1.05); text-decoration: none; }
+  button, .btn { background: var(--btn-primary); color: var(--btn-primary-fg); border: 0; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: .85rem; font-weight: 500; font-family: inherit; }
+  button:hover, .btn:hover { opacity: .9; text-decoration: none; }
   .btn2 { background: var(--btn2); color: var(--btn2-fg); }
-  .del { background: var(--danger); color: #fff; }
+  .del { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+  .del:hover { background: rgba(220, 38, 38, .12); opacity: 1; }
   table { width: 100%; border-collapse: collapse; font-size: .88rem; }
   th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .02em; }
@@ -630,6 +633,25 @@ _FM_STYLE = """
   .empty { color: var(--muted); padding: 30px 0; }
   .err { background: rgba(220, 38, 38, .1); border: 1px solid var(--danger); padding: 12px; border-radius: 10px; white-space: pre-wrap; }
   .ver { position: fixed; left: 10px; bottom: 6px; color: var(--muted); font-size: 10px; opacity: .7; }
+  img, iframe, embed, video { max-width: 100%; height: auto; }
+  @media (max-width: 820px) {
+    .wrap { display: block; }
+    .side { width: auto; display: flex; overflow-x: auto; padding: 8px 10px; gap: 4px; border-right: 0; border-bottom: 1px solid var(--border); }
+    .side a { white-space: nowrap; margin-bottom: 0; padding: 7px 12px; }
+    .main { padding: 12px; }
+    h1 { font-size: 1.05rem; }
+    table { font-size: .82rem; }
+    th:nth-child(4), td:nth-child(4), th:nth-child(5), td:nth-child(5) { display: none; }
+    td:last-child { white-space: nowrap; }
+    td .btn, td button, td form button { padding: 6px 10px; font-size: .78rem; }
+    input[type=search] { min-width: 0; flex: 1 1 140px; }
+  }
+  @media (max-width: 480px) {
+    th:nth-child(3), td:nth-child(3) { display: none; }
+    th, td { padding: 8px 4px; }
+    button, .btn, .nav a { padding: 10px 14px; font-size: .95rem; }
+    .ver { display: none; }
+  }
 """
 
 
@@ -1782,14 +1804,14 @@ def patch_sandbox_hardening() -> None:
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
         'Pe=v=>{clearTimeout(me),U.removeEventListener("message",_e),U.removeEventListener("error",Pe),F&&F(',
-        'Pe=v=>{clearTimeout(me),U.removeEventListener("message",_e),U.removeEventListener("error",Pe),(()=>{try{U.terminate()}catch(e){}})(),Xt.set(null),F&&F(',
+        'Pe=v=>{clearTimeout(me),U.removeEventListener("message",_e),U.removeEventListener("error",Pe),(()=>{try{U.terminate()}catch(e){}})(),Xt.set(null),(()=>{try{const w=rt();w.postMessage({type:"fs:sync",id:"__rewarm"})}catch(e){}})(),F&&F(',
         "P49b frontend : worker mort remplacé (onerror)",
     )
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
         'F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h,files:ge.files||[]},(be,Ge)=>typeof Ge=="bigint"?Ge.toString():Ge)))',
-        'ge.stderr&&/memory|out of bounds|RuntimeError|disconnected/i.test(ge.stderr)&&(Xt.set(null),(()=>{try{U.terminate()}catch(e){}})()),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h,files:ge.files||[]},(be,Ge)=>typeof Ge=="bigint"?Ge.toString():Ge)))',
-        "P49c frontend : worker mort remplacé (stderr fatale)",
+        'ge.stderr&&/(memory access out of bounds|out of memory|null function|unreachable|wasm corrupt)/i.test(ge.stderr)&&(Xt.set(null),(()=>{try{U.terminate()}catch(e){}})(),(()=>{try{const w=rt();w.postMessage({type:"fs:sync",id:"__rewarm"})}catch(e){}})()),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h,files:ge.files||[]},(be,Ge)=>typeof Ge=="bigint"?Ge.toString():Ge)))',
+        "P83 frontend : kill uniquement crash wasm + re-préchauffage",
     )
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
@@ -2200,6 +2222,26 @@ def patch_execute_code_gate() -> None:
         "    Use Valves or UserValves for credentials; do not embed secrets. Saving executes the Python module on the server.",
         "    Use Valves or UserValves for credentials; do not embed secrets. Saving executes the Python module on the server.\n    Its functions become callable only where the tool is ATTACHED (chat or model tools) — attach it to this chat to invoke it now, or use a new chat.",
         "P76 create_tool : invocation documentée",
+    )
+
+
+def patch_sandbox_boot() -> None:
+    """P82 — le bootstrap (network_available, sockets qui échouent proprement)
+    s'exécutait au PREMIER appel : la sonde réseau y ajoutait son coût. Il est
+    désormais lancé AU BOOT du bac à sable — donc pendant le préchauffage —
+    et le prepend par appel devient un no-op."""
+    import glob as _glob
+    import json as _json
+
+    cibles = sorted(_glob.glob(str(DST / "frontend" / "_app" / "immutable" / "workers" / "pyodide.worker-*.js")))
+    if not cibles:
+        raise SystemExit("PATCH EN ÉCHEC [P82] : worker pyodide introuvable")
+    boot_js = _json.dumps(SANDBOX_NET_BOOTSTRAP)
+    replace_once(
+        Path(cibles[0]),
+        'pyimport("micropip").install(e)}async function j(',
+        'pyimport("micropip").install(e);try{await self.pyodide.runPythonAsync(' + boot_js + ')}catch(x){}}async function j(',
+        "P82 worker : bootstrap réseau au boot",
     )
 
 
@@ -2941,6 +2983,7 @@ def main() -> int:
     patch_execute_code_gate()
     patch_web_main_content()
     patch_prewarm()
+    patch_sandbox_boot()
     patch_audit_suite()
     patch_event_timeout()
     patch_sandbox_hardening()

@@ -1460,3 +1460,26 @@ DÉJÀ patchée (la régénération ne voit que l'amont) — détecté par l'éc
 générateur, corrigé. Les pgrep/pkill de banc se tuent eux-mêmes si le motif
 apparaît dans leur propre commande : les scripts de test sont renommés et
 arrêtés par PID.
+
+## 2026-11-09 — v0.0.39 : « execute ne s'arrête jamais » démonté (P82/P83) + /fm responsive et identité Open WebUI (P80/P81)
+
+Le problème persistait sur le téléphone — donc pas un résidu local. Relue de
+la chaîne avec cet indice : mon P49c (« récupération du noyau ») tuait le
+worker sur TOUT stderr contenant RuntimeError — or les codes de test lèvent
+des exceptions courantes → chaque erreur forçait un REDÉMARRAGE COMPLET du
+runtime wasm (10-60 s sur téléphone). C'est exactement un « ça ne s'arrête
+jamais ». En plus, la sonde réseau (P52) se payait au premier appel.
+
+- P83 : on ne tue le worker que sur un vrai CRASH wasm (memory access/out of
+  memory/unreachable…) et tout remplaçant est re-préchauffé. VALIDÉ :
+  1er appel 8 ms → RuntimeError (worker vivant) → appel suivant 19 ms.
+- P82 : le bootstrap réseau/socket s'exécute AU BOOT (préchauffage) — le
+  prepend par appel devient un no-op.
+- P80 : /fm responsive — media queries portrait/paysage/mobile/tablette.
+  VALIDÉ VISUELLEMENT (captures 390x844, 844x390, 820x1180 lues).
+- P81 : identité Open WebUI — boutons noirs/blancs (pas bleus), onglet actif
+  gris, liens sombres soulignés au survol, suppression rouge discrète.
+
+Note Typst : la chaîne de persistance est VALIDÉE (écriture disque ✓,
+list_files ✓, display_file ✓) — le PDF vit dans files/data/uploads sous
+<uuid>_<nom>.pdf, affiché <nom>.pdf dans 📂.

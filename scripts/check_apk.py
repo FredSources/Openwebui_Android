@@ -13,9 +13,11 @@ Contrôles (chacun correspond à un incident réel du projet) :
      (execute_code), et le bouton /fm (navigateur de fichiers).
   7. Routage embarqué : fm_browser (route /fm) présent dans main.
   8. Taille d'APK plausible.
+  9. Nom d'APK cohérent avec le tag poussé (P93 : versionName == tag).
 
 Usage : python3 scripts/check_apk.py dist/*.apk   (code retour != 0 si échec)
 """
+import os
 import pathlib
 import re
 import subprocess
@@ -88,6 +90,26 @@ def check_apk(apk: pathlib.Path) -> None:
     if taille > 320 * 1024 * 1024:
         warn(f"{apk.name} : taille élevée ({taille / 1e6:.0f} Mo)")
 
+    # P93 — cohérence du nom : chaque APK livré doit porter la version du TAG
+    # (incident v0.0.44 : assets « OpenWebUI_Android-0.0.43-release.apk »
+    # publiés sous le tag v0.0.44 — le versionName n'avait pas été bumpé).
+    # Placé AVANT l'ouverture du zip : le contrôle ne dépend que du nom du
+    # fichier livré, zéro risque de couper le bloc with (leçon du run
+    # 42702951060 : « ZIP archive that was already closed »).
+    ref = os.environ.get("GITHUB_REF") or ""
+    if ref.startswith("refs/tags/"):
+        tag = ref[len("refs/tags/"):]
+    else:
+        _des = subprocess.run(['git', 'describe', '--tags', '--exact-match'],
+                              capture_output=True, text=True,
+                              cwd=pathlib.Path(__file__).resolve().parent.parent)
+        tag = _des.stdout.strip() if _des.returncode == 0 else ""
+    if tag:
+        attendu = tag.lstrip('v')
+        if attendu not in apk.name:
+            err(f"tag {tag} : {apk.name} ne porte pas la version {attendu} "
+                f"— versionName de build.gradle ≠ tag")
+
     with zipfile.ZipFile(apk) as z:
         noms = z.namelist()
 
@@ -112,21 +134,8 @@ def check_apk(apk: pathlib.Path) -> None:
             if b"/fm" not in contenu_index:
                 err(f"{apk.name} : bouton /fm absent de index.html")
 
-        # P93 — cohérence du nom : les APK doivent porter la version du TAG
-    # (l'ancien cas : assets « OpenWebUI_Android-0.0.43-release.apk » publiés
-    # sous le tag v0.0.44 — le versionName n'avait pas été bumpé).
-    import subprocess as _sub
-    tag = _sub.run(['git', 'describe', '--tags', '--exact-match'], capture_output=True,
-                   text=True, cwd=pathlib.Path(__file__).resolve().parent.parent)
-    if tag.returncode == 0 and tag.stdout.strip():
-        attendu = tag.stdout.strip().lstrip('v')
-        noms = [n for n in noms if n.endswith('.apk') and attendu in n]
-        if not noms:
-            err(f"tag {tag.stdout.strip()} : aucun APK nommé *_{attendu}-*.apk "
-                f"(le versionName de build.gradle ne correspond pas)"
-            )
-
     # 4/5. natifs de lib/
+
         with tempfile.TemporaryDirectory() as tmp:
             so_lib = []
             for n in noms:

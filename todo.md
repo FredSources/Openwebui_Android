@@ -67,6 +67,10 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [x] `README.md` : prérequis, build, installation, configuration serveur LLM
 - [ ] Notice de licence BSD-3 d'Open WebUI incluse dans l'app
 - [ ] Nettoyage : `git tag` de la version livrée
+- [x] Garde de cohérence version/tag (P93) : `scripts/verifier_tag.py` avant
+      chaque tag + contrôle 9 de `scripts/check_apk.py` à la construction
+      (testé localement : positif 0.0.44 / négatif 0.0.43 embarrassés au choix
+      de la voie `env` ou `git describe`)
 
 ## Idées / hors périmètre pour l'instant
 

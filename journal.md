@@ -1621,3 +1621,26 @@ Garde-fou double, « une bonne fois pour toute » :
 
 Replay : versionName → 0.0.44, release erronée supprimée, tag retiré puis
 re-pointé sur le commit corrigé, build relancé.
+
+## 2026-11-09 — v0.0.44, run 42702951060 en échec : gardes tout réélevés (P93 réparé, cause prouvée)
+
+Traceback CI : `lire()` (ligne 143) → « Attempt to use ZIP archive that was
+already closed ». Trois pannes enchaînées dans ma première mouture du garde :
+1. posé hors du bloc `with zipfile` (indentation 4) — les lignes suivantes
+   sortaient du contexte, `z` fermé → crash au contrôle des bundles ;
+2. il écrasait `noms` (les entrées de l'APK), privant la suite des contrôles
+   (.so, bundles) ;
+3. Surtout, faux négatif structurel : il filtrait `noms` sur `.endswith('.apk')`
+   — or un APK ne contient JAMAIS d'entrée `.apk` ; le contrôle visait la
+   mauvaise donnée. La bonne : le NOM DU FICHIER livré.
+
+Correctif (une bonne fois pour toute) :
+- contrôle 9 déplacé AVANT l'ouverture du zip — porte sur `apk.name`, zéro
+  risque de couper le bloc `with` ;
+- tag lu via `GITHUB_REF` (déterministe sous Actions), repli
+  `git describe --tags --exact-match` en local ;
+- validation locale (APK factices stub identiques) : 0.0.44 → aucune erreur
+  P93 ; 0.0.43 → exactement une, voie `env` comme voie `describe` ; les
+  erreurs « contenu stub » restent en nombre identique.
+Documentation : docs/maintenance.typ (§ CI) mis à jour + PDF recompilés ;
+todo.md Phase 5 cochée. verifier_tag.py et check_patches.py restent verts.

@@ -447,6 +447,13 @@ absent, `.venv313` recréé en CPython 3.13, SearXNG cloné au commit figé. Le
 GitHub `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` — sans
 eux, l'APK release est signé avec la clé debug (installable, pour tests).
 
+Gardes-fous de cohérence de version (*P93*) : avant chaque étiquetage,
+`scripts/verifier_tag.py` refuse un `versionName` différent du tag ; à la
+construction, `scripts/check_apk.py` (contrôle 9) exige que le nom de chaque APK
+livré contienne la version du tag poussé — l'incident « 0.0.43 publié sous
+le tag v0.0.44 » ne peut plus se reproduire (tag lu depuis `GITHUB_REF`
+sous Actions, repli `git describe --tags --exact-match` en local).
+
 == Pistes d'évolution
 
 - Mise à jour in-app de l'APK (GitHub Releases) ;

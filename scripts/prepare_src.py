@@ -635,6 +635,18 @@ _FM_STYLE = """
   .empty { color: var(--muted); padding: 30px 0; }
   .err { background: rgba(220, 38, 38, .1); border: 1px solid var(--danger); padding: 12px; border-radius: 10px; white-space: pre-wrap; }
   .ver { position: fixed; left: 10px; bottom: 6px; color: var(--muted); font-size: 10px; opacity: .7; }
+  .settings { max-width: 780px; margin: 0 auto; padding-bottom: 60px; }
+  .card { border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; margin: 14px 0; background: var(--panel); }
+  .card h2 { font-size: .95rem; margin: 0 0 2px; font-weight: 600; }
+  .sub { color: var(--muted); font-size: 12.5px; margin: 2px 0 10px; line-height: 1.5; }
+  .card label { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; margin: 12px 0 5px; }
+  .card input { width: 100%; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); font-size: 13.5px; }
+  .card input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .envbox { width: 100%; min-height: 180px; font-family: ui-monospace, monospace; font-size: 12px; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); resize: vertical; }
+  .primary { background: var(--btn-primary); color: var(--btn-primary-fg); }
+  .ghost { background: var(--btn2); color: var(--btn2-fg); }
+  .danger { background: var(--danger); color: #fff; }
+  .ghost:hover, .primary:hover, .danger:hover { opacity: .9; }
   img, iframe, embed, video { max-width: 100%; height: auto; }
   @media (max-width: 820px) {
     .wrap { display: block; }
@@ -916,41 +928,84 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
         )
         if folder == 'settings':
             import android_main as _am
-            env_txt = _am.env_read()
-            inner = (
-                "<h1>&#9881; Param\u00e8tres</h1>"
-                "<p style='color:var(--muted);font-size:13px'>Variables d'environnement "
-                "d'Open WebUI (fichier <code>data/openwebui.env</code>, format KEY=VALUE). "
-                "Elles sont <b>appliqu\u00e9es \u00e0 chaque d\u00e9marrage ou red\u00e9marrage</b> "
-                "de l'application.</p>"
-                "<form method='post' action='/fm/settings'>"
-                "<textarea name='env' spellcheck='false' style='width:100%;min-height:280px;"
-                "font-family:monospace;font-size:12px;padding:10px;border-radius:8px;"
-                "border:1px solid var(--border);background:var(--panel);color:var(--fg)'>"
-                + _html.escape(env_txt) +
-                "</textarea>"
-                "<div class='bar' style='margin-top:10px'><button>&#128190; Enregistrer</button>"
-                "<span style='color:var(--muted);font-size:12px'>Exemples : OLLAMA_BASE_URL=... "
-                "OPENAI_API_BASE_URL=... OPENAI_API_KEY=... RAG_EMBEDDING_ENGINE=openai "
-                "RAG_OPENAI_API_KEY=...</span></div></form>"
-                "<h1 style='margin-top:22px'>Services</h1>"
-                "<div class='bar'>"
-                "<button onclick='svc(\\"openwebui\\",\\"run\\")'>&#9654; Open WebUI</button>"
-                "<button onclick='svc(\\"openwebui\\",\\"stop\\")'>&#9208; Arr\u00eater</button>"
-                "</div><div class='bar'>"
-                "<button onclick='svc(\\"searxng\\",\\"run\\")'>&#9654; SearXNG</button>"
-                "<button onclick='svc(\\"searxng\\",\\"stop\\")'>&#9208; Arr\u00eater</button>"
-                "<button onclick='svc(\\"searxng\\",\\"restart\\")'>&#8635; Red\u00e9marrer</button>"
-                "</div><div class='bar'>"
-                "<button onclick='AndroidSystem.restartApp()' "
-                "style='background:var(--danger);color:#fff'>&#8635; Red\u00e9marrer l'application "
-                "(applique les variables)</button></div>"
-                "<p id='svcmsg' style='color:var(--muted);font-size:12px'></p>"
-                "<script>function svc(n,a){try{document.getElementById('svcmsg').textContent="
-                "AndroidSystem.serverAction(n,a)}catch(e){document.getElementById('svcmsg').textContent="
-                "'pont syst\u00e8me indisponible : '+e}}</script>"
-            )
-            return _HTMLResponse(_fm_page(inner, "Param\u00e8tres"))
+            brut = _am.env_read()
+            vals = {}
+            for _l in brut.splitlines():
+                _s = _l.strip()
+                if _s and not _s.startswith('#') and '=' in _s:
+                    _k, _, _v = _s.partition('=')
+                    vals[_k.strip()] = _v.strip()
+            connus = ('OLLAMA_BASE_URL', 'OPENAI_API_BASE_URL', 'OPENAI_API_KEY',
+                      'RAG_EMBEDDING_ENGINE', 'RAG_OPENAI_API_BASE_URL',
+                      'RAG_OPENAI_API_KEY', 'RAG_OPENAI_EMBEDDING_MODEL',
+                      'WEBUI_AUTH', 'ENABLE_SIGNUP', 'DEFAULT_LOCALE')
+            aides = {
+                'OLLAMA_BASE_URL': 'ex. http://100.64.0.2:11434',
+                'OPENAI_API_BASE_URL': 'ex. https://api.openai.com/v1',
+                'OPENAI_API_KEY': 'clé API du modèle',
+                'RAG_EMBEDDING_ENGINE': 'openai / ollama / azure',
+                'RAG_OPENAI_API_BASE_URL': 'ex. https://api.openai.com/v1',
+                'RAG_OPENAI_API_KEY': 'clé API embeddings',
+                'RAG_OPENAI_EMBEDDING_MODEL': 'ex. text-embedding-3-small',
+                'WEBUI_AUTH': 'true / false',
+                'ENABLE_SIGNUP': 'true / false',
+                'DEFAULT_LOCALE': 'ex. fr-FR',
+            }
+            reste = chr(10).join(
+                _l for _l in brut.splitlines()
+                if not (_l.strip() and not _l.strip().startswith('#') and '=' in _l
+                        and _l.partition('=')[0].strip() in connus))
+
+            def _champ(nom):
+                type_ = 'password' if 'KEY' in nom else 'text'
+                return (
+                    '<label>' + nom.replace('_', ' ').lower() + '</label>'
+                    '<input type="' + type_ + '" name="VAR_' + nom + '" value="'
+                    + _html.escape(vals.get(nom, '')) + '" placeholder="'
+                    + _html.escape(aides.get(nom, '')) + '">'
+                )
+
+            page = """<form method="post" action="/fm/settings"><div class="settings">
+<h1>&#9881; Paramètres</h1>
+<p class="sub">Réglages écrits dans <code>data/openwebui.env</code> — appliqués à chaque démarrage ou redémarrage de l'application.</p>
+<div class="card"><h2>&#129302; Modèles (LLM)</h2>
+<p class="sub">Connexion à Ollama ou à une API OpenAI-compatible.</p>
+@@OLLAMA_BASE_URL@@
+@@OPENAI_API_BASE_URL@@
+@@OPENAI_API_KEY@@
+</div>
+<div class="card"><h2>&#128218; Recherche &amp; RAG</h2>
+<p class="sub">Embeddings distants pour la recherche dans vos documents.</p>
+@@RAG_EMBEDDING_ENGINE@@
+@@RAG_OPENAI_API_BASE_URL@@
+@@RAG_OPENAI_API_KEY@@
+@@RAG_OPENAI_EMBEDDING_MODEL@@
+</div>
+<div class="card"><h2>&#128274; Sécurité &amp; préférences</h2>
+@@WEBUI_AUTH@@
+@@ENABLE_SIGNUP@@
+@@DEFAULT_LOCALE@@
+</div>
+<div class="card"><h2>&#128295; Variables avancées</h2>
+<p class="sub">Toute autre variable, une par ligne au format KEY=VALUE.</p>
+<textarea name="extras" spellcheck="false" class="envbox">@@RESTE@@</textarea>
+</div>
+<div class="bar" style="margin-top:18px">
+<button class="primary">&#128190; Enregistrer les réglages</button>
+<button type="button" class="ghost" onclick="svc(&quot;openwebui&quot;,&quot;run&quot;)">&#9654; Open WebUI</button>
+<button type="button" class="ghost" onclick="svc(&quot;openwebui&quot;,&quot;stop&quot;)">&#9208; Arrêter</button>
+<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;run&quot;)">&#9654; SearXNG</button>
+<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;stop&quot;)">&#9208; Arrêter</button>
+<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;restart&quot;)">&#8635; SearXNG</button>
+<button type="button" class="danger" onclick="AndroidSystem.restartApp()">&#8635; Redémarrer l'application</button>
+</div>
+</div></form>
+<p id="svcmsg" class="sub"></p>
+<script>function svc(n,a){try{document.getElementById("svcmsg").textContent=AndroidSystem.serverAction(n,a)}catch(e){document.getElementById("svcmsg").textContent="pont système indisponible : "+e}}</script>"""
+            for _nom in connus:
+                page = page.replace('@@' + _nom + '@@', _champ(_nom))
+            page = page.replace('@@RESTE@@', _html.escape(reste))
+            return _HTMLResponse(_fm_page(page, 'Paramètres'))
         if folder == 'maintenance':
             import os as _os3
             from open_webui.config import DATA_DIR as _DD
@@ -1126,7 +1181,16 @@ async def fm_settings_save(request: Request, user=Depends(get_verified_user)):
     try:
         form = await request.form()
         import android_main as _am
-        msg = _am.env_save(str(form.get('env') or ''))
+        lignes = []
+        for _k in form.keys():
+            if _k.startswith('VAR_'):
+                _v = str(form.get(_k) or '').strip()
+                if _v:
+                    lignes.append(_k[4:] + '=' + _v)
+        _extras = str(form.get('extras') or '').strip()
+        if _extras:
+            lignes.append(_extras)
+        msg = _am.env_save(chr(10).join(lignes))
         return _HTMLResponse(_fm_page(
             "<h1>&#9989; R\u00e9glages</h1><p>" + _html.escape(msg) + "</p>"
             "<div class='nav'><a href='/fm?folder=settings'>&#8592; param\u00e8tres</a></div>"))

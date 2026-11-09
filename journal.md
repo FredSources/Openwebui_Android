@@ -1555,3 +1555,22 @@ localStorage ; un clic reste un clic (seuil de 6 px).
 Vérifié : gardien vert, compilation 4 modules, syntaxe JS (worker + chunk),
 démarrage réel (health 200, /fm?folder=settings et POST /fm/settings en 401 =
 routes montées), test noyau chromium (boot + latence + timeout 5 s).
+
+## 2026-11-09 — v0.0.43 : l'onglet Paramètres passe au style Open WebUI (P91)
+
+Demande utilisateur : « quelque chose de plus esthétique ». L'onglet n'était
+qu'une textarea brute — il devient une vraie page de réglages :
+
+- cartes arrondies par section (🤖 Modèles LLM, 📚 Recherche & RAG,
+  🔒 Sécurité & préférences, 🛠 Variables avancées) ;
+- champs étiquetés (micro-capitales grises), inputs arrondis, type password
+  pour les clés, aide contextuelle en placeholder ;
+- boutons hiérarchisés (primaire noir/blanc, fantôme, danger) ;
+- mise en page fluide mobile/desktop (max-width 780 px centré).
+- le POST fusionne les champs + la zone avancée (garde-fous DATA_DIR/HOME
+  conservés) — la lecture réinjecte les valeurs existantes.
+
+VALIDÉ VISUELLEMENT : captures 900×1000 et 390×844 lues — rendu conforme
+aux deux formats. Leçon : un ast.parse du générateur ne valide pas le code
+PRODUIT — seul py_compile du module généré tranchait (et il a attrapé deux
+syntaxes fautives avant livraison).

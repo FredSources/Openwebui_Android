@@ -1109,7 +1109,7 @@ def write_android_tools() -> None:
         "# enregistrements d'outils.\n"
         "from open_webui.tools.android_tools import (  # noqa: F401\n"
         "    SANDBOX_NET_BOOTSTRAP, _probe_fetch_url, _pyodide_packages, _uploads_pour_sable,\n"
-        "    compile_typst, delete_file, delete_note, delete_skill, delete_tool, list_tools,\n"
+        "    compile_typst, delete_file, delete_note, delete_skill, delete_tool, list_files, list_tools,\n"
         ")",
         "P0 builtin : import android_tools",
     )
@@ -1210,12 +1210,12 @@ def patch_delete_tools() -> None:
         PATCHES.append(("outils delete_note/delete_skill/delete_tool", "ajoutés"))
     replace_once(DST / "utils" / "tools.py",
         "    create_tool,",
-        "    create_tool,\n    delete_file,\n    delete_note,\n    delete_skill,\n    delete_tool,\n    list_tools,",
-        "P29a imports delete_*/list_tools")
+        "    create_tool,\n    delete_file,\n    delete_note,\n    delete_skill,\n    delete_tool,\n    list_files,\n    list_tools,",
+        "P29a imports delete_*/list_*")
     replace_once(DST / "utils" / "tools.py",
         "builtin_functions.extend([search_notes, view_note, write_note, replace_note_content])",
-        "builtin_functions.extend([search_notes, view_note, write_note, replace_note_content, delete_note, delete_file])",
-        "P29b registrement delete_note/delete_file")
+        "builtin_functions.extend([search_notes, view_note, write_note, replace_note_content, delete_note, delete_file, list_files])",
+        "P29b registrement delete_note/delete_file/list_files")
     replace_once(DST / "utils" / "tools.py",
         "            builtin_functions.append(create_tool)",
         "            builtin_functions.append(create_tool)\n            builtin_functions.append(delete_tool)\n            builtin_functions.append(list_tools)",
@@ -1820,6 +1820,45 @@ FALLBACK_P54 = '''        # P54 : découverte par le CONTENU — une KB mal nomm
 
 
 EXTRA_TOOLS_2 = '''
+async def list_files(
+    query: Optional[str] = None,
+    __request__: Request = None,
+    __user__: dict = None,
+) -> str:
+    """
+    List the user's stored files (uploads, chat files, knowledge files) with their file_id —
+    the missing companion of delete_file: without it, residual files cannot be found.
+
+    :param query: Optional substring filter on file names (case-insensitive)
+    :return: JSON list of files with id, filename, size, updated_at
+    """
+    try:
+        from open_webui.models.files import Files
+
+        user = __user__ or {}
+        result = await Files.get_file_list(
+            user_id=(None if user.get('role') == 'admin' else user.get('id')),
+            skip=0,
+            limit=200,
+        )
+        out = []
+        q = (query or '').strip().lower()
+        for f in (result.items if result else []):
+            if q and q not in (f.filename or '').lower():
+                continue
+            meta = getattr(f, 'meta', None)
+            out.append({
+                'id': f.id,
+                'filename': f.filename,
+                'size': getattr(meta, 'size', None),
+                'updated_at': f.updated_at,
+            })
+        return JSONCodec.dumps(out, ensure_ascii=False)
+    except Exception as e:
+        log.exception(f'list_files error: {e}')
+        return JSONCodec.dumps({'error': str(e)})
+
+
 async def delete_file(
     file_id: str,
     __request__: Request = None,
@@ -1931,9 +1970,24 @@ def patch_audit_suite() -> None:
                         import re as _re
 
                         def _norm(s):
-                            return _re.sub(r'[\\s_\\-]+', ' ', (s or '').lower()).strip()
+                            import unicodedata
+                            s = _re.sub(r'[\\s_\\-]+', ' ', (s or '').lower()).strip()
+                            s = ''.join(c for c in unicodedata.normalize('NFKD', s) if not unicodedata.combining(c))
+                            return s.replace('œ', 'oe').replace('æ', 'ae')
 
-                        nom_norm = func.replace(func.replace(func.lower(File.filename), '-', ' '), '_', ' ')
+                        def _fold_sql(expr):
+                            for _src, _dst in (
+                                ('é', 'e'), ('è', 'e'), ('ê', 'e'), ('ë', 'e'),
+                                ('É', 'e'), ('È', 'e'), ('Ê', 'e'),
+                                ('à', 'a'), ('â', 'a'), ('À', 'a'), ('Â', 'a'),
+                                ('ù', 'u'), ('û', 'u'), ('ü', 'u'), ('Ù', 'u'), ('Û', 'u'),
+                                ('ô', 'o'), ('Ô', 'o'), ('î', 'i'), ('ï', 'i'), ('Î', 'i'), ('Ï', 'i'),
+                                ('ç', 'c'), ('Ç', 'c'), ('œ', 'oe'), ('Œ', 'oe'), ('æ', 'ae'), ('Æ', 'ae'),
+                            ):
+                                expr = func.replace(expr, _src, _dst)
+                            return expr
+
+                        nom_norm = _fold_sql(func.replace(func.replace(func.lower(File.filename), '-', ' '), '_', ' '))
                         jetons = [j for j in _norm(q).split(' ') if j]
                         if filter.get('include_content'):
                             # Use ->> (as_string) instead of CAST(-> AS TEXT)
@@ -1941,7 +1995,7 @@ def patch_audit_suite() -> None:
                             # size" on large extracted-content rows (#24670).
                             content_text = File.data['content'].as_string()
                             content_text = func.substr(content_text, 1, RAG_FILE_CONTENT_SEARCH_MAX_CHARS)
-                            cont_norm = func.replace(func.replace(func.lower(content_text), '-', ' '), '_', ' ')
+                            cont_norm = _fold_sql(func.replace(func.replace(func.lower(content_text), '-', ' '), '_', ' '))
                             search_filter = _and(*[
                                 or_(nom_norm.like(f'%{j}%'), cont_norm.like(f'%{j}%'))
                                 for j in jetons
@@ -2130,6 +2184,22 @@ def patch_prewarm() -> None:
     )
 
 
+def patch_execute_code_gate() -> None:
+    """P72 — RÉVOQUÉ (utilisateur 2026-11-09) : le toggle « capacités » de la
+    requête est le mécanisme CORRECT et voulu (activé → outils visibles) ;
+    forcer l'exposition s'écartait de l'origine. Rien à patcher ici."""
+    log("  P72 : révoqué — le toggle de la requête est le mécanisme voulu")
+    # P76 — create_tool : documenter le comportement amont (tool_ids envoyé par
+    # le client à chaque complétion : un tool créé doit être ATTACHÉ à la
+    # conversation pour être invocable — audit 2026-11-09, A4).
+    replace_once(
+        DST / "tools" / "builtin.py",
+        "    Use Valves or UserValves for credentials; do not embed secrets. Saving executes the Python module on the server.",
+        "    Use Valves or UserValves for credentials; do not embed secrets. Saving executes the Python module on the server.\n    Its functions become callable only where the tool is ATTACHED (chat or model tools) — attach it to this chat to invoke it now, or use a new chat.",
+        "P76 create_tool : invocation documentée",
+    )
+
+
 def patch_search_timeout() -> None:
     """P68 — « les outils semblent bloqués » (rapport utilisateur) : la requête
     de search_searxng n'avait AUCUN timeout — si l'instance SearXNG embarquée
@@ -2151,6 +2221,29 @@ def patch_search_timeout() -> None:
         timeout=30,
     ) as response:""",
         "P68 search_searxng : timeout 30s",
+    )
+
+
+def patch_web_main_content() -> None:
+    """P74 — fetch_url renvoyait la page BRUTE (menus, navigation) alors que le
+    contrat promet « le contenu principal » (audit 2026-11-09, A3). Quand la
+    page expose des balises sémantiques (<main>, <article>, [role=main]) avec
+    du contenu réel, on extrait celles-ci ; sinon comportement amont inchangé."""
+    replace_once(
+        DST / "retrieval" / "web" / "utils.py",
+        """        soup = BeautifulSoup(html, parser, **self.bs_kwargs)
+        return Document(
+            page_content=soup.get_text(**self.bs_get_text_kwargs),""",
+        """        soup = BeautifulSoup(html, parser, **self.bs_kwargs)
+        # P74 : contenu principal quand la page est balisée sémantiquement
+        for _sel in ('main', 'article', '[role="main"]'):
+            _bloc = soup.select_one(_sel)
+            if _bloc and len(_bloc.get_text(strip=True)) > 50:
+                soup = _bloc
+                break
+        return Document(
+            page_content=soup.get_text(**self.bs_get_text_kwargs),""",
+        "P74 fetch_url : extraction du contenu principal",
     )
 
 
@@ -2177,9 +2270,26 @@ def patch_search_files() -> None:
                         import re as _re
 
                         def _norm(s):
-                            return _re.sub(r'[\\s_\\-]+', ' ', (s or '').lower()).strip()
+                            import unicodedata
+                            s = _re.sub(r'[\\s_\\-]+', ' ', (s or '').lower()).strip()
+                            s = ''.join(c for c in unicodedata.normalize('NFKD', s) if not unicodedata.combining(c))
+                            return s.replace('œ', 'oe').replace('æ', 'ae')
 
-                        nom_norm = func.replace(func.replace(func.lower(File.filename), '-', ' '), '_', ' ')
+                        def _fold_sql(expr):
+                            # P73 : SQLite ignore les accents dans lower() —
+                            # repli explicite des diacritiques français.
+                            for _src, _dst in (
+                                ('é', 'e'), ('è', 'e'), ('ê', 'e'), ('ë', 'e'),
+                                ('É', 'e'), ('È', 'e'), ('Ê', 'e'),
+                                ('à', 'a'), ('â', 'a'), ('À', 'a'), ('Â', 'a'),
+                                ('ù', 'u'), ('û', 'u'), ('ü', 'u'), ('Ù', 'u'), ('Û', 'u'),
+                                ('ô', 'o'), ('Ô', 'o'), ('î', 'i'), ('ï', 'i'), ('Î', 'i'), ('Ï', 'i'),
+                                ('ç', 'c'), ('Ç', 'c'), ('œ', 'oe'), ('Œ', 'oe'), ('æ', 'ae'), ('Æ', 'ae'),
+                            ):
+                                expr = func.replace(expr, _src, _dst)
+                            return expr
+
+                        nom_norm = _fold_sql(func.replace(func.replace(func.lower(File.filename), '-', ' '), '_', ' '))
                         jetons = [j for j in _norm(query_key).split(' ') if j]
                         if filter.get('include_content'):""",
         "P48a search_files_by_id : normalisation des jetons",
@@ -2198,7 +2308,7 @@ def patch_search_files() -> None:
                             stmt = stmt.filter(File.filename.ilike(f'%{query_key}%'))""",
         """                            content_text = File.data['content'].as_string()
                             content_text = func.substr(content_text, 1, RAG_FILE_CONTENT_SEARCH_MAX_CHARS)
-                            cont_norm = func.replace(func.replace(func.lower(content_text), '-', ' '), '_', ' ')
+                            cont_norm = _fold_sql(func.replace(func.replace(func.lower(content_text), '-', ' '), '_', ' '))
                             stmt = stmt.filter(
                                 _and(*[
                                     or_(nom_norm.like(f'%{j}%'), cont_norm.like(f'%{j}%'))
@@ -2825,6 +2935,8 @@ def main() -> int:
     patch_note_newlines()
     patch_search_files()
     patch_search_timeout()
+    patch_execute_code_gate()
+    patch_web_main_content()
     patch_prewarm()
     patch_audit_suite()
     patch_event_timeout()

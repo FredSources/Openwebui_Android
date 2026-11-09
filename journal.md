@@ -1400,3 +1400,37 @@ LEÇON MAJEURE (double) : (1) patcher du JS minifié exige une validation de
 SYNTAXE JS — la présence du texte ne prouve rien ; (2) « compiler et checker »
 ne remplace pas « DÉMARRER » — le smoke boot devient obligatoire avant chaque
 livraison, comme les vrais appels d'outils.
+
+## 2026-11-09 — v0.0.37 : audit 49 outils traité MÉTHODIQUEMENT (P73-P76)
+
+Méthode imposée par l'utilisateur : cause prouvée → plan → validation de
+chaque étape → intégration. Résultats :
+
+- Toggle exécution/recherche : CONFIRMÉ fonctionnel par l'utilisateur
+  (activé → outils visibles). P72 (exposition forcée) RÉVOQUÉE — le mécanisme
+  amont est le comportement voulu. Validé dans les deux sens : OFF → absent,
+  ON → présent.
+
+- P73 (A2, prouvé par reproductibilité : `securite` → [] vs « sécurité ») :
+  repli des diacritiques français (SQL + requête) dans les deux moteurs de
+  recherche. Validé : `securite informatique` → trouvé.
+
+- P74 (A3) : fetch_url extrait le CONTENU PRINCIPAL quand la page est balisée
+  sémantiquement (<main>/<article>/[role=main]) — la nav n'est plus servie.
+  Validé par test de `_document_from_html`. Seuil calibré à 50 car. (200
+  rejetait les pages fines — trouvé par la validation, pas par la lecture).
+
+- P75 (recommandation audit) : nouvel outil `list_files` — delete_file est
+  enfin exploitable (les fichiers résiduels étaient invisibles sans
+  identifiants). Bug trouvé en le testant : FileMeta n'est pas un dict
+  (getattr, pas .get).
+
+- P76 (A4) : create_tool documente que l'invocation exige l'ATTACHEMENT à la
+  conversation (tool_ids envoyé par le client à chaque complétion) —
+  comportement amont assumé, désormais explicite.
+
+- Étape 6 (read_required) : validée — create → edit immédiat passe (P57).
+
+Leçons de banc : (1) les harnais de test doivent créer un VRAI user et un
+request avec .app/.state ; (2) un critère de test naïf (« 'read_required' in
+réponse ») peut mordre sur un nom de champ — parser le JSON.

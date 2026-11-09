@@ -1300,3 +1300,34 @@ main et toute la conversation reste suspendue.
 
 Rappel : ask_user bloque volontairement (borné par timeout_ms) — inchangé.
 Justification check_patches : contrôle ÉTENDU (P65) — aucun affaiblissement.
+
+## 2026-11-09 — v0.0.33 : audit de divergence — le drift divisé par 3
+
+Directive utilisateur : rester proche de l'origine Open WebUI, ne modifier que
+le nécessaire. Audit mesuré puis RÉDUCTION exécutée (phases 1+2) :
+
+AVANT : 16 fichiers amont modifiés, +1248/-52 lignes (83 % concentrés dans
+builtin.py +549 et main.py +491).
+APRÈS : 16 fichiers, +427/-52 lignes — main.py retrouve +3 lignes (montage),
+builtin.py descend à +215 (uniquement les corrections de COMPORTEMENT).
+
+- Phase 1 : tout le bloc navigateur 📂/maintenance quitte main.py pour le
+  module AJOUTÉ android_fm.py (register_fm(app), montage à 2 lignes).
+- Phase 2 : tout le code AJOUTÉ quitte tools/builtin.py pour le module AJOUTÉ
+  tools/android_tools.py (compile_typst, delete_*/list_tools, _probe_fetch_url,
+  _pyodide_packages, _uploads_pour_sable, SANDBOX_NET_BOOTSTRAP) ; builtin.py
+  importe ces symboles (ré-export : les enregistrements utils/tools.py sont
+  inchangés).
+
+Classification maintenue : portage Android / exigences produit / corrections
+de contrats (trace des audits) — rien de superflu détecté ; le problème était
+la DISPERSION dans l'amont, désormais corrigée.
+
+VÉRIFIÉ avant livraison : compilation des 4 fichiers ; ré-export 10/10 ;
+_pyodide_packages identique ; list_tools ✓ ; découverte KB par contenu ✓ ;
+DÉMARRAGE RÉEL du serveur (health 200, /fm montée en 401, 0 traceback).
+Incident détecté par ce test : les routes empruntaient Depends/Request/
+get_verified_user au namespace de main.py — imports ajoutés au module.
+
+Justification check_patches : marqueurs suivis vers android_fm.py/
+android_tools.py + nouveau garde-fou P0 (import de montage dans builtin).

@@ -315,6 +315,30 @@ def write_searxng_version_frozen() -> None:
     PATCHES.append(("searx version_frozen (sans git)", "écrit"))
 
 
+ANDROID_TOOLS_HEADER = '''"""OpenWebUI Android — outils et helpers AJOUTÉS (hors amont).
+
+Audit de divergence 2026-11-09 : pour rester au plus proche de l'origine
+Open WebUI, tout le code AJOUTÉ par le portage vit dans ce module —
+tools/builtin.py se contente de l'importer. Les corrections de COMPORTEMENT
+des outils amont, elles, restent greffées dans builtin.py et sont justifiées
+une à une dans journal.md.
+
+Contenu : compile_typst (P11), delete_note/delete_skill/delete_tool (P29),
+delete_file/list_tools (P58/P59), _probe_fetch_url (P33), _pyodide_packages
+(P46), _uploads_pour_sable (P51), SANDBOX_NET_BOOTSTRAP (P52).
+"""
+from __future__ import annotations
+
+import logging
+
+from fastapi import Request
+
+from open_webui.utils.json_codec import JSONCodec
+
+log = logging.getLogger(__name__)
+'''
+
+
 TYPST_TOOL = '''
 
 # ---- Typst -> PDF (outil embarqué, décision D14) ----
@@ -1057,17 +1081,74 @@ def _fm_lire_version() -> str:
     return "?"
 
 
-def patch_files_manager() -> None:
-    """P26/P27 — navigateur de fichiers : le Workspace 0.13 n'a aucune section
-    « Fichiers ». Routes /fm (dossiers par type, recherche, actions), /fm/preview
-    (aperçu) et /fm/delete (suppression) — toute erreur est rendue lisible dans
-    la page au lieu d'un « internal error » muet."""
+def write_android_tools() -> None:
+    """Audit de divergence 2026-11-09 (phase 2) : tout le code AJOUTÉ quitte
+    tools/builtin.py pour tools/android_tools.py (module hors amont).
+    builtin.py ne garde que les corrections de COMPORTEMENT des outils amont
+    (justifiées au journal) et une ligne d'import."""
+    dst = DST / "tools" / "android_tools.py"
+    corps = "\n\n".join([
+        TYPST_TOOL.strip(),
+        DELETE_TOOLS.strip(),
+        EXTRA_TOOLS_2.strip(),
+        PROBE_HELPER.strip(),
+        PYODIDE_PKGS_HELPER.strip(),
+        UPLOADS_SABLE_HELPER.strip(),
+        "SANDBOX_NET_BOOTSTRAP = " + repr(SANDBOX_NET_BOOTSTRAP),
+    ])
+    dst.write_text(ANDROID_TOOLS_HEADER + corps + "\n", encoding="utf-8")
+    log("  P0 module tools/android_tools.py écrit (code ajouté sorti de builtin.py)")
+    PATCHES.append(("code ajouté → tools/android_tools.py", "écrit"))
+    replace_once(
+        DST / "tools" / "builtin.py",
+        "from open_webui.utils.json_codec import JSONCodec",
+        "from open_webui.utils.json_codec import JSONCodec\n"
+        "# P0 : code ajouté Android isolé dans un module hors amont (audit de\n"
+        "# divergence 2026-11-09) — importé ici pour les appels internes et les\n"
+        "# enregistrements d'outils.\n"
+        "from open_webui.tools.android_tools import (  # noqa: F401\n"
+        "    SANDBOX_NET_BOOTSTRAP, _probe_fetch_url, _pyodide_packages, _uploads_pour_sable,\n"
+        "    compile_typst, delete_file, delete_note, delete_skill, delete_tool, list_tools,\n"
+        ")",
+        "P0 builtin : import android_tools",
+    )
+
+
+def write_android_fm() -> None:
+    """P27 — audit de divergence 2026-11-09 (phase 1) : les routes /fm vivent
+    désormais dans un module AJOUTÉ (android_fm.py) au lieu d'être greffées
+    dans main.py — main.py redevient quasi identique à l'amont."""
+    version = _fm_lire_version()
+    corps = "\n".join(
+        ("    " + ligne if ligne.strip() else ligne)
+        for ligne in FM_CODE.replace("@@VERSION@@", version).splitlines()
+    )
+    entete = (
+        '"""OpenWebUI Android — navigateur de fichiers /fm + maintenance (P27/P31/P36).\n'
+        "\n"
+        "Module AJOUTÉ hors amont (audit de divergence 2026-11-09) : ces routes\n"
+        "vivent ici pour garder main.py identique à l'origine Open WebUI.\n"
+        '"""\n\n'
+        "from fastapi import Depends, Request\n\n"
+        "from open_webui.utils.auth import get_verified_user\n\n\n"
+        "def register_fm(app) -> None:\n"
+    )
+    (DST / "android_fm.py").write_text(entete + corps + "\n", encoding="utf-8")
+    log("  P0 module android_fm.py écrit (routes /fm sorties de main.py)")
+    PATCHES.append(("routes /fm → android_fm.py", "écrit"))
     replace_once(
         DST / "main.py",
         "@app.get('/cache/{path:path}')",
-        FM_CODE.replace("@@VERSION@@", _fm_lire_version()) + "\n@app.get('/cache/{path:path}')",
-        "P27 navigateur de fichiers /fm",
+        "# P27 : navigateur de fichiers + maintenance — module ajouté (hors amont)\n"
+        "from open_webui.android_fm import register_fm as _register_fm_android\n"
+        "_register_fm_android(app)\n\n@app.get('/cache/{path:path}')",
+        "P27 navigateur /fm (module android_fm)",
     )
+
+
+def patch_files_manager() -> None:
+    """P26/P27 — voir write_android_fm (routes déplacées hors amont)."""
+    write_android_fm()
 
 
 def patch_files_button() -> None:
@@ -1122,7 +1203,7 @@ def patch_delete_tools() -> None:
     if "async def delete_note(" in text:
         log("  P29 delete_* : déjà appliqué")
     else:
-        builtin.write_text(text + "\n\n" + DELETE_TOOLS, encoding="utf-8")
+        builtin.write_text(text, encoding="utf-8")  # code fourni par tools/android_tools.py
         log("  P29 outils delete_note/delete_skill/delete_tool ajoutés")
         PATCHES.append(("outils delete_note/delete_skill/delete_tool", "ajoutés"))
     replace_once(DST / "utils" / "tools.py",
@@ -1153,7 +1234,7 @@ def patch_tool_status() -> None:
     if "_probe_fetch_url" in text:
         log("  P33 sonde HTTP fetch_url : déjà appliqué")
     else:
-        builtin.write_text(text + "\n\n" + PROBE_HELPER, encoding="utf-8")
+        log("  P33/P46/P51/P52 helpers : fournis par tools/android_tools.py")
         log("  P33 sonde HTTP de fetch_url ajoutée")
     replace_once(
         builtin,
@@ -1533,7 +1614,7 @@ def patch_pyodide_detection() -> None:
     if "_pyodide_packages(" in text:
         log("  P46a détection paquets : déjà appliqué")
     else:
-        builtin.write_text(text + "\n\n" + PYODIDE_PKGS_HELPER, encoding="utf-8")
+        log("  P46a détection paquets : fournie par tools/android_tools.py")
         log("  P46a détection serveur des paquets ajoutée")
     replace_once(
         builtin,
@@ -1659,7 +1740,7 @@ def patch_sandbox_hardening() -> None:
         log("  P51/P52 helpers bac à sable : déjà appliqués")
     else:
         decl = "SANDBOX_NET_BOOTSTRAP = " + repr(SANDBOX_NET_BOOTSTRAP) + "\n"
-        builtin.write_text(text + "\n\n" + UPLOADS_SABLE_HELPER + "\n" + decl, encoding="utf-8")
+        log("  P51/P52 helpers bac à sable : fournis par tools/android_tools.py")
         log("  P51/P52 helpers bac à sable ajoutés")
     replace_once(
         builtin,
@@ -1808,7 +1889,7 @@ def patch_audit_suite() -> None:
     if "async def delete_file(" in text:
         log("  P58/P59 delete_file/list_tools : déjà appliqué")
     else:
-        builtin.write_text(text + "\n\n" + EXTRA_TOOLS_2, encoding="utf-8")
+        log("  P58/P59 delete_file/list_tools : fournis par tools/android_tools.py")
         log("  P58/P59 outils delete_file/list_tools ajoutés")
     # P55 — moteur du modèle normalisé (search_knowledge_files agrégé)
     replace_once(
@@ -2129,7 +2210,7 @@ def patch_typst_tool() -> None:
     if "async def compile_typst(" in text:
         log("  P11 compile_typst: déjà appliqué")
     else:
-        builtin.write_text(text + TYPST_TOOL, encoding="utf-8")
+        log("  P11 compile_typst : fourni par tools/android_tools.py")
         log("  P11 compile_typst: ajouté à tools/builtin.py")
         PATCHES.append(("outil compile_typst", "ajouté"))
     replace_once(
@@ -2673,6 +2754,7 @@ def main() -> int:
     patch_files_manager()
     patch_files_mnt_alias()
     patch_files_button()
+    write_android_tools()
     patch_typst_tool()
     patch_delete_tools()
     patch_tool_status()

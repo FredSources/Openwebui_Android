@@ -81,3 +81,6 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [ ] Mode « Connecter à un serveur » en plus du mode local (comme SprintGPT)
 - [ ] Mise à jour in-app de l'APK via GitHub Releases
 - [ ] Widget Android « nouveau chat »
+- [x] Journaux d'activité dans /fm (P94) : consultation + téléchargement
+      (fichier / zip), journal `execute_code` avec stderr sur échec — testé
+      (module 12/12, routes réelles harnais 8090, rendu mobile capturé)

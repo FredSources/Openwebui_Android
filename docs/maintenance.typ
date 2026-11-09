@@ -195,6 +195,7 @@ propriété Gradle `android.aapt2FromMavenOverride` et le remplacement de
   [Foreground service], [`ServerService.java`], [le serveur survit au passage en arrière-plan],
   [Fichier de configuration `data/openwebui.env`], [`android_main.py`], [variables `KEY=VALUE` chargées au démarrage, sans rebuild],
   [Notification de permission contextuelle], [`MainActivity`], [demande micro/caméra à l'appel `getUserMedia`, pas seulement au lancement],
+  [Journaux d'activité (P94)], [`src/open_webui/android_logs.py`], [`data/logs/serveur.log` (logging Python complet, tracebacks compris) + `data/logs/exec.log` (journal des exécutions `execute_code` : moteur, statut, délai, extrait stderr sur échec) ; rotation par taille, noms en liste blanche ; consultation et téléchargement (fichier ou zip) dans `/fm` → Journaux, erreurs surlignées, accès authentifié],
 )
 
 = Patchs du code amont <sec-patches>

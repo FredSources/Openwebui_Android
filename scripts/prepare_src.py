@@ -577,6 +577,14 @@ def patch_files_mnt_alias() -> None:
 
 
 FM_CODE = '''
+# P94 : capture des journaux Python (data/logs/serveur.log) dès le démarrage
+# du noyau — consultables/téléchargeables depuis /fm → Journaux.
+try:
+    from open_webui import android_logs as _allog
+    _allog.install()
+except Exception:
+    pass
+
 _FM_VERSION = "@@VERSION@@"
 import html as _html
 import traceback as _tb
@@ -637,6 +645,9 @@ _FM_STYLE = """
   .ver { position: fixed; left: 10px; bottom: 6px; color: var(--muted); font-size: 10px; opacity: .7; }
   .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; }
   .srv { font-size: 13.5px; margin: 0 0 6px; }
+  .logbox { background: var(--side); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: 12px/1.5 ui-monospace, "SF Mono", Consolas, monospace; white-space: pre-wrap; word-break: break-word; max-height: 60vh; overflow-y: auto; }
+  .err { color: var(--danger); font-weight: 600; }
+  .logtable td:nth-child(4), .logtable th:nth-child(4) { display: table-cell; }
   .settings { max-width: 780px; margin: 0 auto; padding-bottom: 60px; }
   .card { border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; margin: 14px 0; background: var(--panel); }
   .card h2 { font-size: .95rem; margin: 0 0 2px; font-weight: 600; }
@@ -923,7 +934,8 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
         tabs = [("all", "\\U0001f4c1 Tous"), ("pdf", "\\U0001f4c4 PDF"), ("img", "\\U0001f5bc Images"),
                 ("doc", "\\U0001f4c3 Documents"), ("other", "\\U0001f4e6 Autres"),
                 ("settings", "\\u2699\\ufe0f Param\\u00e8tres"),
-                ("maintenance", "\\U0001f6e0\\ufe0f Maintenance")]
+                ("maintenance", "\\U0001f6e0\\ufe0f Maintenance"),
+                ("logs", "&#128220; Journaux")]
         side = "".join(
             f"<a href=\\"/fm?folder={k}&q={_quote(q)}\\" class=\\"{'on' if k == folder else ''}\\">{label}</a>"
             for k, label in tabs
@@ -995,6 +1007,10 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
 <p class="sub">Toute autre variable, une par ligne au format KEY=VALUE.</p>
 <textarea name="extras" spellcheck="false" class="envbox">@@RESTE@@</textarea>
 </div>
+<div class="card"><h2>&#128220; Journaux</h2>
+<p class="sub">Activité du serveur, erreurs <code>execute_code</code> et autres — à consulter ou télécharger pour analyse.</p>
+<a class="btn" href="/fm?folder=logs">Consulter les journaux</a>
+</div>
 <div class="bar" style="margin-top:18px">
 <button class="primary">&#128190; Enregistrer les réglages</button>
 <button type="button" class="ghost" onclick="svc(&quot;openwebui&quot;,&quot;run&quot;)">&#9654; Open WebUI</button>
@@ -1016,6 +1032,45 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
             page = page.replace('@@DOT_OW@@', '#22c55e' if st.get('openwebui') == 'actif' else 'var(--muted)')
             page = page.replace('@@DOT_SX@@', '#22c55e' if st.get('searxng') == 'actif' else 'var(--muted)')
             return _HTMLResponse(_fm_page(page, 'Paramètres'))
+        if folder == 'logs':
+            from open_webui import android_logs as _al
+            sel = (request.query_params.get('log') or '').strip() or 'serveur.log'
+            try:
+                limite = max(20, min(int(request.query_params.get('n') or 300), 1000))
+            except Exception:
+                limite = 300
+            journaux = _al.fichiers()
+            rows_log = "".join(
+                "<tr><td>" + _html.escape(f['nom']) + "</td><td>" + _fm_size(f['taille']) + "</td>"
+                "<td>" + _html.escape(f['modifie']) + "</td><td style='white-space:nowrap'>"
+                "<a class='btn2 btn' href='/fm?folder=logs&log=" + _quote(f['nom']) + "'>Voir</a> "
+                "<a class='btn' href='/fm/logs/download?name=" + _quote(f['nom']) + "'>Télécharger</a>"
+                "</td></tr>"
+                for f in journaux
+            ) or "<tr><td colspan='4' class='empty'>Aucun journal pour l'instant.</td></tr>"
+            contenu = _al.lecture(sel, limite)
+            jl = []
+            for _l in (contenu.splitlines() or ["(journal vide)"]):
+                _e = _html.escape(_l)
+                if any(m in _l for m in (' ERROR ', 'CRITICAL', 'Traceback (most recent', 'EXCEPTION ')):
+                    _e = "<span class='err'>" + _e + "</span>"
+                jl.append(_e)
+            inner = (
+                "<div class='wrap'><div class='side'>" + side + "</div><div class='main'>"
+                "<h1>&#128220; Journaux</h1>"
+                "<div class='bar'><a class='btn' href='/fm?folder=settings'>&#8592; Paramètres</a>"
+                "<a class='btn2 btn' href='/fm?folder=logs&log=" + _quote(sel) + "'>&#8635; Rafraîchir</a>"
+                "<a class='btn' href='/fm/logs/download?all=1'>&#128229; Tout télécharger (zip)</a></div>"
+                "<table class='logtable'><thead><tr><th>Nom</th><th>Taille</th><th>Modifié</th><th>Actions</th></tr></thead><tbody>"
+                + rows_log + "</tbody></table>"
+                "<h2 style='font-size:1rem;margin:16px 0 8px'>" + _html.escape(sel) + " — dernières "
+                + str(limite) + " lignes</h2>"
+                "<pre class='logbox'>" + "<br>".join(jl) + "</pre>"
+                "<p class='sub'>Journaux complets téléchargeables ci-dessus : tracebacks Python "
+                "(dont les erreurs <code>execute_code</code>), erreurs uvicorn et activité des services.</p>"
+                "</div></div>"
+            )
+            return _HTMLResponse(_fm_page(inner, "Journaux"))
         if folder == 'maintenance':
             import os as _os3
             from open_webui.config import DATA_DIR as _DD
@@ -1232,6 +1287,29 @@ async def fm_delete_raw(request: Request, user=Depends(get_verified_user)):
         pass
     return _Redirect('/fm', status_code=303)
 
+
+@app.get('/fm/logs/download')
+async def fm_logs_download(request: Request, user=Depends(get_verified_user)):
+    """P94 — telecharge un journal (nom de base) ou tous les journaux (zip)."""
+    from open_webui import android_logs as _al
+    from fastapi.responses import FileResponse as _FR, Response as _Resp
+
+    if (request.query_params.get('all') or '').strip():
+        import io as _io
+        import zipfile as _zip
+        tampon = _io.BytesIO()
+        with _zip.ZipFile(tampon, 'w', _zip.ZIP_DEFLATED) as zf:
+            for f in _al.fichiers():
+                p = _al.chemin(f['nom'])
+                if p is not None:
+                    zf.write(p, f['nom'])
+        return _Resp(tampon.getvalue(), media_type='application/zip',
+                     headers={'Content-Disposition': 'attachment; filename="journaux-openwebui-android.zip"'})
+    p = _al.chemin((request.query_params.get('name') or '').strip())
+    if p is None:
+        return _HTMLResponse(_fm_page("<h1>Journal introuvable</h1><a href='/fm?folder=logs'>&#8592; journaux</a>"), status_code=404)
+    return _FR(p, filename=p.name, media_type='text/plain')
+
 '''
 
 
@@ -1279,6 +1357,170 @@ def write_android_tools() -> None:
         ")",
         "P0 builtin : import android_tools",
     )
+
+
+LOG_CODE = '''"""OpenWebUI Android — journaux d'activité (P94).
+
+Module AJOUTÉ hors amont : capture les journaux Python (uvicorn, open_webui,
+android_main, execute_code) dans data/logs/*.log pour les consulter et les
+télécharger depuis /fm → Journaux. Stdlib seule, rotation par taille.
+"""
+
+import logging
+import os
+import re
+import threading
+from datetime import datetime
+from pathlib import Path
+
+_lock = threading.Lock()
+_dir_cache = None
+_taille_max = 1_200_000
+_installe = False
+_VALID = re.compile(r"^(serveur|exec)\\.log(\\.\\d)?$")
+
+
+def _dir() -> Path:
+    global _dir_cache
+    if _dir_cache is None:
+        d = os.environ.get("OWUI_LOGS_DIR")
+        if not d:
+            from open_webui.config import DATA_DIR
+            d = Path(DATA_DIR) / "logs"
+        d = Path(d)
+        d.mkdir(parents=True, exist_ok=True)
+        _dir_cache = d
+    return _dir_cache
+
+
+def chemin(nom: str):
+    """Chemin sur d'un journal (nom de base accepte, sinon None)."""
+    nom = os.path.basename((nom or "").strip())
+    if not _VALID.match(nom):
+        return None
+    p = _dir() / nom
+    return p if p.is_file() else None
+
+
+def _rotation(chemin_f) -> None:
+    try:
+        if chemin_f.exists() and chemin_f.stat().st_size >= _taille_max:
+            a1 = chemin_f.parent / (chemin_f.name + ".1")
+            a2 = chemin_f.parent / (chemin_f.name + ".2")
+            if a1.exists():
+                a1.replace(a2)
+            chemin_f.replace(a1)
+    except Exception:
+        pass
+
+
+def _ecrire(nom: str, ligne: str) -> None:
+    try:
+        p = _dir() / nom
+        with _lock:
+            _rotation(p)
+            with open(p, "a", encoding="utf-8") as f:
+                f.write(ligne)
+    except Exception:
+        pass
+
+
+def journal(source: str, message: str, niveau: str = "INFO") -> None:
+    """Ligne horodatee dans serveur.log (evenements hors logging)."""
+    _ecrire("serveur.log", "[%s] %s %s: %s\\n" % (
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"), niveau, source, message))
+
+
+def journal_exec(message: str) -> None:
+    """Ligne horodatee dans exec.log (journal des executions execute_code)."""
+    _ecrire("exec.log", "[%s] %s\\n" % (
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"), message))
+
+
+class _Handler(logging.Handler):
+    """Handler fichier : message formate (traceback inclus) dans serveur.log."""
+
+    def emit(self, record):
+        try:
+            texte = self.format(record)
+        except Exception:
+            texte = record.getMessage()
+        _ecrire("serveur.log", "[%s] %s %s: %s\\n" % (
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            record.levelname, record.name, texte))
+
+
+def install() -> None:
+    """Branche la capture fichier sur les loggeurs de l'app (idempotent).
+    Aucun niveau n'est change : seul un handler supplementaire est ajoute."""
+    global _installe
+    if _installe:
+        return
+    _installe = True
+    try:
+        h = _Handler()
+        h.setFormatter(logging.Formatter("%(message)s"))
+        for nom in ("", "uvicorn", "uvicorn.error", "uvicorn.access", "android_main"):
+            logging.getLogger(nom).addHandler(h)
+    except Exception:
+        pass
+
+
+def fichiers() -> list:
+    """Liste des journaux (nom, taille, date) — rotations comprises."""
+    sortie = []
+    try:
+        for p in sorted(_dir().iterdir()):
+            if not _VALID.match(p.name):
+                continue
+            st = p.stat()
+            sortie.append({
+                "nom": p.name,
+                "taille": st.st_size,
+                "modifie": datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+            })
+        sortie.sort(key=lambda f: f["nom"])
+    except Exception:
+        pass
+    return sortie
+
+
+def lecture(nom: str, lignes: int = 300) -> str:
+    """Dernieres lignes d'un journal (lecture tronquee a ~400 Ko)."""
+    p = chemin(nom)
+    if p is None:
+        return ""
+    try:
+        with open(p, "r", encoding="utf-8", errors="replace") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - 400_000))
+            brut = f.read()
+        return "\\n".join(brut.splitlines()[-max(1, lignes):])
+    except Exception:
+        return ""
+
+
+def supprimer(nom: str) -> bool:
+    p = chemin(nom)
+    if p is None:
+        return False
+    try:
+        p.unlink()
+        return True
+    except Exception:
+        return False
+'''
+
+
+def write_android_logs() -> None:
+    """P94 — journaux d'activité (demande utilisateur : « voir les log de ce
+    qui se passe et les télécharger pour analyser l'erreur execute_code et
+    autre »). Module ajouté hors amont : data/logs/serveur.log (logging
+    complet, tracebacks compris) + data/logs/exec.log (journal des exécutions),
+    consultables et téléchargeables depuis /fm → Journaux."""
+    (DST / "android_logs.py").write_text(LOG_CODE, encoding="utf-8")
+    log("  P94 module android_logs.py écrit (journaux serveur/exec)")
+    PATCHES.append(("module journaux → android_logs.py", "écrit"))
 
 
 def write_android_fm() -> None:
@@ -1484,6 +1726,35 @@ def patch_tool_status() -> None:
             'result': result,
         }""",
         "P34 execute_code : status réel",
+    )
+    replace_once(
+        builtin,
+        """        return JSONCodec.dumps(response, ensure_ascii=False)
+    except Exception as e:
+        log.exception(f'execute_code error: {e}')
+        return JSONCodec.dumps({'error': str(e)})""",
+        """        # P94 : journal des exécutions — consultable/téléchargeable dans /fm →
+        # Journaux (analyse des erreurs execute_code et autres).
+        try:
+            from open_webui.android_logs import journal_exec as _jx
+            _resume = "%s %s delai=%ss out=%sB err=%sB files=%s" % (
+                engine, response["status"], delai_exec,
+                len(stdout or ""), len(stderr or ""), len(fichiers_sortie))
+            if echec:
+                _resume += " | " + (stderr or "").strip()[-1500:]
+            _jx(_resume)
+        except Exception:
+            pass
+        return JSONCodec.dumps(response, ensure_ascii=False)
+    except Exception as e:
+        log.exception(f'execute_code error: {e}')
+        try:
+            from open_webui.android_logs import journal_exec as _jx2
+            _jx2("EXCEPTION %s: %s" % (type(e).__name__, e))
+        except Exception:
+            pass
+        return JSONCodec.dumps({'error': str(e)})""",
+        "P94 execute_code : journal exec.log",
     )
 
 
@@ -3205,6 +3476,7 @@ def main() -> int:
     patch_files_mnt_alias()
     patch_files_button()
     write_android_tools()
+    write_android_logs()
     patch_typst_tool()
     patch_delete_tools()
     patch_tool_status()

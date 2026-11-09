@@ -1657,3 +1657,40 @@ Contenu de la version : noyau fiable (P88 v2, sonde JS bornée), Paramètres
 avec retour au navigateur (P91) + puces de statut réelles (P92), boutons
 flottants déplaçables (P90), timeout execute_code borné et réglable
 (P65/P66/P87), accusé d'exécution (P85).
+
+## 2026-11-09 — P94 : journaux d'activité consultables/téléchargeables dans /fm (demande utilisateur)
+
+Demande : « ajouter dans les paramètres une possibilité de voir les log de ce
+qui se passe et de les télécharger pour analyser l'erreur execute_code et autre ».
+
+Implémentation (ajouts hors amont, tout pilote depuis prepare_src.py) :
+1. Module dédié android_logs.py : capture le logging Python complet (uvicorn,
+   open_webui, android_main — tracebacks compris) dans data/logs/serveur.log
+   et les exécutions dans data/logs/exec.log ; rotation par taille (1,2 Mo ×3),
+   noms de fichiers en liste blanche (traversal impossible), stdlib seule.
+2. Patch amont minimal et justifié (builtin.py, P94) : chaque execute_code
+   écrit une ligne exec.log (moteur, statut réel P34, délai, tailles, extrait
+   stderr 1500 car. sur échec) ; les exceptions y sont journalisées ; le tout
+   enveloppé try/except — l'outil ne peut jamais échouer à cause du journal.
+3. UI /fm : entrée « Journaux » dans la barre latérale, carte Journaux dans
+   Paramètres (demande « dans les paramètres »), page d'aperçu (dernières
+   lignes, erreurs surlignées), téléchargement par fichier ou tout en zip
+   (auth requise), bouton Rafraîchir.
+4. Garde attitré : 9 marqueurs P94 ajoutés à check_patches.py (module,
+   handler, rotation, journal builtin, install, page, téléchargement, bouton).
+
+Validation en réel :
+- module : 12/12 (écriture/lecture, traceback capturé, traversal/noms abs
+  refusés, rotation, suppression) ;
+- routes sur serveur réel (harnais FastAPI + android_fm généré, port 8090,
+  jamais 8080) : page journaux ✓, bouton Paramètres ✓, téléchargement
+  attachment ✓, traversal 404 ✓, zip complet ✓ ;
+- rendu mobile 390×760 capturé et lu : la CSS responsive du navigateur
+  masquait la colonne Actions — override .logtable ajouté (bouton
+  Télécharger par journal désormais visible sur téléphone).
+
+Pièges du harnais (à rejouer si re-test) : WEBUI_SECRET_KEY, DATA_DIR et
+DATABASE_URL doivent être posés (sinon SystemExit d'env.py ou SQLite
+introuvable), le stub open_webui.utils doit pointer vers le vrai répertoire
+(sinon json_codec « introuvable »), et les tables sont créées par
+Base.metadata.create_all (migrations alembic non rejouées).

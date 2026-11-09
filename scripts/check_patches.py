@@ -63,6 +63,14 @@ CHECKS = [
     ("P58 list_tools", "open_webui/tools/android_tools.py", "async def list_tools("),
     ("P59 delete_file", "open_webui/tools/android_tools.py", "async def delete_file("),
     ("P65 délai garanti execute_code", "open_webui/tools/builtin.py", "timeout=320"),
+    ("P94 module journaux", "open_webui/android_logs.py", "def journal_exec("),
+    ("P94 handler fichier journaux", "open_webui/android_logs.py", "class _Handler(logging.Handler)"),
+    ("P94 rotation par taille", "open_webui/android_logs.py", "def _rotation("),
+    ("P94 journal execute_code (builtin)", "open_webui/tools/builtin.py", "P94 : journal des exécutions"),
+    ("P94 capture au démarrage (/fm)", "open_webui/android_fm.py", "_allog.install()"),
+    ("P94 page journaux (/fm)", "open_webui/android_fm.py", "if folder == 'logs':"),
+    ("P94 téléchargement journaux", "open_webui/android_fm.py", "async def fm_logs_download("),
+    ("P94 bouton journaux (paramètres)", "open_webui/android_fm.py", "Consulter les journaux"),
 ]
 
 

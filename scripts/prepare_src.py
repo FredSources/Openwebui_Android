@@ -1664,6 +1664,18 @@ def patch_pyodide_detection() -> None:
     )
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
+        'Me(u.id,u.code,i,u.files||[],u.packages||[]);return}',
+        'Me(u.id,u.code,i,u.files||[],u.packages||[]).catch(e=>{try{i&&i({error:"execute_code frontend: "+(e&&e.message||e)})}catch(x){}});return}',
+        "P85a frontend : échec de Me acquitté (plus d'attente infinie)",
+    )
+    _patch_first_match(
+        str(root / "nodes" / "0.*.js"),
+        "!pe().has(t.chat_id)))return;",
+        '!pe().has(t.chat_id))){try{i&&i({error:"event dropped: conversation non active dans cet onglet"})}catch(e){}return;}',
+        "P85b frontend : événement écarté acquitté explicitement",
+    )
+    _patch_first_match(
+        str(root / "nodes" / "0.*.js"),
         "Me=async(t,i,F,P=[])",
         "Me=async(t,i,F,P=[],X=[])",
         "P46d frontend : signature Me étendue",
@@ -2169,10 +2181,10 @@ def patch_event_timeout() -> None:
         """            )
 
             # Parse the output - pyodide returns dict with stdout, stderr, result""",
-        """            ), timeout=200)
+        """            ), timeout=320)
             except asyncio.TimeoutError:
                 return JSONCodec.dumps(
-                    {'error': "Délai dépassé (200 s) : le bac à sable n'a pas répondu "
+                    {'error': "Délai dépassé (320 s) : le bac à sable n'a pas répondu "
                               "(démarrage ou session perdue) — réessayez, le noyau se relance."},
                     ensure_ascii=False)
 
@@ -2183,7 +2195,7 @@ def patch_event_timeout() -> None:
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
         ',Xt.set(null),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h},(v,E)=>typeof E=="bigint"?E.toString():E))))},6e4);',
-        ',Xt.set(null),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h},(v,E)=>typeof E=="bigint"?E.toString():E))))},18e4);',
+        ',Xt.set(null),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h},(v,E)=>typeof E=="bigint"?E.toString():E))))},3e5);',
         "P66 frontend : délai d'exécution 60s → 180s",
     )
 

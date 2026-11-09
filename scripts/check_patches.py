@@ -60,7 +60,7 @@ CHECKS = [
     ("P57 write_note auto-lecture", "open_webui/tools/builtin.py", "P57 : la note vient d'être écrite"),
     ("P58 list_tools", "open_webui/tools/android_tools.py", "async def list_tools("),
     ("P59 delete_file", "open_webui/tools/android_tools.py", "async def delete_file("),
-    ("P65 délai garanti execute_code", "open_webui/tools/builtin.py", "timeout=200"),
+    ("P65 délai garanti execute_code", "open_webui/tools/builtin.py", "timeout=320"),
 ]
 
 

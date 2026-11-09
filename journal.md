@@ -1507,3 +1507,22 @@ jusqu'au rechargement. Le symptôme « un nouveau message ne suffit pas » colle
 Réerves de l'audit actées : create_tool invocable seulement dans un chat
 attaché (documenté en P76) ; timer auto-annulable (mécanisme voulu) ;
 ask_user non testé (bloquant par nature).
+
+## 2026-11-09 — v0.0.41 : « Délai dépassé » sur les appels lourds — le vrai trou : un ack manquant (P85/P86)
+
+Test utilisateur : un execute_code lourd (numpy+pandas+matplotlib + graphe)
+renvoyait « Délai dépassé (200 s) ». Investigation : le `disconnect` retire
+bien les sessions du pool (vérifié) — donc le sid mort n'était pas en cause.
+Le vrai trou : quand le frontend NE RÉPOND PAS (échec silencieux de Me —
+worker qui refuse de se créer — ou événement écarté car conversation non
+active dans l'onglet), `sio.call(..., timeout=None)` attend indéfiniment ;
+seul mon plafond backend (200 s) bornait, d'où son message.
+
+- P85 : le frontend acquitte TOUJOURS — succès, ou erreur explicite
+  (« execute_code frontend: … » / « event dropped : conversation non active
+  dans cet onglet »). Plus jamais d'attente muette.
+- P86 : plafonds relevés pour le travail lourd (premier appel matplotlib
+  = installation wasm) : frontend 180→300 s, backend 200→320 s. Les appels
+  légers restent instantanés (8-19 ms mesurés).
+
+Marqueur check_patches P65 mis à jour (200→320) — justifié ci-dessus.

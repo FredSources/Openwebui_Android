@@ -75,6 +75,11 @@ CHECKS = [
     ("P95 reprise branchée (builtin)", "open_webui/tools/builtin.py", "_appel_reprise(__event_call__"),
     ("P95 suite flux live (journaux)", "open_webui/android_logs.py", "def suite("),
     ("P95 route flux live (/fm)", "open_webui/android_fm.py", "async def fm_logs_live("),
+    ("P96 create_tool contrainte id", "open_webui/tools/builtin.py", "lowercase letters, digits and underscores ONLY"),
+    ("P96 update_calendar start/end", "open_webui/tools/builtin.py", "pass BOTH start and end"),
+    ("P96 liste outils publics (sans _)", "open_webui/tools/android_tools.py", "not n.startswith('_')"),
+    ("P96 trace entrée execute_code", "open_webui/tools/builtin.py", "DEBUT execute_code"),
+    ("P96 trace timeout execute_code", "open_webui/tools/builtin.py", "TIMEOUT 320s"),
 ]
 
 

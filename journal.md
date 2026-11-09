@@ -1750,3 +1750,21 @@ contrôle 9 ✓ (assets nommés 0.0.46 sous le tag v0.0.46). Contenu : reprise
 « Client session disconnected » branchée (P95), timeout fonctionnel (P87),
 P41/P94 externalisés dans android_tools (builtin 249→223 lignes), journaux
 avec flux live + désactivation OWUI_LOGS.
+
+## 2026-11-10 — v0.0.47 : anomalies outils corrigées + traçabilité execute_code
+
+Rapport d'anomalies utilisateur traité :
+1. create_tool : la contrainte d'id (alphanumérique + underscores, pas de
+   tiret) est maintenant annoncée dans la description — « diag-test-tool »
+   était rejeté sans explication (source d'échec silencieux).
+2. list_tools : __init__ et les fonctions _privées ne sont plus exposées
+   comme « fonctions appelables » (inventaire trompeur).
+3. update_calendar_event : documenté « passer start ET end ensemble » (le
+   comportement « champs partiels appliqués tels quels » est confirmé, pas un
+   bug — réserve levée).
+
+Traçabilité execute_code (diagnostic du « curseur sans fin ») : trace
+d'ENTRÉE (DEBUT execute_code delai=…) + trace TIMEOUT 320s. Auparavant le
+journal n'était écrit qu'à la SORTIE : un blocage laissait un log vide.
+Désormais, au prochain test : « DEBUT » sans sortie = blocage dans l'outil ;
+rien = l'outil n'est pas invoqué (le blocage est en amont).

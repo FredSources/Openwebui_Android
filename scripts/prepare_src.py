@@ -1415,7 +1415,7 @@ def write_android_tools() -> None:
         "from open_webui.tools.android_tools import (  # noqa: F401\n"
         "    SANDBOX_NET_BOOTSTRAP, _probe_fetch_url, _pyodide_packages, _uploads_pour_sable,\n"
         "    compile_typst, delete_file, delete_note, delete_skill, delete_tool, list_files, list_tools,\n"
-        "    journal_exec_appel, journal_exec_exception, remonte_fichiers_sable,\n"
+        "    journal_exec_appel, journal_exec_exception, journal_exec_ligne, remonte_fichiers_sable,\n"
         ")",
         "P0 builtin : import android_tools",
     )
@@ -1736,6 +1736,18 @@ def patch_delete_tools() -> None:
         "        builtin_functions.append(create_skill)",
         "        builtin_functions.append(create_skill)\n        builtin_functions.append(delete_skill)",
         "P29d registrement delete_skill")
+    replace_once(builtin,
+        '''    :param id: Unique lowercase Python identifier for the toolkit.''',
+        '''    :param id: Unique identifier — lowercase letters, digits and underscores ONLY (a-z, 0-9, _), e.g. "diag_test_tool" NOT "diag-test-tool" (hyphens/spaces are rejected).''',
+        "P96 create_tool : contrainte d'id documentée")
+    replace_once(builtin,
+        '''    Update an existing calendar event. Only provided fields are changed;
+    omitted fields stay the same.''',
+        '''    Update an existing calendar event. Only provided fields are changed;
+    omitted fields stay the same. To MOVE an event, pass BOTH start and end
+    together (changing only start leaves end unchanged, which can make the
+    interval incoherent).''',
+        "P96 update_calendar_event : start/end à passer ensemble")
 
 
 def patch_tool_status() -> None:
@@ -2114,6 +2126,16 @@ async def appel_avec_reprise(event_call, payload, tentatives: int = 16, pause: f
 
 
 EXEC_LOG_HELPER = '''
+def journal_exec_ligne(msg) -> None:
+    """P96 — trace d'exécution (entrée, timeout, erreur) dans exec.log.
+    Ne lève JAMAIS : le journal ne doit pas casser l'outil."""
+    try:
+        from open_webui.android_logs import journal_exec
+        journal_exec(str(msg))
+    except Exception:
+        pass
+
+
 def remonte_fichiers_sable(output) -> list:
     """P41 — remontée des fichiers écrits dans /mnt/uploads vers le dossier
     uploads de l'app (le prompt système promet « écrivez dans /mnt/uploads/
@@ -2370,7 +2392,8 @@ def patch_sandbox_hardening() -> None:
         try:
             delai_exec = max(10, min(int(timeout or 120), 600))
         except Exception:
-            delai_exec = 120""",
+            delai_exec = 120
+        journal_exec_ligne("DEBUT execute_code delai=%ss" % delai_exec)""",
         "P52a execute_code : bootstrap réseau",
     )
     replace_once(
@@ -2530,7 +2553,7 @@ async def list_tools(
     """
     List workspace tools and the functions they expose — to verify a creation or a deletion.
 
-    :return: JSON list of tools with id, name, and exposed function names
+    :return: JSON list of tools with id, name, and exposed public function names (private names starting with _ are hidden)
     """
     try:
         import re as _re
@@ -2539,7 +2562,7 @@ async def list_tools(
         out = []
         for t in await Tools.get_tools():
             contenu = getattr(t, 'content', '') or ''
-            fns = sorted(set(_re.findall(r'^\\s*(?:async )?def ([A-Za-z_]\\w*)\\s*\\(', contenu, _re.M)))
+            fns = sorted(set(n for n in _re.findall(r'^\\s*(?:async )?def ([A-Za-z_]\\w*)\\s*\\(', contenu, _re.M) if not n.startswith('_')))
             out.append({'id': t.id, 'name': t.name, 'functions': fns})
         return JSONCodec.dumps(out, ensure_ascii=False)
     except Exception as e:
@@ -2778,6 +2801,7 @@ def patch_event_timeout() -> None:
             # Parse the output - pyodide returns dict with stdout, stderr, result""",
         """            ), timeout=320)
             except asyncio.TimeoutError:
+                journal_exec_ligne("TIMEOUT 320s : bac a sable muet")
                 return JSONCodec.dumps(
                     {'error': "Délai dépassé (320 s) : le bac à sable n'a pas répondu "
                               "(démarrage ou session perdue) — réessayez, le noyau se relance."},

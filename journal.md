@@ -1282,3 +1282,21 @@ positionnement exact (présent dans la bonne fonction, absent de l'autre).
 Note : la recommandation de renommer la KB « Test » avec une description
 métier est côté utilisateur (les outils cherchent désormais le contenu, mais
 un nom explicite reste le meilleur levier de découverte).
+
+## 2026-11-09 — v0.0.32 : « Génération en cours… » qui ne s'arrête jamais
+
+Rapport utilisateur : pendant un audit multi-outils parallèles, la génération
+restait suspendue indéfiniment. Cause : execute_code attend le bac à sable via
+un appel d'événement SANS DÉLAI — si le noyau ne répond jamais (session
+perdue, événement ignoré, démarrage interminable), l'outil ne rend jamais la
+main et toute la conversation reste suspendue.
+
+- P65 : délai garanti côté serveur — `asyncio.wait_for(..., timeout=200)` sur
+  l'appel d'événement d'execute_code ; passé ce délai, l'outil REND une erreur
+  explicite (« Délai dépassé (200 s)… le noyau se relance ») et la génération
+  reprend. Aucun outil ne peut plus suspendre une conversation indéfiniment.
+- P66 : le délai frontend d'exécution passait de 60 s à 180 s — le premier
+  démarrage charge numpy/pandas/sympy (wasm) et tuait les appels légitimes.
+
+Rappel : ask_user bloque volontairement (borné par timeout_ms) — inchangé.
+Justification check_patches : contrôle ÉTENDU (P65) — aucun affaiblissement.

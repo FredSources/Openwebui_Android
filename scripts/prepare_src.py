@@ -1976,6 +1976,48 @@ def patch_audit_suite() -> None:
     )
 
 
+def patch_event_timeout() -> None:
+    """P65/P66 — « Génération en cours… » qui ne s'arrête jamais (rapport
+    utilisateur) : un appel execute_code sans réponse du bac à sable (session
+    perdue, événement ignoré, démarrage interminable) laissait la conversation
+    suspendue indéfiniment. P65 : délai garanti côté serveur (200 s) — l'outil
+    REND TOUJOURS la main. P66 : délai frontend relevé de 60 s à 180 s (le
+    premier démarrage charge numpy/pandas/sympy : 60 s tuaient les appels
+    légitimes)."""
+    builtin = DST / "tools" / "builtin.py"
+    replace_once(
+        builtin,
+        "            output = await __event_call__(",
+        """            # P65 : délai garanti — sans réponse du bac à sable, cet outil ne
+            # rendait JAMAIS la main et la génération restait suspendue.
+            try:
+                output = await asyncio.wait_for(__event_call__(""",
+        "P65a execute_code : wait_for posé",
+    )
+    replace_once(
+        builtin,
+        """            )
+
+            # Parse the output - pyodide returns dict with stdout, stderr, result""",
+        """            ), timeout=200)
+            except asyncio.TimeoutError:
+                return JSONCodec.dumps(
+                    {'error': "Délai dépassé (200 s) : le bac à sable n'a pas répondu "
+                              "(démarrage ou session perdue) — réessayez, le noyau se relance."},
+                    ensure_ascii=False)
+
+            # Parse the output - pyodide returns dict with stdout, stderr, result""",
+        "P65b execute_code : retour garanti après délai",
+    )
+    root = DST / "frontend" / "_app" / "immutable"
+    _patch_first_match(
+        str(root / "nodes" / "0.*.js"),
+        ',Xt.set(null),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h},(v,E)=>typeof E=="bigint"?E.toString():E))))},6e4);',
+        ',Xt.set(null),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h},(v,E)=>typeof E=="bigint"?E.toString():E))))},18e4);',
+        "P66 frontend : délai d'exécution 60s → 180s",
+    )
+
+
 def patch_search_files() -> None:
     """P48 — search_knowledge_files (audit 22:59) : le matching était un ILIKE
     SQL brut — « rapport vulnerabilites » ne trouvait jamais
@@ -2646,6 +2688,7 @@ def main() -> int:
     patch_note_newlines()
     patch_search_files()
     patch_audit_suite()
+    patch_event_timeout()
     patch_sandbox_hardening()
     patch_recurrence_thread()
     patch_search_error_log()

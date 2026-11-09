@@ -1768,3 +1768,8 @@ d'ENTRÉE (DEBUT execute_code delai=…) + trace TIMEOUT 320s. Auparavant le
 journal n'était écrit qu'à la SORTIE : un blocage laissait un log vide.
 Désormais, au prochain test : « DEBUT » sans sortie = blocage dans l'outil ;
 rien = l'outil n'est pas invoqué (le blocage est en amont).
+
+## 2026-11-10 — v0.0.47 PUBLIÉE
+
+Run 42723187571 vert (5 min 54) — assets 0.0.47 conformes sous le tag
+v0.0.47 (verifier_tag ✓, check_apk ✓, gardes P96 ✓).

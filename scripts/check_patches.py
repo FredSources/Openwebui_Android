@@ -51,6 +51,9 @@ CHECKS = [
     ("P48 jetons normalisés", "open_webui/models/knowledge.py", "nom_norm"),
     ("P51 uploads injectés", "open_webui/tools/android_tools.py", "_uploads_pour_sable"),
     ("P52 bootstrap réseau", "open_webui/tools/android_tools.py", "SANDBOX_NET_BOOTSTRAP"),
+    ("P68 timeout search_web", "open_webui/retrieval/web/searxng.py", "timeout=30"),
+    ("P69 delete_file to_thread", "open_webui/tools/android_tools.py", "asyncio.to_thread(Storage.delete_file"),
+    ("P69b fm_delete to_thread", "open_webui/android_fm.py", "asyncio.to_thread(Storage.delete_file"),
     ("P54 fallback contenu KB", "open_webui/tools/builtin.py", "'source': 'content'"),
     ("P57 write_note auto-lecture", "open_webui/tools/builtin.py", "P57 : la note vient d'être écrite"),
     ("P58 list_tools", "open_webui/tools/android_tools.py", "async def list_tools("),
@@ -223,6 +226,11 @@ def check_typo_courantes() -> None:
         ):
             if motif in t:
                 err(f"{p.relative_to(SRC)} : {msg}")
+        # un module qui utilise asyncio doit l'importer — le NameError n'est
+        # visible qu'à l'exécution (cas android_tools en v0.0.33). Borné à
+        # open_webui/ (le vendor searx importe asyncio localement).
+        if "open_webui" in str(p) and "asyncio." in t and "import asyncio" not in t:
+            err(f"{p.relative_to(SRC)} : utilise asyncio sans l'importer")
 
 
 def main() -> int:

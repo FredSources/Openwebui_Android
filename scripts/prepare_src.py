@@ -329,6 +329,7 @@ delete_file/list_tools (P58/P59), _probe_fetch_url (P33), _pyodide_packages
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import Request
@@ -968,7 +969,7 @@ async def fm_delete(request: Request, user=Depends(get_verified_user)):
         if f is not None and (user.role == 'admin' or f.user_id == user.id):
             try:
                 from open_webui.storage.provider import Storage
-                await Storage.delete_file(f.path)
+                await asyncio.to_thread(Storage.delete_file, f.path)
             except Exception:
                 pass
             # P31 : purger aussi l'index vectoriel (sinon l'index cite des
@@ -1129,6 +1130,7 @@ def write_android_fm() -> None:
         "Module AJOUTÉ hors amont (audit de divergence 2026-11-09) : ces routes\n"
         "vivent ici pour garder main.py identique à l'origine Open WebUI.\n"
         '"""\n\n'
+        "import asyncio\n\n"
         "from fastapi import Depends, Request\n\n"
         "from open_webui.utils.auth import get_verified_user\n\n\n"
         "def register_fm(app) -> None:\n"
@@ -1834,7 +1836,7 @@ async def delete_file(
             return JSONCodec.dumps({'error': 'Accès refusé'})
         try:
             from open_webui.storage.provider import Storage
-            await Storage.delete_file(f.path)
+            await asyncio.to_thread(Storage.delete_file, f.path)
         except Exception:
             pass
         try:
@@ -2096,6 +2098,30 @@ def patch_event_timeout() -> None:
         ',Xt.set(null),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h},(v,E)=>typeof E=="bigint"?E.toString():E))))},6e4);',
         ',Xt.set(null),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h},(v,E)=>typeof E=="bigint"?E.toString():E))))},18e4);',
         "P66 frontend : délai d'exécution 60s → 180s",
+    )
+
+
+def patch_search_timeout() -> None:
+    """P68 — « les outils semblent bloqués » (rapport utilisateur) : la requête
+    de search_searxng n'avait AUCUN timeout — si l'instance SearXNG embarquée
+    traîne (ses moteurs interrogent le web), search_web attendait le défaut
+    d'aiohttp (5 min) voire indéfiniment. Délai explicite : 30 s."""
+    replace_once(
+        DST / "retrieval" / "web" / "searxng.py",
+        """    async with session.get(
+        query_url,
+        headers=_SEARXNG_HEADERS,
+        params=params,
+        ssl=_get_ssl_context(),
+    ) as response:""",
+        """    async with session.get(
+        query_url,
+        headers=_SEARXNG_HEADERS,
+        params=params,
+        ssl=_get_ssl_context(),
+        timeout=30,
+    ) as response:""",
+        "P68 search_searxng : timeout 30s",
     )
 
 
@@ -2769,6 +2795,7 @@ def main() -> int:
     patch_upload_harvest()
     patch_note_newlines()
     patch_search_files()
+    patch_search_timeout()
     patch_audit_suite()
     patch_event_timeout()
     patch_sandbox_hardening()

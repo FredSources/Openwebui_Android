@@ -1331,3 +1331,35 @@ get_verified_user au namespace de main.py — imports ajoutés au module.
 
 Justification check_patches : marqueurs suivis vers android_fm.py/
 android_tools.py + nouveau garde-fou P0 (import de montage dans builtin).
+
+## 2026-11-09 — v0.0.34 : « les outils semblent bloqués » — trois bugs autour des await
+
+Rapport utilisateur (audit systématique) : un lot d'outils reste en « Exécution
+de… » sans fin. Indice de l'utilisateur : « peut-être autour d'un await ».
+Investigation du diff vs amont — TROIS bugs trouvés :
+
+1. P68 (LE blocage) : `search_searxng` interrogeait l'instance SearXNG
+   embarquée via `session.get(...)` SANS TIMEOUT — quand ses moteurs traînent
+   (Google/DDG lents ou bloqués), search_web attendait le défaut d'aiohttp
+   (5 min) voire indéfiniment. Délai explicite : 30 s.
+
+2. P69 (silencieux depuis P31) : `await Storage.delete_file(...)` sur une
+   méthode SYNCHRONE → await None → TypeError AVALÉE par un except → la
+   ligne en base était supprimée mais le FICHIER PHYSIQUE RESTAIT. Explique
+   les fichiers résiduels signalés par les audits. Corrigé en
+   `asyncio.to_thread(Storage.delete_file, ...)` (comme l'amont) dans
+   delete_file ET /fm/delete. TESTÉ : suppression physique effective.
+
+3. P69 bis (latent depuis le refactor v0.0.33) : android_tools.py utilisait
+   `asyncio.to_thread` sans `import asyncio` — compile_typst aurait levé un
+   NameError à l'appel (la compilation ne détecte pas les noms manquant).
+
+Sur la remarque « v0.0.30 ne bloquait pas » : cette version-là crashait
+instantanément sur execute_code (None+liste) — la ronde finissait vite, en
+échec. Le blocage apparent date de la réparation du crash (le bac à sable
+tourne pour de vrai) et du timeout SearXNG absent.
+
+Garde-fous : P68/P69 dans check_patches + NOUVELLE règle générale — tout
+module open_webui/ utilisant asyncio doit l'importer (leçon : un NameError
+n'apparaît qu'à l'exécution ; il faut donc APPELER les outils, pas seulement
+compiler).

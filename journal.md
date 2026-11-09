@@ -1644,3 +1644,16 @@ Correctif (une bonne fois pour toute) :
   erreurs « contenu stub » restent en nombre identique.
 Documentation : docs/maintenance.typ (§ CI) mis à jour + PDF recompilés ;
 todo.md Phase 5 cochée. verifier_tag.py et check_patches.py restent verts.
+
+## 2026-11-09 — v0.0.44 PUBLIÉE : garde P93 franchi, assets conformes
+
+Run 42705082443 vert (4 min 14) : « Vérification de la chaîne APK » passe
+avec le contrôle 9 (le nom des APK contient la version du tag). Release
+verrouillée : OpenWebUI_Android-0.0.44-debug.apk (239 Mo) et
+OpenWebUI_Android-0.0.44-release.apk (235 Mo) sous le tag v0.0.44.
+Le bout de chaîne tag→versionName→noms d'APK→assets est désormais gardé aux
+deux extrémités (verifier_tag.py avant, check_apk.py à la construction).
+Contenu de la version : noyau fiable (P88 v2, sonde JS bornée), Paramètres
+avec retour au navigateur (P91) + puces de statut réelles (P92), boutons
+flottants déplaçables (P90), timeout execute_code borné et réglable
+(P65/P66/P87), accusé d'exécution (P85).

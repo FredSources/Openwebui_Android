@@ -635,6 +635,8 @@ _FM_STYLE = """
   .empty { color: var(--muted); padding: 30px 0; }
   .err { background: rgba(220, 38, 38, .1); border: 1px solid var(--danger); padding: 12px; border-radius: 10px; white-space: pre-wrap; }
   .ver { position: fixed; left: 10px; bottom: 6px; color: var(--muted); font-size: 10px; opacity: .7; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; }
+  .srv { font-size: 13.5px; margin: 0 0 6px; }
   .settings { max-width: 780px; margin: 0 auto; padding-bottom: 60px; }
   .card { border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; margin: 14px 0; background: var(--panel); }
   .card h2 { font-size: .95rem; margin: 0 0 2px; font-weight: 600; }
@@ -965,7 +967,10 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                     + _html.escape(aides.get(nom, '')) + '">'
                 )
 
-            page = """<form method="post" action="/fm/settings"><div class="settings">
+            page = """<div class="bar" style="margin-bottom:16px"><a class="btn" href="/fm">&#8592; Retour au navigateur</a></div>
+<p class="srv"><span class="dot" style="background:@@DOT_OW@@"></span> Open WebUI&nbsp;: <b>@@ST_OW@@</b>
+<span class="dot" style="background:@@DOT_SX@@;margin-left:24px"></span> SearXNG&nbsp;: <b>@@ST_SX@@</b></p>
+<form method="post" action="/fm/settings"><div class="settings">
 <h1>&#9881; Paramètres</h1>
 <p class="sub">Réglages écrits dans <code>data/openwebui.env</code> — appliqués à chaque démarrage ou redémarrage de l'application.</p>
 <div class="card"><h2>&#129302; Modèles (LLM)</h2>
@@ -1005,6 +1010,11 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
             for _nom in connus:
                 page = page.replace('@@' + _nom + '@@', _champ(_nom))
             page = page.replace('@@RESTE@@', _html.escape(reste))
+            st = _am.service_status()
+            page = page.replace('@@ST_OW@@', st.get('openwebui', 'arrêt'))
+            page = page.replace('@@ST_SX@@', st.get('searxng', 'arrêt'))
+            page = page.replace('@@DOT_OW@@', '#22c55e' if st.get('openwebui') == 'actif' else 'var(--muted)')
+            page = page.replace('@@DOT_SX@@', '#22c55e' if st.get('searxng') == 'actif' else 'var(--muted)')
             return _HTMLResponse(_fm_page(page, 'Paramètres'))
         if folder == 'maintenance':
             import os as _os3

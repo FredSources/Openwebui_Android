@@ -1595,3 +1595,13 @@ SUSPENDU indéfiniment. Mon banc passait (réseau rapide) — preuve à tromperi
   place. Une perte de patch ne peut plus passer inaperçue.
 - État : sur master, PAS DE TAG — la publication attend le signal de
   l'utilisateur (liste de demandes en cours).
+
+## 2026-11-09 — v0.0.44 (préparation, NON publiée) : 3 demandes de l'utilisateur servies
+
+1. P88 disponible (sonde JS bornée, plus d'urlopen au boot) — le noyau démarre
+   (validé chromium : boot OK, 2+2 = 10 ms, print('hello') = 6 ms).
+2. Retour au navigateur pour l'onglet Paramètres (demande #1).
+3. Statut clair et utilisable des services dans /fm (demande #2) : puces
+   ● actif (vert) / ○ arrêté (gris) alimentées par le service_status() réel
+   (valide visuellement, mobile).
+En attente du signal utilisateur pour taguer et publier.

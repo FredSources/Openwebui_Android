@@ -24,6 +24,7 @@ APP_PORT = 8080
 
 _uvicorn_server = None
 _searx_httpd = None
+_searx_actif = False
 
 
 def _load_env_file(data_dir: Path, override: bool = False) -> None:
@@ -281,8 +282,9 @@ def _start_searxng() -> None:
                 handler_class=WSGIRequestHandler,
             )
             log.info("SearXNG embarqué sur http://127.0.0.1:%s", SEARXNG_PORT)
-            global _searx_httpd
+            global _searx_httpd, _searx_actif
             _searx_httpd = httpd
+            _searx_actif = True
             httpd.serve_forever()
         except Exception as exc:
             log.exception("SearXNG embarqué indisponible : %s", exc)
@@ -332,7 +334,7 @@ def service_control(name: str, action: str) -> str:
     name: 'openwebui' | 'searxng' ; action: 'run' | 'stop' | 'restart'.
     Les boutons passent par le pont Java : utilisables même serveur arrêté.
     """
-    global _started
+    global _started, _searx_actif
     name = (name or '').lower()
     action = (action or '').lower()
     try:
@@ -340,6 +342,7 @@ def service_control(name: str, action: str) -> str:
             if action == 'stop':
                 if _searx_httpd is not None:
                     threading.Thread(target=_searx_httpd.shutdown, daemon=True).start()
+                _searx_actif = False
                 return 'SearXNG arrêté'
             if action in ('run', 'restart'):
                 if _searx_httpd is not None:
@@ -348,6 +351,7 @@ def service_control(name: str, action: str) -> str:
                     except Exception:
                         pass
                 _start_searxng()
+                _searx_actif = True
                 return 'SearXNG (re)démarré'
             return f'action inconnue : {action}'
         if name == 'openwebui':
@@ -396,6 +400,14 @@ def env_save(text: str) -> str:
         return 'enregistré — appliqué au prochain démarrage/redémarrage'
     except Exception as exc:
         return f'erreur : {exc}'
+
+
+def service_status() -> dict:
+    """P89 — état réel des services (pour l'onglet /fm Paramètres)."""
+    return {
+        'openwebui': 'actif' if _started else 'arrêt',
+        'searxng': 'actif' if _searx_actif else 'arrêt',
+    }
 
 
 def start_server(port: int = APP_PORT, files_dir: str | None = None) -> int:

@@ -1605,3 +1605,19 @@ SUSPENDU indéfiniment. Mon banc passait (réseau rapide) — preuve à tromperi
    ● actif (vert) / ○ arrêté (gris) alimentées par le service_status() réel
    (valide visuellement, mobile).
 En attente du signal utilisateur pour taguer et publier.
+
+## 2026-11-09 — v0.0.44 retag : les APK publiés portaient 0.0.43
+
+Incident : la release v0.0.44 embarquait des APK nommés « 0.0.43 » — le bump
+versionName (sed) n'avait jamais tourné avant le tag. Mes éditions lambda
+chaîonnaient le bump avec d'autres opérations sans VÉRIFICATION fin-de-chaîne ;
+la même faute que v0.0.23 (leçon non appliquée — récidive assumée).
+
+Garde-fou double, « une bonne fois pour toute » :
+1. scripts/verifier_tag.py — exécuté AVANT chaque tag : versionName == tag
+   (sinon échec) ;
+2. check_apk (CI, à la construction) : les noms d'APK produits doivent
+   contenir la version du TAG — un mismatch BLOQUE la publication.
+
+Replay : versionName → 0.0.44, release erronée supprimée, tag retiré puis
+re-pointé sur le commit corrigé, build relancé.

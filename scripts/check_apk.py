@@ -112,7 +112,21 @@ def check_apk(apk: pathlib.Path) -> None:
             if b"/fm" not in contenu_index:
                 err(f"{apk.name} : bouton /fm absent de index.html")
 
-        # 4/5. natifs de lib/
+        # P93 — cohérence du nom : les APK doivent porter la version du TAG
+    # (l'ancien cas : assets « OpenWebUI_Android-0.0.43-release.apk » publiés
+    # sous le tag v0.0.44 — le versionName n'avait pas été bumpé).
+    import subprocess as _sub
+    tag = _sub.run(['git', 'describe', '--tags', '--exact-match'], capture_output=True,
+                   text=True, cwd=pathlib.Path(__file__).resolve().parent.parent)
+    if tag.returncode == 0 and tag.stdout.strip():
+        attendu = tag.stdout.strip().lstrip('v')
+        noms = [n for n in noms if n.endswith('.apk') and attendu in n]
+        if not noms:
+            err(f"tag {tag.stdout.strip()} : aucun APK nommé *_{attendu}-*.apk "
+                f"(le versionName de build.gradle ne correspond pas)"
+            )
+
+    # 4/5. natifs de lib/
         with tempfile.TemporaryDirectory() as tmp:
             so_lib = []
             for n in noms:

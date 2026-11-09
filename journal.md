@@ -1742,3 +1742,11 @@ Paramètres, défaut on) — menu retiré + routes 404 quand off ; flux EN DIREC
 /fm/logs/live (limité à 127.0.0.1) pour lire les logs applicatifs en
 continu (validé : lignes streamées en temps réel). Le \n littéral du gabarit
 (PIÈGE P42) a été remplacé par chr(10) pour ne pas casser le littéral.
+
+## 2026-11-10 — v0.0.46 PUBLIÉE : execute_code fiable + amont minimisé
+
+Run 42719776998 vert (4 min 7) — chaîne gardée : verifier_tag ✓ + check_apk
+contrôle 9 ✓ (assets nommés 0.0.46 sous le tag v0.0.46). Contenu : reprise
+« Client session disconnected » branchée (P95), timeout fonctionnel (P87),
+P41/P94 externalisés dans android_tools (builtin 249→223 lignes), journaux
+avec flux live + désactivation OWUI_LOGS.

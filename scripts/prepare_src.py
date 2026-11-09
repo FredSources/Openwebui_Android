@@ -1396,12 +1396,13 @@ def patch_kb_backfill() -> None:
 
 WORKER_HARVEST_JS = (
     'self.postMessage({id:e,result:self.result,stdout:self.stdout,stderr:self.stderr,'
-    "files:(()=>{try{const out=[];const dir='/mnt/uploads';"
+    "files:(()=>{try{const out=[];let tot=0;const dir='/mnt/uploads';"
     "for(const n of self.pyodide.FS.readdir(dir)){if(n==='.'||n==='..')continue;"
+    "if(self.__inNames&&self.__inNames.includes(n))continue;"
     "const p=dir+'/'+n;const st=self.pyodide.FS.stat(p);"
     "if(!self.pyodide.FS.isFile(st.mode))continue;"
     "const d=self.pyodide.FS.readFile(p,{encoding:'binary'});"
-    'if(d.length>26214400)continue;'
+    'if(d.length>8388608)continue;if((tot+=d.length)>16777216)continue;'
     "let s='';const CH=32768;for(let i=0;i<d.length;i+=CH)"
     's+=String.fromCharCode.apply(null,d.subarray(i,i+CH));'
     "out.push({name:n,data:btoa(s),size:d.length});}"
@@ -1680,13 +1681,15 @@ def patch_extra_wheels() -> None:
 
 
 UPLOADS_SABLE_HELPER = '''
-def _uploads_pour_sable(max_par: int = 8 * 1024 * 1024, max_total: int = 24 * 1024 * 1024) -> list:
-    """P51 — alignement des deux magasins de fichiers (audit 22:59) : le
-    dossier uploads de l'app (compile_typst, téléversements) est injecté dans
-    le /mnt/uploads du bac à sable avant exécution — il n'y a plus deux espaces
-    de fichiers disjoint. Plafonds : 8 Mo par fichier, 24 Mo au total."""
+def _uploads_pour_sable(code: str = '', max_par: int = 8 * 1024 * 1024, max_total: int = 2 * 1024 * 1024) -> list:
+    """P51/P71 — alignement des deux magasins de fichiers (audit 2026-11-08) : le
+    dossier uploads de l'app est injecté dans le /mnt/uploads du bac à sable.
+    Les fichiers CITÉS dans le code partent toujours ; les autres tant que le
+    total reste sous 2 Mo (découvrabilité) — au-delà, seul le mentionné part,
+    pour alléger les messages (l'injection totale faisait traîner execute_code)."""
     from open_webui.config import UPLOAD_DIR as _UD
 
+    texte = code or ''
     sortie = []
     total = 0
     try:
@@ -1694,7 +1697,10 @@ def _uploads_pour_sable(max_par: int = 8 * 1024 * 1024, max_total: int = 24 * 10
             if not ent.is_file():
                 continue
             taille = ent.stat().st_size
-            if taille > max_par or total + taille > max_total:
+            if taille > max_par:
+                continue
+            mentionne = ent.name in texte or ent.stem in texte
+            if not mentionne and total + taille > max_total:
                 continue
             sortie.append({'name': ent.name, 'data': ent.read_bytes()})
             total += taille
@@ -1749,7 +1755,7 @@ def patch_sandbox_hardening() -> None:
         """                        'session_id': (__metadata__.get('session_id') if __metadata__ else None),
                         'files': (__metadata__.get('files', []) if __metadata__ else []),""",
         """                        'session_id': (__metadata__.get('session_id') if __metadata__ else None),
-                        'files': ((__metadata__.get('files') or []) if __metadata__ else []) + _uploads_pour_sable(),""",
+                        'files': ((__metadata__.get('files') or []) if __metadata__ else []) + _uploads_pour_sable(code),""",
         "P51a execute_code : uploads injectés dans /mnt/uploads",
     )
     replace_once(
@@ -2098,6 +2104,29 @@ def patch_event_timeout() -> None:
         ',Xt.set(null),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h},(v,E)=>typeof E=="bigint"?E.toString():E))))},6e4);',
         ',Xt.set(null),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h},(v,E)=>typeof E=="bigint"?E.toString():E))))},18e4);',
         "P66 frontend : délai d'exécution 60s → 180s",
+    )
+
+
+def patch_prewarm() -> None:
+    """P70/P71 — execute_code « bloquait » : le PREMIER appel monte le runtime
+    wasm (numpy/pandas/sympy au boot) et paie les transferts de fichiers.
+    P70 : le worker est créé et booté AU CHARGEMENT DE LA PAGE (message fs:sync
+    qui déclenche l'init en tâche de fond) — au moment de l'appel, le bac à
+    sable est déjà chaud.
+    P71 : le worker ne renvoie plus les fichiers d'ENTRÉE (déjà côté serveur)
+    et plafonne la remontée (8 Mo/fichier, 16 Mo total)."""
+    root = DST / "frontend" / "_app" / "immutable"
+    _patch_first_match(
+        str(root / "nodes" / "0.*.js"),
+        ",Me=async(t,i,F,P=[],X=[])=>{",
+        ',(()=>{try{const w=rt();w.postMessage({type:"fs:sync",id:"__prewarm"})}catch(e){}})(),Me=async(t,i,F,P=[],X=[])=>{',
+        "P70 préchauffage du bac à sable au démarrage",
+    )
+    _patch_first_match(
+        str(root / "workers" / "pyodide.worker-*.js"),
+        "async function He(e,t,r){self.stdout=null",
+        "async function He(e,t,r){self.__inNames=(r||[]).map(x=>x.name);self.stdout=null",
+        "P71a worker : fichiers d'entrée mémorisés",
     )
 
 
@@ -2796,6 +2825,7 @@ def main() -> int:
     patch_note_newlines()
     patch_search_files()
     patch_search_timeout()
+    patch_prewarm()
     patch_audit_suite()
     patch_event_timeout()
     patch_sandbox_hardening()

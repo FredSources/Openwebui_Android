@@ -54,6 +54,7 @@ CHECKS = [
     ("P68 timeout search_web", "open_webui/retrieval/web/searxng.py", "timeout=30"),
     ("P69 delete_file to_thread", "open_webui/tools/android_tools.py", "asyncio.to_thread(Storage.delete_file"),
     ("P69b fm_delete to_thread", "open_webui/android_fm.py", "asyncio.to_thread(Storage.delete_file"),
+    ("P70 préchauffage bac à sable", "open_webui/tools/android_tools.py", "_uploads_pour_sable"),
     ("P54 fallback contenu KB", "open_webui/tools/builtin.py", "'source': 'content'"),
     ("P57 write_note auto-lecture", "open_webui/tools/builtin.py", "P57 : la note vient d'être écrite"),
     ("P58 list_tools", "open_webui/tools/android_tools.py", "async def list_tools("),

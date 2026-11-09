@@ -1363,3 +1363,22 @@ Garde-fous : P68/P69 dans check_patches + NOUVELLE règle générale — tout
 module open_webui/ utilisant asyncio doit l'importer (leçon : un NameError
 n'apparaît qu'à l'exécution ; il faut donc APPELER les outils, pas seulement
 compiler).
+
+## 2026-11-09 — v0.0.35 : execute_code ne « bloque » plus (P70/P71)
+
+Confirmé par l'utilisateur : c'est execute_code qui traînait. Cause : le
+PREMIER appel monte le runtime wasm (boot numpy/pandas/sympy) et paie les
+transferts de fichiers — chaque appel d'un audit en subissait le prix.
+
+- P70 (préchauffage) : le worker est créé et booté AU CHARGEMENT DE LA PAGE
+  (message fs:sync qui déclenche l'init en tâche de fond). Au moment d'un
+  execute_code, le bac à sable est déjà chaud.
+- P71 (charges utiles) : le worker ne renvoie plus les fichiers d'ENTRÉE
+  (déjà côté serveur — ils n'avaient rien à faire dans le message retour) et
+  plafonne la remontée (8 Mo/fichier, 16 Mo total) ; l'injection des uploads
+  n'envoie plus que les fichiers CITÉS dans le code + les petits (budget 2 Mo).
+  TESTÉ : fichier cité ✓, petit non cité ✓, gros non cité exclu ✓.
+
+Incident de méthode : mes éditions successives de check_patches avaient
+coupé la liste CHECKS en deux (IndentationError) — réparé, et le garde-fou
+valide désormais la syntaxe de son propre script à l'exécution.

@@ -1249,3 +1249,36 @@ Reste ouvert (prochain tour) : A3 seuil de pertinence de query_knowledge_files
 
 Justification scripts/check_patches.py et check_apk.py : contrôles ÉTENDUS
 (P53–P59) — aucun affaiblissement.
+
+## 2026-11-09 — v0.0.31 : correctif des 3 RÉGRESSIONS de v0.0.30 (bloquant)
+
+Audit 01:04 : execute_code, list_tools et list_knowledge_bases étaient
+inutilisables — les trois bugs sont de la v0.0.30. Causes racines :
+
+1. execute_code — `None + liste` : mon P51 additionnait les fichiers du
+   message à _uploads_pour_sable() ; quand `__metadata__['files']` existe
+   mais vaut None, `.get('files', [])` renvoie None → TypeError avant même le
+   bac à sable. Corrigé en `(.get('files') or [])`. TESTÉ avec files=None.
+
+2. list_tools — `Tools.get_tools()` est ASYNC : il manquait un `await`
+   (coroutine non itérable). Corrigé. TESTÉ : la liste remonte avec les
+   fonctions exposées.
+
+3. list_knowledge_bases — « name 'query' is not defined » : le fallback P54a
+   visait search_knowledge_bases, mais la queue de list_knowledge_bases est
+   IDENTIQUE et replace_once frappe la PREMIÈRE occurrence → le fallback a été
+   injecté dans le mauvais outil (crash) et l'outil cible n'a jamais été corrigé
+   (d'où le défaut de découverte « persistant » de l'audit). Corrigé par
+   remplacement CIBLÉ dans la fonction (découpe par signatures). TESTÉ
+   en appelant réellement search_knowledge_bases : « securite ia open source »
+   trouve la KB par son contenu (source: content) ✓ ; list_knowledge_bases
+   propre ✓.
+
+LEÇON (consignée) : un replace_once sur un motif dupliqué entre outils frappe
+en silence la première occurrence. Règle ajoutée : pour les motifs partagés,
+cibler par découpe de fonction, et le gardien check_p54_ciblage() vérifie le
+positionnement exact (présent dans la bonne fonction, absent de l'autre).
+
+Note : la recommandation de renommer la KB « Test » avec une description
+métier est côté utilisateur (les outils cherchent désormais le contenu, mais
+un nom explicite reste le meilleur levier de découverte).

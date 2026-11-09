@@ -1666,7 +1666,7 @@ def patch_sandbox_hardening() -> None:
         """                        'session_id': (__metadata__.get('session_id') if __metadata__ else None),
                         'files': (__metadata__.get('files', []) if __metadata__ else []),""",
         """                        'session_id': (__metadata__.get('session_id') if __metadata__ else None),
-                        'files': (__metadata__.get('files', []) if __metadata__ else []) + _uploads_pour_sable(),""",
+                        'files': ((__metadata__.get('files') or []) if __metadata__ else []) + _uploads_pour_sable(),""",
         "P51a execute_code : uploads injectés dans /mnt/uploads",
     )
     replace_once(
@@ -1705,6 +1705,29 @@ def patch_sandbox_hardening() -> None:
         "if(v?.data){k.push({name:ge,data:v.data})}else if(E){const be=await Ra(E);be&&k.push({name:ge,data:be})}",
         "P51b frontend : fichiers inline acceptés",
     )
+
+
+FALLBACK_P54 = '''        # P54 : découverte par le CONTENU — une KB mal nommée était invisible
+        # (« sécurité IA open source » ne trouvait rien sur une KB « Test »).
+        if query and not knowledge_bases:
+            tous = await Knowledges.search_knowledge_bases(
+                user_id,
+                filter={'user_id': user_id, 'group_ids': user_group_ids},
+                skip=0,
+                limit=50,
+            )
+            for kb in tous.items:
+                r = await Knowledges.search_files_by_id(
+                    knowledge_id=kb.id, user_id=user_id,
+                    filter={'query': query, 'include_content': True}, skip=0, limit=5)
+                if r and r.items:
+                    knowledge_bases.append({
+                        'id': kb.id, 'name': kb.name,
+                        'description': kb.description or '',
+                        'file_count': len(r.items), 'updated_at': kb.updated_at,
+                        'matched_files': len(r.items), 'source': 'content',
+                    })
+'''
 
 
 EXTRA_TOOLS_2 = '''
@@ -1759,7 +1782,7 @@ async def list_tools(
         from open_webui.models.tools import Tools
 
         out = []
-        for t in Tools.get_tools():
+        for t in await Tools.get_tools():
             contenu = getattr(t, 'content', '') or ''
             fns = sorted(set(_re.findall(r'^\\s*(?:async )?def ([A-Za-z_]\\w*)\\s*\\(', contenu, _re.M)))
             out.append({'id': t.id, 'name': t.name, 'functions': fns})
@@ -1875,42 +1898,26 @@ def patch_audit_suite() -> None:
                 },""",
         "P55c search_knowledge_files : contenu (agrégé)",
     )
-    # P54 — search_knowledge_bases : fallback par le contenu des fichiers
-    replace_once(
-        builtin,
-        """                    'updated_at': knowledge_base.updated_at,
-                }
-            )
-
-        return JSONCodec.dumps(knowledge_bases, ensure_ascii=False)""",
-        """                    'updated_at': knowledge_base.updated_at,
-                }
-            )
-
-        # P54 : découverte par le CONTENU — une KB mal nommée était invisible
-        # (« sécurité IA open source » ne trouvait rien sur une KB « Test »).
-        if query and not knowledge_bases:
-            tous = await Knowledges.search_knowledge_bases(
-                user_id,
-                filter={'user_id': user_id, 'group_ids': user_group_ids},
-                skip=0,
-                limit=50,
-            )
-            for kb in tous.items:
-                r = await Knowledges.search_files_by_id(
-                    knowledge_id=kb.id, user_id=user_id,
-                    filter={'query': query, 'include_content': True}, skip=0, limit=5)
-                if r and r.items:
-                    knowledge_bases.append({
-                        'id': kb.id, 'name': kb.name,
-                        'description': kb.description or '',
-                        'file_count': len(r.items), 'updated_at': kb.updated_at,
-                        'matched_files': len(r.items), 'source': 'content',
-                    })
-
-        return JSONCodec.dumps(knowledge_bases, ensure_ascii=False)""",
-        "P54a search_knowledge_bases : fallback contenu",
-    )
+    # P54 — search_knowledge_bases : fallback par le contenu des fichiers.
+    # ATTENTION (leçon v0.0.30) : la queue de list_knowledge_bases est
+    # IDENTIQUE — un replace_once y avait injecté le fallback (variable `query`
+    # non définie → crash) en laissant search_knowledge_bases sans fallback.
+    # Remplacement donc CIBLÉ dans la fonction.
+    text = builtin.read_text(encoding="utf-8")
+    i = text.index('async def search_knowledge_bases(')
+    j = text.index('\nasync def ', i + 10)
+    bloc = text[i:j]
+    if '# P54 : découverte par le CONTENU' in bloc:
+        log("  P54a search_knowledge_bases : fallback contenu — déjà appliqué")
+        PATCHES.append(("P54a search_knowledge_bases : fallback contenu", "déjà appliqué"))
+    else:
+        old_ret = "\n        return JSONCodec.dumps(knowledge_bases, ensure_ascii=False)"
+        if bloc.count(old_ret) != 1:
+            raise SystemExit("PATCH EN ÉCHEC [P54a] : queue de search_knowledge_bases ambiguë")
+        bloc = bloc.replace(old_ret, "\n" + FALLBACK_P54 + old_ret, 1)
+        builtin.write_text(text[:i] + bloc + text[j:], encoding="utf-8")
+        log("  P54a search_knowledge_bases : fallback contenu (ciblé)")
+        PATCHES.append(("P54a search_knowledge_bases : fallback contenu", "appliqué"))
     # P54 — query_knowledge_bases : idem
     replace_once(
         builtin,

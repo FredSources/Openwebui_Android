@@ -189,6 +189,20 @@ def check_p41_harvest() -> None:
         err("P46c : frontend sans transit des paquets serveur")
 
 
+def check_p54_ciblage() -> None:
+    """P54 : le fallback contenu doit être dans search_knowledge_bases — et SURTOUT
+    pas dans list_knowledge_bases (queues identiques : en v0.0.30 l'ancre avait
+    frappé le mauvais outil → 'query' is not defined)."""
+    p = SRC / "open_webui" / "tools" / "builtin.py"
+    t = p.read_text(encoding="utf-8", errors="ignore")
+    for fn, attendu in (('list_knowledge_bases', False), ('search_knowledge_bases', True)):
+        i = t.index(f'async def {fn}(')
+        j = t.index('\nasync def ', i + 10)
+        dedans = '# P54 :' in t[i:j]
+        if dedans != attendu:
+            err(f"P54 : fallback contenu mal placé dans {fn} (présent={dedans}, attendu={attendu})")
+
+
 def check_compilation() -> None:
     for p in SRC.rglob("*.py"):
         try:
@@ -217,6 +231,7 @@ def main() -> int:
     check_frontend()
     check_pyodide_paquets()
     check_p41_harvest()
+    check_p54_ciblage()
     check_build_gradle()
     check_compilation()
     check_typo_courantes()

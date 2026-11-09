@@ -1382,3 +1382,21 @@ transferts de fichiers — chaque appel d'un audit en subissait le prix.
 Incident de méthode : mes éditions successives de check_patches avaient
 coupé la liste CHECKS en deux (IndentationError) — réparé, et le garde-fou
 valide désormais la syntaxe de son propre script à l'exécution.
+
+## 2026-11-09 — v0.0.36 : hotfix « 500 au lancement » (régression v0.0.35)
+
+La v0.0.35 affichait « 500 : Internal Server Error » au lancement — en fait la
+page d'erreur du SPA quand le chunk racine ne se charge pas. Cause : mon
+insertion P70 (préchauffage) était une IIFE NUE dans une liste de déclarations
+`const` du bundle minifié → erreur de syntaxe JS → toute l'interface morte.
+
+Correctifs :
+- l'insertion devient un déclarateur valide (`__prewarm=(()=>{...})()`) ;
+- NOUVEAU garde-fou permanent : check_js_syntax() — node --check sur tous les
+  fichiers JS patchés (un chunk cassé est invisible à toute la chaîne Python) ;
+- vérifié : syntaxe JS ✓✓, DÉMARRAGE RÉEL (health 200, SPA en 200, 0 traceback).
+
+LEÇON MAJEURE (double) : (1) patcher du JS minifié exige une validation de
+SYNTAXE JS — la présence du texte ne prouve rien ; (2) « compiler et checker »
+ne remplace pas « DÉMARRER » — le smoke boot devient obligatoire avant chaque
+livraison, comme les vrais appels d'outils.

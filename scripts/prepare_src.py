@@ -2119,7 +2119,7 @@ def patch_prewarm() -> None:
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
         ",Me=async(t,i,F,P=[],X=[])=>{",
-        ',(()=>{try{const w=rt();w.postMessage({type:"fs:sync",id:"__prewarm"})}catch(e){}})(),Me=async(t,i,F,P=[],X=[])=>{',
+        ',__prewarm=(()=>{try{const w=rt();w.postMessage({type:"fs:sync",id:"__prewarm"})}catch(e){}})(),Me=async(t,i,F,P=[],X=[])=>{',
         "P70 préchauffage du bac à sable au démarrage",
     )
     _patch_first_match(

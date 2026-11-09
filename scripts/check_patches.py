@@ -209,6 +209,38 @@ def check_p54_ciblage() -> None:
             err(f"P54 : fallback contenu mal placé dans {fn} (présent={dedans}, attendu={attendu})")
 
 
+def check_js_syntax() -> None:
+    """Tout fichier JS patché doit rester syntaxiquement valide — un chunk
+    cassé affiche « 500 : Internal Server Error » au lancement (page d'erreur
+    du SPA), et AUCUN contrôle Python ne le voit. Exécuté via node --check."""
+    import glob as _glob
+    import os
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    cibles = []
+    for motif in ("nodes/0.*.js", "workers/pyodide.worker-*.js", "chunks/*.js"):
+        cibles += _glob.glob(str(PROJ / "src-assets" / "frontend" / "_app" / "immutable" / motif))
+    vus = set()
+    for c in sorted(cibles):
+        t = open(c, encoding="utf-8", errors="ignore").read()
+        # ne contrôler que les fichiers que NOUS patchons
+        if not any(m in t for m in ("__prewarm", "__inNames", "files:ge.files||[]", "u.packages||[]",
+                                    "micropip','numpy'")):
+            continue
+        if c in vus:
+            continue
+        vus.add(c)
+        with tempfile.NamedTemporaryFile("w", suffix=".mjs", delete=False, encoding="utf-8") as fh:
+            fh.write(t)
+            tmp = fh.name
+        r = subprocess.run(["node", "--check", tmp], capture_output=True, text=True)
+        os.unlink(tmp)
+        if r.returncode != 0:
+            err(f"syntaxe JS invalide : {Path(c).name} — {r.stderr.strip().splitlines()[-1] if r.stderr else '?'}")
+
+
 def check_compilation() -> None:
     for p in SRC.rglob("*.py"):
         try:
@@ -243,6 +275,7 @@ def main() -> int:
     check_pyodide_paquets()
     check_p41_harvest()
     check_p54_ciblage()
+    check_js_syntax()
     check_build_gradle()
     check_compilation()
     check_typo_courantes()

@@ -1701,3 +1701,9 @@ versionName → 0.0.45 (vérifié : verifier_tag ✓, pied de page /fm régéné
 0.0.45, check_patches ✓). Tag v0.0.45 → build CI. Contenu : journaux
 d'activité dans /fm (P94) — consultation, aperçu erreurs surlignées,
 téléchargement fichier/zip, journal execute_code.
+
+## 2026-11-09 — v0.0.45 PUBLIÉE : journaux /fm (P94) livrés
+
+Run 42711393292 vert (4 min 47) — chaîne complète gardée : verifier_tag ✓
+avant le tag, check_apk contrôle 9 ✓ à la construction, assets nommés
+0.0.45 (debug 239 Mo / release 235 Mo) sous le tag v0.0.45.

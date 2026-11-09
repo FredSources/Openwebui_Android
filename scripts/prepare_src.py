@@ -673,11 +673,26 @@ def _fm_page(inner: str, title: str = "Fichiers") -> str:
     # P40 — FAB retour vers Open WebUI : jumeau du bouton 📂 du SPA (même
     # style, autre icône 💬), présent sur TOUTES les pages /fm.
     retour = (
-        '<a href="/" title="Retour à Open WebUI" '
+        '<a href="/" id="fab-fm" title="Retour à Open WebUI — glisser pour déplacer" '
         'style="position:fixed;right:12px;bottom:72px;z-index:2147483000;'
         'width:42px;height:42px;border-radius:50%;background:#3b82f6;color:#fff;'
         'display:flex;align-items:center;justify-content:center;font-size:20px;'
-        'text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.4)">&#128172;</a>'
+        'text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:grab;touch-action:none">'
+        '&#128172;</a>'
+        '<script>(function(){var el=document.getElementById("fab-fm");if(!el)return;'
+        'try{var s=JSON.parse(localStorage.getItem("fabPosFm")||"null");'
+        'if(s){el.style.left=s.l+"px";el.style.top=s.t+"px";el.style.right="auto";el.style.bottom="auto";}}catch(e){}'
+        'var sx,sy,ox,oy,drag=0,moved=0;'
+        'el.addEventListener("pointerdown",function(e){drag=1;moved=0;sx=e.clientX;sy=e.clientY;'
+        'var r=el.getBoundingClientRect();ox=r.left;oy=r.top;});'
+        'el.addEventListener("pointermove",function(e){if(!drag)return;'
+        'var dx=e.clientX-sx,dy=e.clientY-sy;if(!moved&&Math.abs(dx)+Math.abs(dy)<6)return;'
+        'moved=1;el.style.left=(ox+dx)+"px";el.style.top=(oy+dy)+"px";'
+        'el.style.right="auto";el.style.bottom="auto";e.preventDefault();});'
+        'el.addEventListener("pointerup",function(){if(!drag)return;drag=0;if(moved){'
+        'try{localStorage.setItem("fabPosFm",JSON.stringify({l:parseInt(el.style.left)||0,t:parseInt(el.style.top)||0}));}catch(e){}}});'
+        'el.addEventListener("click",function(e){if(moved){e.preventDefault();e.stopPropagation();moved=0;}});'
+        '})();</script>'
     )
     return (
         '<!doctype html><html lang="fr"><head><meta charset="utf-8">'
@@ -893,11 +908,49 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
         body = "".join(rows_l) or "<tr><td colspan=\\"6\\" class=\\"empty\\">Aucun fichier ici pour le moment.</td></tr>"
         tabs = [("all", "\\U0001f4c1 Tous"), ("pdf", "\\U0001f4c4 PDF"), ("img", "\\U0001f5bc Images"),
                 ("doc", "\\U0001f4c3 Documents"), ("other", "\\U0001f4e6 Autres"),
-                ("maintenance", "\\u2699\\ufe0f Maintenance")]
+                ("settings", "\\u2699\\ufe0f Param\\u00e8tres"),
+                ("maintenance", "\\U0001f6e0\\ufe0f Maintenance")]
         side = "".join(
             f"<a href=\\"/fm?folder={k}&q={_quote(q)}\\" class=\\"{'on' if k == folder else ''}\\">{label}</a>"
             for k, label in tabs
         )
+        if folder == 'settings':
+            import android_main as _am
+            env_txt = _am.env_read()
+            inner = (
+                "<h1>&#9881; Param\u00e8tres</h1>"
+                "<p style='color:var(--muted);font-size:13px'>Variables d'environnement "
+                "d'Open WebUI (fichier <code>data/openwebui.env</code>, format KEY=VALUE). "
+                "Elles sont <b>appliqu\u00e9es \u00e0 chaque d\u00e9marrage ou red\u00e9marrage</b> "
+                "de l'application.</p>"
+                "<form method='post' action='/fm/settings'>"
+                "<textarea name='env' spellcheck='false' style='width:100%;min-height:280px;"
+                "font-family:monospace;font-size:12px;padding:10px;border-radius:8px;"
+                "border:1px solid var(--border);background:var(--panel);color:var(--fg)'>"
+                + _html.escape(env_txt) +
+                "</textarea>"
+                "<div class='bar' style='margin-top:10px'><button>&#128190; Enregistrer</button>"
+                "<span style='color:var(--muted);font-size:12px'>Exemples : OLLAMA_BASE_URL=... "
+                "OPENAI_API_BASE_URL=... OPENAI_API_KEY=... RAG_EMBEDDING_ENGINE=openai "
+                "RAG_OPENAI_API_KEY=...</span></div></form>"
+                "<h1 style='margin-top:22px'>Services</h1>"
+                "<div class='bar'>"
+                "<button onclick='svc(\\"openwebui\\",\\"run\\")'>&#9654; Open WebUI</button>"
+                "<button onclick='svc(\\"openwebui\\",\\"stop\\")'>&#9208; Arr\u00eater</button>"
+                "</div><div class='bar'>"
+                "<button onclick='svc(\\"searxng\\",\\"run\\")'>&#9654; SearXNG</button>"
+                "<button onclick='svc(\\"searxng\\",\\"stop\\")'>&#9208; Arr\u00eater</button>"
+                "<button onclick='svc(\\"searxng\\",\\"restart\\")'>&#8635; Red\u00e9marrer</button>"
+                "</div><div class='bar'>"
+                "<button onclick='AndroidSystem.restartApp()' "
+                "style='background:var(--danger);color:#fff'>&#8635; Red\u00e9marrer l'application "
+                "(applique les variables)</button></div>"
+                "<p id='svcmsg' style='color:var(--muted);font-size:12px'></p>"
+                "<script>function svc(n,a){try{document.getElementById('svcmsg').textContent="
+                "AndroidSystem.serverAction(n,a)}catch(e){document.getElementById('svcmsg').textContent="
+                "'pont syst\u00e8me indisponible : '+e}}</script>"
+            )
+            return _HTMLResponse(_fm_page(inner, "Param\u00e8tres"))
         if folder == 'maintenance':
             import os as _os3
             from open_webui.config import DATA_DIR as _DD
@@ -1066,6 +1119,21 @@ async def fm_fix_index(request: Request, user=Depends(get_verified_user)):
         return _HTMLResponse(_fm_error(exc), status_code=500)
 
 
+@app.post('/fm/settings')
+async def fm_settings_save(request: Request, user=Depends(get_verified_user)):
+    """P89 — enregistre les variables d'environnement (data/openwebui.env),
+    appliquées au prochain démarrage/redémarrage de l'application."""
+    try:
+        form = await request.form()
+        import android_main as _am
+        msg = _am.env_save(str(form.get('env') or ''))
+        return _HTMLResponse(_fm_page(
+            "<h1>&#9989; R\u00e9glages</h1><p>" + _html.escape(msg) + "</p>"
+            "<div class='nav'><a href='/fm?folder=settings'>&#8592; param\u00e8tres</a></div>"))
+    except Exception as exc:
+        return _HTMLResponse(_fm_error(exc), status_code=500)
+
+
 @app.get('/fm/raw')
 async def fm_raw(request: Request, user=Depends(get_verified_user)):
     """Telechargement/apercu direct d'un fichier du dossier uploads (nom de base)."""
@@ -1207,11 +1275,26 @@ def patch_files_button() -> None:
         'URL.createObjectURL=function(b){try{window.__dlBlob=b;}catch(e){}return o(b);};'
         '})();</script>\n'
         + notif_shim +
-        '<a href="/fm" title="Fichiers : PDF générés et téléversements" '
+        '<a href="/fm" id="fab-spa" title="Fichiers : PDF générés et téléversements — glisser pour déplacer" '
         'style="position:fixed;right:12px;bottom:72px;z-index:2147483000;'
         'width:42px;height:42px;border-radius:50%;background:#3b82f6;color:#fff;'
         'display:flex;align-items:center;justify-content:center;font-size:20px;'
-        'text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.4)">&#128206;</a>\n</body>'
+        'text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:grab;touch-action:none">'
+        '&#128206;</a>'
+        '<script>(function(){var el=document.getElementById("fab-spa");if(!el)return;'
+        'try{var s=JSON.parse(localStorage.getItem("fabPosSpa")||"null");'
+        'if(s){el.style.left=s.l+"px";el.style.top=s.t+"px";el.style.right="auto";el.style.bottom="auto";}}catch(e){}'
+        'var sx,sy,ox,oy,drag=0,moved=0;'
+        'el.addEventListener("pointerdown",function(e){drag=1;moved=0;sx=e.clientX;sy=e.clientY;'
+        'var r=el.getBoundingClientRect();ox=r.left;oy=r.top;});'
+        'el.addEventListener("pointermove",function(e){if(!drag)return;'
+        'var dx=e.clientX-sx,dy=e.clientY-sy;if(!moved&&Math.abs(dx)+Math.abs(dy)<6)return;'
+        'moved=1;el.style.left=(ox+dx)+"px";el.style.top=(oy+dy)+"px";'
+        'el.style.right="auto";el.style.bottom="auto";e.preventDefault();});'
+        'el.addEventListener("pointerup",function(){if(!drag)return;drag=0;if(moved){'
+        'try{localStorage.setItem("fabPosSpa",JSON.stringify({l:parseInt(el.style.left)||0,t:parseInt(el.style.top)||0}));}catch(e){}}});'
+        'el.addEventListener("click",function(e){if(moved){e.preventDefault();e.stopPropagation();moved=0;}});'
+        '})();</script>\n</body>'
     )
     replace_once(
         DST / "frontend" / "index.html",
@@ -1431,7 +1514,7 @@ WORKER_HARVEST_JS = (
     "let s='';const CH=32768;for(let i=0;i<d.length;i+=CH)"
     's+=String.fromCharCode.apply(null,d.subarray(i,i+CH));'
     "out.push({name:n,data:btoa(s),size:d.length});}"
-    "return out;}catch(err){return [];}})()})}self.onmessage="
+    "return out;}catch(err){return [];}})()});if(String(self.stderr).includes(\"Execution timeout\"))setTimeout(()=>{try{self.close()}catch(x){}},50)}self.onmessage="
 )
 
 
@@ -1652,7 +1735,8 @@ def patch_pyodide_detection() -> None:
         """                    'data': {
                         'id': str(uuid4()),
                         'code': code,
-                        'packages': _pyodide_packages(code),""",
+                        'packages': _pyodide_packages(code),
+                        'exec_timeout': delai_exec,""",
         "P46b execute_code : paquets calculés côté serveur",
     )
     root = DST / "frontend" / "_app" / "immutable"
@@ -1665,7 +1749,7 @@ def patch_pyodide_detection() -> None:
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
         'Me(u.id,u.code,i,u.files||[],u.packages||[]);return}',
-        'Me(u.id,u.code,i,u.files||[],u.packages||[]).catch(e=>{try{i&&i({error:"execute_code frontend: "+(e&&e.message||e)})}catch(x){}});return}',
+        'Me(u.id,u.code,i,u.files||[],u.packages||[],u.exec_timeout||120).catch(e=>{try{i&&i({error:"execute_code frontend: "+(e&&e.message||e)})}catch(x){}});return}',
         "P85a frontend : échec de Me acquitté (plus d'attente infinie)",
     )
     _patch_first_match(
@@ -1683,13 +1767,13 @@ def patch_pyodide_detection() -> None:
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
         "packages:ue,files:k.length>0?k:void 0}",
-        "packages:[...new Set([...ue,...X])],files:k.length>0?k:void 0}",
+        "packages:[...new Set([...ue,...X])],files:k.length>0?k:void 0,exec_timeout:TO}",
         "P46e frontend : fusion regex + serveur",
     )
     replace_once(
         DST / "config.py",
         "- This Python environment runs via Pyodide in the browser. **Do not install packages** — `pip install`, `subprocess`, and `micropip.install()` are not available.",
-        "- This Python environment runs via Pyodide in the browser. **Do not install packages** — `pip install`, `subprocess`, and `micropip.install()` are not available.\n- Libraries bundled and available on demand: numpy, pandas, matplotlib, scipy, scikit-learn, seaborn, sympy, mpmath, pillow (PIL), requests, beautifulsoup4 (bs4), lxml, python-docx (docx), python-pptx (pptx), openpyxl, pytz, pymupdf (fitz), statsmodels. No other third-party library (no plotly, pypdf, tiktoken).\n- Network: the sandbox has no TCP. socket.create_connection always raises OSError. Outbound HTTP goes through the browser and is filtered by CORS: a request fails with ConnectionError whenever the target site does not send CORS headers — this does NOT mean the site is down. To probe a URL reliably, use fetch_url; for an API, try fetch_url first and fall back to requests here (or the reverse) — the two paths have different egresses. Check the `network_available` flag (set on first run) before trying.\n- Files: everything in /mnt/uploads/ is saved to the app file browser; the app's uploads are also visible there.",
+        "- This Python environment runs via Pyodide in the browser. **Do not install packages** — `pip install`, `subprocess`, and `micropip.install()` are not available.\n- Libraries bundled and available on demand: numpy, pandas, matplotlib, scipy, scikit-learn, seaborn, sympy, mpmath, pillow (PIL), requests, beautifulsoup4 (bs4), lxml, python-docx (docx), python-pptx (pptx), openpyxl, pytz, pymupdf (fitz), statsmodels. No other third-party library (no plotly, pypdf, tiktoken).\n- Network: the sandbox has no TCP. socket.create_connection always raises OSError. Outbound HTTP goes through the browser and is filtered by CORS: a request fails with ConnectionError whenever the target site does not send CORS headers — this does NOT mean the site is down. To probe a URL reliably, use fetch_url; for an API, try fetch_url first and fall back to requests here (or the reverse) — the two paths have different egresses. Each code run is limited to 120 seconds by default (timeout parameter, max 600) — an infinite loop is interrupted and reported. Check the `network_available` flag (set on first run) before trying.\n- Files: everything in /mnt/uploads/ is saved to the app file browser; the app's uploads are also visible there.",
         "P46f prompt : bibliothèques disponibles documentées",
     )
 
@@ -1805,7 +1889,13 @@ def patch_sandbox_hardening() -> None:
         code = sanitize_code(code)
 
         # P52 : vérité réseau (bootstrap placé en tête de code)
-        code = SANDBOX_NET_BOOTSTRAP + code""",
+        code = SANDBOX_NET_BOOTSTRAP + code
+
+        # P87 : délai d'exécution paramétrable (défaut 120 s, plafond 600 s)
+        try:
+            delai_exec = max(10, min(int(timeout or 120), 600))
+        except Exception:
+            delai_exec = 120""",
         "P52a execute_code : bootstrap réseau",
     )
     root = DST / "frontend" / "_app" / "immutable"
@@ -1824,7 +1914,7 @@ def patch_sandbox_hardening() -> None:
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
         'F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h,files:ge.files||[]},(be,Ge)=>typeof Ge=="bigint"?Ge.toString():Ge)))',
-        'ge.stderr&&/(memory access out of bounds|out of memory|null function|unreachable|wasm corrupt)/i.test(ge.stderr)&&(Xt.set(null),(()=>{try{U.terminate()}catch(e){}})(),(()=>{try{const w=rt();w.postMessage({type:"fs:sync",id:"__rewarm"})}catch(e){}})()),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h,files:ge.files||[]},(be,Ge)=>typeof Ge=="bigint"?Ge.toString():Ge)))',
+        'ge.stderr&&/(memory access out of bounds|out of memory|null function|unreachable|wasm corrupt|Execution timeout)/i.test(ge.stderr)&&(Xt.set(null),(()=>{try{U.terminate()}catch(e){}})(),(()=>{try{const w=rt();w.postMessage({type:"fs:sync",id:"__rewarm"})}catch(e){}})()),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h,files:ge.files||[]},(be,Ge)=>typeof Ge=="bigint"?Ge.toString():Ge)))',
         "P83 frontend : kill uniquement crash wasm + re-préchauffage",
     )
     _patch_first_match(
@@ -1832,6 +1922,20 @@ def patch_sandbox_hardening() -> None:
         "if(E){const be=await Ra(E);be&&k.push({name:ge,data:be})}",
         "if(v?.data){k.push({name:ge,data:v.data})}else if(E){const be=await Ra(E);be&&k.push({name:ge,data:be})}",
         "P51b frontend : fichiers inline acceptés",
+    )
+    # P87 — délai d'exécution paramétrable (défaut 120 s) : une boucle infinie
+    # tenait jusqu'au plafond global ; la course s'arrête proprement et le
+    # noyau recyclé (stderr « Execution timeout » → P83 re-préchauffage).
+    import glob as _glob2
+    _cibles = sorted(_glob2.glob(str(root / "workers" / "pyodide.worker-*.js")))
+    replace_once(
+        Path(_cibles[0]),
+        "self.result=await self.pyodide.runPythonAsync(t),self.result=R(self.result),self.result,A()",
+        'self.result=await Promise.race([self.pyodide.runPythonAsync(t),new Promise((_rej)=>{'
+        'self.__eto=setTimeout(()=>_rej(new Error("Execution timeout apres "+(self.exec_timeout||120)'
+        '+ " s — boucle infinie ?")),Math.max(5,(self.exec_timeout||120))*1e3)})]),'
+        'clearTimeout(self.__eto),self.result=R(self.result),self.result,A()',
+        "P87 worker : délai d'exécution paramétrable",
     )
 
 
@@ -2159,6 +2263,8 @@ def patch_audit_suite() -> None:
 
 
 def patch_event_timeout() -> None:
+    import glob as _glob
+    from pathlib import Path
     """P65/P66 — « Génération en cours… » qui ne s'arrête jamais (rapport
     utilisateur) : un appel execute_code sans réponse du bac à sable (session
     perdue, événement ignoré, démarrage interminable) laissait la conversation
@@ -2195,8 +2301,14 @@ def patch_event_timeout() -> None:
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
         ',Xt.set(null),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h},(v,E)=>typeof E=="bigint"?E.toString():E))))},6e4);',
-        ',Xt.set(null),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h},(v,E)=>typeof E=="bigint"?E.toString():E))))},3e5);',
-        "P66 frontend : délai d'exécution 60s → 180s",
+        ',Xt.set(null),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h},(v,E)=>typeof E=="bigint"?E.toString():E))))},Math.max(5,TO||120)*1e3);',
+        "P87 frontend : délai d'exécution paramétré (TO)",
+    )
+    replace_once(
+        Path(sorted(_glob.glob(str(root / "nodes" / "0.*.js")))[0]),
+        'M="Execution Time Limit Exceeded"',
+        'M="Execution timeout apres "+(TO||120)+" s — boucle infinie ?"',
+        "P87 frontend : message de délai explicite",
     )
 
 
@@ -2212,7 +2324,7 @@ def patch_prewarm() -> None:
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
         ",Me=async(t,i,F,P=[],X=[])=>{",
-        ',__prewarm=(()=>{try{const w=rt();w.postMessage({type:"fs:sync",id:"__prewarm"})}catch(e){}})(),Me=async(t,i,F,P=[],X=[])=>{',
+        ',__prewarm=(()=>{try{const w=rt();w.postMessage({type:"fs:sync",id:"__prewarm"})}catch(e){}})(),Me=async(t,i,F,P=[],X=[],TO=120)=>{',
         "P70 préchauffage du bac à sable au démarrage",
     )
     _patch_first_match(

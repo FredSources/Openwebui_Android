@@ -22,7 +22,11 @@ _started = False
 APP_PORT = 8080
 
 
-def _load_env_file(data_dir: Path) -> None:
+_uvicorn_server = None
+_searx_httpd = None
+
+
+def _load_env_file(data_dir: Path, override: bool = False) -> None:
     """Charge `data/openwebui.env` (KEY=VALUE) AVANT l'import d'open_webui.
 
     Sert à configurer le RAG par services distants sans rebuilder l'APK, ex. :
@@ -43,7 +47,13 @@ def _load_env_file(data_dir: Path) -> None:
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, _, value = line.partition("=")
-            os.environ.setdefault(key.strip(), value.strip())
+            key = key.strip()
+            if key in ("DATA_DIR", "HOME"):
+                continue  # pilotés par l'application, jamais par le fichier
+            if override:
+                os.environ[key] = value.strip()
+            else:
+                os.environ.setdefault(key, value.strip())
         log.info("variables chargées depuis %s", env_file)
     except Exception as exc:
         log.warning("lecture de %s impossible : %s", env_file, exc)
@@ -271,6 +281,8 @@ def _start_searxng() -> None:
                 handler_class=WSGIRequestHandler,
             )
             log.info("SearXNG embarqué sur http://127.0.0.1:%s", SEARXNG_PORT)
+            global _searx_httpd
+            _searx_httpd = httpd
             httpd.serve_forever()
         except Exception as exc:
             log.exception("SearXNG embarqué indisponible : %s", exc)
@@ -312,6 +324,78 @@ def _warm_up_then_searxng(data_dir: Path, port: int) -> None:
     except Exception as exc:
         log.warning('SearXNG non démarré : %s', exc)
         _set_status(data_dir, 'Prêt (sans recherche web)', 100)
+
+
+def service_control(name: str, action: str) -> str:
+    """P89 — pilotage des services depuis /fm (pont Java → Python).
+
+    name: 'openwebui' | 'searxng' ; action: 'run' | 'stop' | 'restart'.
+    Les boutons passent par le pont Java : utilisables même serveur arrêté.
+    """
+    global _started
+    name = (name or '').lower()
+    action = (action or '').lower()
+    try:
+        if name == 'searxng':
+            if action == 'stop':
+                if _searx_httpd is not None:
+                    threading.Thread(target=_searx_httpd.shutdown, daemon=True).start()
+                return 'SearXNG arrêté'
+            if action in ('run', 'restart'):
+                if _searx_httpd is not None:
+                    try:
+                        _searx_httpd.shutdown()
+                    except Exception:
+                        pass
+                _start_searxng()
+                return 'SearXNG (re)démarré'
+            return f'action inconnue : {action}'
+        if name == 'openwebui':
+            if action == 'stop':
+                if _uvicorn_server is not None:
+                    _uvicorn_server.should_exit = True
+                _started = False
+                return 'serveur Open WebUI arrêté'
+            if action == 'run':
+                if _started:
+                    return 'serveur déjà actif'
+                threading.Thread(
+                    target=start_server,
+                    args=(APP_PORT, os.environ.get('HOME')),
+                    name='owui-run', daemon=True,
+                ).start()
+                return 'serveur Open WebUI lancé'
+            return f'action inconnue : {action}'
+        return f'service inconnu : {name}'
+    except Exception as exc:
+        log.exception('service_control')
+        return f'erreur : {exc}'
+
+
+def env_read() -> str:
+    """Contenu de data/openwebui.env (configuration par variables)."""
+    try:
+        return (Path(os.environ.get('HOME', '.')) / 'data' / 'openwebui.env').read_text(encoding='utf-8')
+    except Exception:
+        return ''
+
+
+def env_save(text: str) -> str:
+    """Écrit data/openwebui.env — appliqué au prochain démarrage/redémarrage."""
+    try:
+        path = Path(os.environ.get('HOME', '.')) / 'data' / 'openwebui.env'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        lignes = []
+        for ligne in (text or '').splitlines():
+            ligne = ligne.strip()
+            if ligne and not ligne.startswith('#') and '=' in ligne:
+                if ligne.partition('=')[0].strip() in ('DATA_DIR', 'HOME'):
+                    continue  # pilotés par l'application
+            lignes.append(ligne)
+        path.write_text('\n'.join(lignes) + '\n', encoding='utf-8')
+        return 'enregistré — appliqué au prochain démarrage/redémarrage'
+    except Exception as exc:
+        return f'erreur : {exc}'
 
 
 def start_server(port: int = APP_PORT, files_dir: str | None = None) -> int:
@@ -362,7 +446,9 @@ def start_server(port: int = APP_PORT, files_dir: str | None = None) -> int:
                     log_level="warning",
                     access_log=False,
                 )
-                uvicorn.Server(config).run()
+                global _uvicorn_server
+                _uvicorn_server = uvicorn.Server(config)
+                _uvicorn_server.run()
             except BaseException as exc:  # visible sur l'écran de démarrage
                 log.exception("échec du démarrage du serveur")
                 _set_status(data_dir, f"Erreur au démarrage : {type(exc).__name__}: {exc}", 100)

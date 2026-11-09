@@ -1526,3 +1526,32 @@ seul mon plafond backend (200 s) bornait, d'où son message.
   légers restent instantanés (8-19 ms mesurés).
 
 Marqueur check_patches P65 mis à jour (200→320) — justifié ci-dessus.
+
+## 2026-11-09 — v0.0.42 : noyau réparé + Paramètres/services dans /fm + bouton déplaçable (P87-P90)
+
+P88 (« le noyau Python ne démarre pas ») : le bootstrap réseau (P82) exécutait
+une sonde `urlopen` AU BOOT — le `timeout=3` d'urllib n'arrête pas un fetch
+wasm : le boot RESTAIT SUSPENDU, donc plus jamais de noyau. La sonde passe
+désormais en JS avec AbortSignal (borné 3 s) et injecte `network_available` ;
+le bootstrap Python ne sonde plus rien. VALIDÉ : boot OK + premier appel 5-10 ms.
+
+P87 (« timeout par défaut 2 min modifiable à l'appel ») : paramètre `timeout`
+de execute_code (défaut 120 s, max 600, min 5). Leçon technique : un timer
+INTERNÉ au worker ne peut pas se déclencher pendant une boucle Python serrée
+(le thread est bloqué) — le chronomètre doit vivre dans le FRONTEND, qui peut
+tuer le worker. VALIDÉ : `while True: pass` avec timeout=5 → arrêt à 5 s.
+
+P89 (demande utilisateur) : onglet « ⚙ Paramètres » dans /fm — éditeur de
+data/openwebui.env (KEY=VALUE) avec garde-fous (DATA_DIR/HOME interdits),
+appliqué à chaque démarrage/redémarrage ; boutons de service ▶/⏸/↻ pour
+Open WebUI et SearXNG passant par le PONT JAVA (fonctionnent même serveur
+arrêté) ; « Redémarrer l'application » (AlarmManager + kill) qui réapplique
+vraiment les variables (processus neuf).
+
+P90 (demande utilisateur) : les boutons flottants (📂 SPA et 💬 /fm) sont
+DÉPLAÇABLES au glisser-déposer (pointer events), position mémorisée dans
+localStorage ; un clic reste un clic (seuil de 6 px).
+
+Vérifié : gardien vert, compilation 4 modules, syntaxe JS (worker + chunk),
+démarrage réel (health 200, /fm?folder=settings et POST /fm/settings en 401 =
+routes montées), test noyau chromium (boot + latence + timeout 5 s).

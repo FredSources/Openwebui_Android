@@ -618,6 +618,39 @@ public class MainActivity extends Activity {
             }
         }, "AndroidNotify");
 
+        // P89 — pont système : pilotage des services (utilisable même serveur
+        // arrêté) et redémarrage complet de l'app — les variables
+        // d'environnement sont réappliquées à chaque démarrage.
+        webView.addJavascriptInterface(new Object() {
+            @android.webkit.JavascriptInterface
+            public String serverAction(final String name, final String action) {
+                try {
+                    Python.getInstance().getModule("android_main")
+                            .callAttr("service_control", name, action);
+                    return "ok";
+                } catch (Exception e) {
+                    return "erreur : " + e;
+                }
+            }
+
+            @android.webkit.JavascriptInterface
+            public void restartApp() {
+                try {
+                    Intent intent = new Intent(getApplicationContext(), MainActivity.class);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    android.app.PendingIntent pi = android.app.PendingIntent.getActivity(
+                            getApplicationContext(), 1001, intent,
+                            android.app.PendingIntent.FLAG_IMMUTABLE
+                                    | android.app.PendingIntent.FLAG_CANCEL_CURRENT);
+                    android.app.AlarmManager am =
+                            (android.app.AlarmManager) getSystemService(ALARM_SERVICE);
+                    am.set(android.app.AlarmManager.RTC, System.currentTimeMillis() + 500, pi);
+                } catch (Exception ignored) {
+                }
+                android.os.Process.killProcess(android.os.Process.myPid());
+            }
+        }, "AndroidSystem");
+
         // moteur vocal natif (dictée STT mode « web »)
         webView.addJavascriptInterface(new AndroidSpeech(webView), "AndroidSpeech");
 

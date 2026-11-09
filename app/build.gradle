@@ -16,7 +16,7 @@ android {
         // MainActivity s'en sert pour purger le cache WebView quand l'UI change
         def vcodeStr = project.hasProperty('vcode') ? project.property('vcode') : '1'
         versionCode vcodeStr.toString().toInteger()
-        versionName '0.0.41'
+        versionName '0.0.42'
 
         // Python = composant natif : arm64-v8a couvre tous les téléphones récents
         ndk {

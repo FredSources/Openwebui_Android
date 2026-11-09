@@ -1694,3 +1694,10 @@ DATABASE_URL doivent être posés (sinon SystemExit d'env.py ou SQLite
 introuvable), le stub open_webui.utils doit pointer vers le vrai répertoire
 (sinon json_codec « introuvable »), et les tables sont créées par
 Base.metadata.create_all (migrations alembic non rejouées).
+
+## 2026-11-09 — v0.0.45 : P94 publiée sur signal utilisateur
+
+versionName → 0.0.45 (vérifié : verifier_tag ✓, pied de page /fm régénéré à
+0.0.45, check_patches ✓). Tag v0.0.45 → build CI. Contenu : journaux
+d'activité dans /fm (P94) — consultation, aperçu erreurs surlignées,
+téléchargement fichier/zip, journal execute_code.

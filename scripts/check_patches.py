@@ -52,6 +52,8 @@ CHECKS = [
     ("P51 uploads injectés", "open_webui/tools/android_tools.py", "_uploads_pour_sable"),
     ("P52 bootstrap réseau", "open_webui/tools/android_tools.py", "SANDBOX_NET_BOOTSTRAP"),
     ("P84 repli session vivante", "open_webui/socket/main.py", "P84 : session expirée"),
+    ("P88 bootstrap sans sonde urlopen", "open_webui/tools/android_tools.py", "renseigné par une sonde JS bornée"),
+    ("P88 sonde JS bornée au boot", "open_webui/tools/android_tools.py", "AbortSignal"),
     ("P68 timeout search_web", "open_webui/retrieval/web/searxng.py", "timeout=30"),
     ("P69 delete_file to_thread", "open_webui/tools/android_tools.py", "asyncio.to_thread(Storage.delete_file"),
     ("P69b fm_delete to_thread", "open_webui/android_fm.py", "asyncio.to_thread(Storage.delete_file"),

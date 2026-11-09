@@ -1897,13 +1897,13 @@ def _uploads_pour_sable(code: str = '', max_par: int = 8 * 1024 * 1024, max_tota
 '''
 
 SANDBOX_NET_BOOTSTRAP = '''
-# --- P52 : vérité réseau du bac à sable (audit 22:59) ---
-# Les sockets wasm mentent (create_connection renvoie « ouvert ») alors que le
-# HTTP sortant est soumis à CORS : on les fait échouer proprement et on expose
-# network_available, calculé par une vraie sonde HTTP (le flag survit aux
-# exécutions suivantes dans le même noyau).
+# --- P52/P88 : réseau du bac à sable ---
 try:
     network_available
+except NameError:
+    network_available = None  # renseigné par une sonde JS bornée (AbortSignal)
+try:
+    _sock_indispo
 except NameError:
     import socket as _sock
 
@@ -1911,14 +1911,7 @@ except NameError:
         raise OSError('pas de TCP dans le bac à sable (wasm) : utilisez urllib/requests en HTTP')
     _sock.create_connection = _sock_indispo
     _sock.socket = _sock_indispo
-    try:
-        import urllib.request as _up
-        _up.urlopen('https://httpbin.org/get', timeout=3).read(64)
-        network_available = True
-    except Exception:
-        network_available = False
-# --- fin P52 ---
-
+# --- fin P52/P88 ---
 '''
 
 
@@ -2427,10 +2420,11 @@ def patch_sandbox_boot() -> None:
     if not cibles:
         raise SystemExit("PATCH EN ÉCHEC [P82] : worker pyodide introuvable")
     boot_js = _json.dumps(SANDBOX_NET_BOOTSTRAP)
+    Q = chr(34)  # guillemet double pour les littéraux JS
     replace_once(
         Path(cibles[0]),
         'pyimport("micropip").install(e)}async function j(',
-        'pyimport("micropip").install(e);try{await self.pyodide.runPythonAsync(' + boot_js + ')}catch(x){}}async function j(',
+        'pyimport("micropip").install(e);try{await self.pyodide.runPythonAsync(' + boot_js + ');let _n=false;try{const _r=await fetch(' + Q + 'https://httpbin.org/get' + Q + ',{signal:AbortSignal.timeout(3000)});_n=_r.status>0}catch(_x){}self.pyodide.globals.set("network_available",_n)}catch(x){}}async function j(',
         "P82 worker : bootstrap réseau au boot",
     )
 

@@ -1574,3 +1574,24 @@ VALIDÉ VISUELLEMENT : captures 900×1000 et 390×844 lues — rendu conforme
 aux deux formats. Leçon : un ast.parse du générateur ne valide pas le code
 PRODUIT — seul py_compile du module généré tranchait (et il a attrapé deux
 syntaxes fautives avant livraison).
+
+## 2026-11-09 — v0.0.44 (en préparation, NON publiée) : execute_code pour de bon (P88 disponible)
+
+Le mystère « le noyau Python ne démarre pas » — ÉTABLI ET CORRIGÉ :
+le correctif P88 (sonde réseau bornée en JS) s'était PERDU. Mon script de
+cette séance avait planté (erreur de syntaxe dans un heredoc) et NE RIEN
+appliquait — P88 n'avait donc jamais quitté la planche à dessin. Le worker
+embarquait l'ANCIENNE sonde urlopen au boot : son timeout=3 n'arrête pas un
+fetch wasm qui pend — httpbin.org inaccessible/lent → LE BOOT RESTAIT
+SUSPENDU indéfiniment. Mon banc passait (réseau rapide) — preuve à tromperie.
+
+- P88 v2 DISPONIBLE : la sonde Python urlopen est SUPPRIMÉE du bootstrap —
+  la sonde vit en JS avec AbortSignal.timeout(3000), borné par le navigateur
+  lui-même : IMPOSSIBLE à court-circuiter. network_available est injecté au
+  boot depuis le résultat JS. VALIDÉ : boot OK, 2+2 en 10 ms, print('hello')
+  en 6 ms sur le worker réparé.
+- GARDE-FOUS NOUVEAUX : (1) check_patches vérifie l'ABSENCE d'urlopen et la
+  présence du marqueur du bootstrap ; (2) node --check + smoke boot déjà en
+  place. Une perte de patch ne peut plus passer inaperçue.
+- État : sur master, PAS DE TAG — la publication attend le signal de
+  l'utilisateur (liste de demandes en cours).

@@ -2110,7 +2110,9 @@ async def appel_avec_reprise(event_call, payload, tentatives: int = 16, pause: f
     la fenêtre globale reste bornée par l'appelant (wait_for 320 s)."""
     out = None
     for i in range(max(1, tentatives)):
+        journal_exec_ligne("P97 event_call essai %s/%s" % (i + 1, tentatives))
         out = await event_call(payload)
+        journal_exec_ligne("P97 essai %s -> %s" % (i + 1, (out or {}).get('error', 'ok') if isinstance(out, dict) else '?'))
         err = out.get('error') if isinstance(out, dict) else None
         if err and 'Client session disconnected' in err and i < tentatives - 1:
             await asyncio.sleep(pause)
@@ -2404,6 +2406,12 @@ def patch_sandbox_hardening() -> None:
     code: str,
     timeout: int = None,""",
         "P87 execute_code : paramètre timeout exposé (sinon NameError → 120 s)",
+    )
+    replace_once(
+        builtin,
+        "        engine = await Config.get('code_interpreter.engine', 'pyodide')",
+        "        engine = await Config.get('code_interpreter.engine', 'pyodide')\n        journal_exec_ligne(\"P97 engine=%s\" % engine)",
+        "P97 trace engine execute_code",
     )
     root = DST / "frontend" / "_app" / "immutable"
     _patch_first_match(

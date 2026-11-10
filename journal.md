@@ -1773,3 +1773,17 @@ rien = l'outil n'est pas invoqué (le blocage est en amont).
 
 Run 42723187571 vert (5 min 54) — assets 0.0.47 conformes sous le tag
 v0.0.47 (verifier_tag ✓, check_apk ✓, gardes P96 ✓).
+
+## 2026-11-10 — v0.0.48 : diagnostic fin du blocage execute_code
+
+Le « curseur sans fin » est tracé par logs : execute_code EST appelé (trace
+DEBUT) mais ne sort jamais, sans TIMEOUT 320 s — donc il se bloque APRÈS
+l'entrée et AVANT le wait_for. Le seul await entre les deux est
+`Config.get('code_interpreter.engine')`. Pour trancher définitivement entre
+Config.get et le premier event_call, ajouts P97 :
+- `P97 engine=…` juste après Config.get ;
+- `P97 event_call essai k/N` avant + `P97 essai k -> …` après chaque tentative.
+Au prochain test, le journal dira exactement : « engine= » absent → Config.get
+bloque ; « essai 1/16 » sans « -> » → event_call bloque ; « -> » répétés → la
+reprise tourne. Aucun avertissement socket dans serveur.log → __event_call__
+non atteint jusqu'ici.

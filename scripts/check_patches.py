@@ -80,6 +80,8 @@ CHECKS = [
     ("P96 liste outils publics (sans _)", "open_webui/tools/android_tools.py", "not n.startswith('_')"),
     ("P96 trace entrée execute_code", "open_webui/tools/builtin.py", "DEBUT execute_code"),
     ("P96 trace timeout execute_code", "open_webui/tools/builtin.py", "TIMEOUT 320s"),
+    ("P97 trace engine execute_code", "open_webui/tools/builtin.py", "P97 engine="),
+    ("P97 trace tentatives event_call", "open_webui/tools/android_tools.py", "P97 event_call essai"),
 ]
 
 

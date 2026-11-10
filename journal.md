@@ -2026,3 +2026,10 @@ liste d'entiers (`_p105_json_sur`, récursif) — forme JSON, acceptée telle
 quelle par le frontend (`new Uint8Array(r.data)` dans le worker). Le
 diagnostic reste actif : `P104 SEND-ERREUR` signalerait toute récidive.
 `check_patches.py` vérifie le marqueur `_p105_json_sur`. `versionName` 0.0.56.
+
+## 2026-11-11 — v0.0.56 PUBLIÉE : le payload des appels outils est JSON-sûr
+
+Run 42921767989 **vert** (conclusion success) sur le tag `v0.0.56` — chaîne
+gardée : verifier_tag ✓ + check_apk ✓. Assets `OpenWebUI_Android-0.0.56-{debug,release}.apk`.
+Attendu au test appareil : `execute_code` répond même avec des fichiers dans le
+dossier uploads et du code pandas/matplotlib ; `P104 SEND` sans `SEND-ERREUR`.

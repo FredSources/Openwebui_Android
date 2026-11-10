@@ -2127,3 +2127,14 @@ Règles qui découlent : ne jamais créer un ressort avant que sa configuration
 soit disponible ; tout patch de la logique du bac à sable doit viser la copie
 exécutée (worker forcé par P106) et le contrôle doit porter sur la décision
 effective du bundle.
+
+## 2026-11-11 — v0.0.58 : P70 révoqué — le préchauffage retiré (décision utilisateur)
+
+Demande utilisateur : « on peut enlever le préchauffage ». Oui — et c'est
+mieux : avec P106 (voie worker forcée) le préchauffage n'apportait plus qu'environ
+3 s sur le premier appel, au prix d'un écart avec l'amont et de mémoire wasm
+résidente en continu. Surtout, il était l'AMORCE du bug des deux copies (créer
+le bac à sable avant la config). Retiré : le bac à sable est créé à la demande,
+au premier execute_code, comme en amont — la config est chargée à ce moment-là,
+toute la classe de bugs « décision avant config » disparaît. P71a (instantané
+des fichiers d'entrée, plafonds de remontée) est conservé. `versionName` 0.0.58.

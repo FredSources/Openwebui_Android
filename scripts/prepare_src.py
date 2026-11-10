@@ -2967,20 +2967,17 @@ def patch_event_timeout() -> None:
 
 
 def patch_prewarm() -> None:
-    """P70/P71 — execute_code « bloquait » : le PREMIER appel monte le runtime
-    wasm (numpy/pandas/sympy au boot) et paie les transferts de fichiers.
-    P70 : le worker est créé et booté AU CHARGEMENT DE LA PAGE (message fs:sync
-    qui déclenche l'init en tâche de fond) — au moment de l'appel, le bac à
-    sable est déjà chaud.
-    P71 : le worker ne renvoie plus les fichiers d'ENTRÉE (déjà côté serveur)
-    et plafonne la remontée (8 Mo/fichier, 16 Mo total)."""
+    """P70 — RÉVOQUÉ (utilisateur 2026-11-11) : le préchauffage créait le bac à
+    sable AU CHARGEMENT DE LA PAGE, avant la configuration → le drapeau
+    enable_pyodide_file_persistence était undefined et la copie de repli
+    (iframe) était choisie puis cachée à vie (piège des deux copies, 3ᵉ
+    occurrence — journal v0.0.57). Le gain (≈3 s sur le premier appel) ne vaut
+    pas cet écart avec l'amont : le bac à sable est créé À LA DEMANDE, comme en
+    amont, au premier execute_code — la config est alors chargée.
+    P71a reste : le worker ne renvoie pas les fichiers d'ENTRÉE (déjà côté
+    serveur) et plafonne la remontée (8 Mo/fichier, 16 Mo total)."""
+    log("  P70 : révoqué — le bac à sable est créé à la demande (comportement amont)")
     root = DST / "frontend" / "_app" / "immutable"
-    _patch_first_match(
-        str(root / "nodes" / "0.*.js"),
-        ",Me=async(t,i,F,P=[],X=[])=>{",
-        ',__prewarm=(()=>{try{const w=rt();w.postMessage({type:"fs:sync",id:"__prewarm"})}catch(e){}})(),Me=async(t,i,F,P=[],X=[],TO=120)=>{',
-        "P70 préchauffage du bac à sable au démarrage",
-    )
     _patch_first_match(
         str(root / "workers" / "pyodide.worker-*.js"),
         "async function He(e,t,r){self.stdout=null",

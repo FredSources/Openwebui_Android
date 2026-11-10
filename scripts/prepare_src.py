@@ -3025,6 +3025,23 @@ def patch_event_session_fallback() -> None:
             pass""",
         "P99 diagnostic session event_call",
     )
+    replace_once(
+        DST / "env.py",
+        """WEBSOCKET_SERVER_PING_TIMEOUT = os.getenv('WEBSOCKET_SERVER_PING_TIMEOUT', '20')
+try:
+    WEBSOCKET_SERVER_PING_TIMEOUT = int(WEBSOCKET_SERVER_PING_TIMEOUT)
+except ValueError:
+    WEBSOCKET_SERVER_PING_TIMEOUT = 20""",
+        """# P100 : le ping_timeout=20 s déconnectait le client quand il chargeait
+# Pyodide (> 20 s sans pong) → session supprimée → « Client session
+# disconnected ». On tolère un client occupé pendant le chargement.
+WEBSOCKET_SERVER_PING_TIMEOUT = os.getenv('WEBSOCKET_SERVER_PING_TIMEOUT', '300')
+try:
+    WEBSOCKET_SERVER_PING_TIMEOUT = int(WEBSOCKET_SERVER_PING_TIMEOUT)
+except ValueError:
+    WEBSOCKET_SERVER_PING_TIMEOUT = 300""",
+        "P100 socket : ping_timeout tolérant au chargement Pyodide",
+    )
 
 
 def patch_search_files() -> None:

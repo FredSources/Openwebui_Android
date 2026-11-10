@@ -1840,3 +1840,20 @@ de He, jamais atteint en cas d'échec amont.
 Correctif P99b : le worker répond TOUJOURS — try/catch + bornage du chargement
 Pyodide (90 s). Une erreur devient une réponse visible (stderr « ERREUR
 WORKER: … ») au lieu d'un blocage silencieux.
+
+## 2026-11-10 — v0.0.52 : ping_timeout — la session survit au chargement Pyodide
+
+Trace P99 (v0.0.51) : la session est présente, l'appel livré, mais la session
+TOMBE à ~42 s (« disconnected ») avant que le worker ne réponde. 42 s ≈
+ping_interval(25) + ping_timeout(20) : le client, occupé à charger Pyodide,
+ne répond plus aux pings socket.io → le serveur déconnecte → session
+supprimée → « Client session disconnected ».
+
+C'EST LA CAUSE des décrochages répétés : le keepalive socket.io (20 s) tue la
+session pendant que le bac à sable démarre. Les correctifs précédents
+(reprise, filtre session_id, worker-respond) étaient justes mais insuffisants
+car la session était coupée avant.
+
+Correctif P100 : WEBSOCKET_SERVER_PING_TIMEOUT 20 → 300 s. Le client occupé
+a le temps de charger Pyodide sans être déconnecté ; le worker (P99b) répond
+dans la foulée.

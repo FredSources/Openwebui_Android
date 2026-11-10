@@ -1787,3 +1787,21 @@ Au prochain test, le journal dira exactement : « engine= » absent → Config.g
 bloque ; « essai 1/16 » sans « -> » → event_call bloque ; « -> » répétés → la
 reprise tourne. Aucun avertissement socket dans serveur.log → __event_call__
 non atteint jusqu'ici.
+
+## 2026-11-10 — v0.0.49 : CAUSE RACINE du blocage execute_code trouvée et corrigée
+
+Diagnostic P97 (log réel) : `engine=pyodide` instantané (Config.get innocent),
+puis `event_call essai 1 -> Client session disconnected.` après 30 s. Donc une
+session EST trouvée, sio.call est lancé, mais le frontend NE RÉPOND JAMAIS.
+
+Cause racine (frontend, bundle minifié) : le gestionnaire « events »
+n'exécutait execute:python que si `u.session_id === n().id`. Or après
+reconnexion, `n().id` change (nouvelle session socket) mais
+`metadata['session_id']` (porté par l'appel outil) reste l'ancien → mismatch
+→ le frontend IGNORAIT l'appel sans répondre → sio.call attendait 30 s →
+« Client session disconnected ». C'est pour ça que la reprise (P95) ne
+servait à rien : la session était bonne mais le filtre frontend rejetait.
+
+Correctif P98 : accepter execute:python même si l'id porté est périmé (la
+livraison sio.call(to=session_id) est déjà ciblée sur le bon client). Le
+gestionnaire répond via l'ack `i(...)` → sio.call se résout.

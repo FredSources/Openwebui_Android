@@ -2071,6 +2071,18 @@ def patch_pyodide_universel() -> None:
         "packages: ['micropip','numpy','pandas','sympy']",
         "P44b pyodide iframe : paquets de boot",
     )
+    # P98 — le gestionnaire n'exécutait execute:python que si
+    # u.session_id === n().id ; après reconnexion n().id change mais
+    # metadata['session_id'] reste l'ancien → le frontend ignorait l'appel
+    # SANS répondre → sio.call attendait puis « Client session disconnected ».
+    # La livraison sio.call(to=session_id) est déjà ciblée : on accepte
+    # execute:python même si l'id porté est périmé.
+    _patch_first_match(
+        str(root / "nodes" / "0.*.js"),
+        'if(u?.session_id===n().id){if(h==="execute:python")',
+        'if(u?.session_id===n().id||h==="execute:python"){if(h==="execute:python")',
+        "P98 frontend : execute:python accepté même si session_id périmé",
+    )
 
 
 def patch_automation_rrule() -> None:

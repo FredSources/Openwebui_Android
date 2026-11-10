@@ -1823,3 +1823,20 @@ Ajouts pour trancher définitivement :
   SESSION_POOL (sid, uid, clés) à chaque appel — on verra si la session y est ;
 - capture de logging élargie (open_webui, socketio, engineio) → serveur.log
   recevra enfin les avertissements socket.
+
+## 2026-11-10 — v0.0.51 : le worker répond enfin TOUJOURS (P99b)
+
+Trace P99 (définitive) : session présente et correspondante (sid=QmLx_z-8Wr,
+pool=['QmLx_z-8Wr']) → le serveur livre bien l'appel. Mais le frontend ne
+répond jamais, puis la session tombe (pool=[]). DONC la gestion de session est
+saine ; le bug est dans le WORKER Pyodide.
+
+Cause : le onmessage du worker fait `await j(self.packages), await He(r,n,o)`
+SANS try/catch. Si le chargement Pyodide (j) échoue ou rame, He n'est jamais
+atteint → AUCUN postMessage de résultat → le frontend attend indéfiniment →
+« Client session disconnected ». Le seul postMessage de résultat est en fin
+de He, jamais atteint en cas d'échec amont.
+
+Correctif P99b : le worker répond TOUJOURS — try/catch + bornage du chargement
+Pyodide (90 s). Une erreur devient une réponse visible (stderr « ERREUR
+WORKER: … ») au lieu d'un blocage silencieux.

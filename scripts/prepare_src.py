@@ -2084,6 +2084,17 @@ def patch_pyodide_universel() -> None:
         'if(u?.session_id===n().id||h==="execute:python"){if(h==="execute:python")',
         "P98 frontend : execute:python accepté même si session_id périmé",
     )
+    # P99b — le worker n'émettait AUCUNE réponse si le chargement Pyodide (j)
+    # échouait ou rame : `await j(...), await He(...)` sans try/catch → He jamais
+    # atteint, pas de postMessage → le frontend attendait indéfiniment puis la
+    # session tombait (« Client session disconnected »). On borne le chargement
+    # et on répond TOUJOURS (erreur visible au lieu d'un blocage muet).
+    _patch_first_match(
+        str(root / "workers" / "pyodide.worker-*.js"),
+        'await j(self.packages),await He(r,n,o);return',
+        'try{await Promise.race([j(self.packages),new Promise((_r,_j)=>setTimeout(()=>_j(new Error("chargement Pyodide timeout")),90000))]),await He(r,n,o)}catch(err){self.postMessage({id:r,result:null,stdout:"",stderr:"ERREUR WORKER: "+(err&&err.message||String(err)),files:[]})}return',
+        "P99b worker : répond toujours (try/catch + bornage Pyodide)",
+    )
 
 
 def patch_automation_rrule() -> None:

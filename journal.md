@@ -2002,3 +2002,27 @@ Run 42918112871 **vert** (conclusion success) sur le tag `v0.0.55` — chaîne
 gardée : verifier_tag ✓ + check_apk ✓. Assets `OpenWebUI_Android-0.0.55-{debug,release}.apk`.
 Attendu au prochain test : `/fm/diag/eventcall` répond (auto-test) et les
 traces `P104 SEND/ETAT/disconnect` localisent la perte du paquet ciblé.
+
+## 2026-11-11 — v0.0.56 : P105 — CAUSE RACINE DÉFINITIVE des « bac à sable muet »
+
+Les traces P104 (v0.0.55) ont tranché immédiatement : à l'appel réel,
+`P104 SEND` suivi de **`P104 SEND-ERREUR : Object of type bytes is not JSON
+serializable`**. Le paquet d'appel outil contient des **octets bruts** —
+`_uploads_pour_sable` (P51/P77) joint les petits fichiers du dossier uploads
+(≤ 64 Ko) en `{'name': …, 'data': ent.read_bytes()}` — et `Packet.encode()` ne
+sait pas sérialiser les octets : `json.dumps` lève une exception, la tâche
+d'envoi meurt dans `asyncio.wait(tasks)` qui avale l'erreur, et **le paquet ne
+part jamais** → l'appel pend jusqu'au timeout 320 s (« bac à sable muet ») ou
+à la mort de la session.
+
+C'EST la cause unique de TOUS les échecs depuis le début : tant que le dossier
+uploads est vide, execute_code marche (d'où les tests « simples » qui
+passaient parfois et l'auto-test v0.0.55, `files: []`, en 0,0 s) ; dès qu'un
+petit fichier s'y trouve (CSV, image…), TOUS les appels meurent silencieusement.
+Les correctifs socket/mémoire précédents (P95-P103) traitaient des conséquences.
+
+**P105** : dans `__event_caller__`, tout octet du payload est converti en
+liste d'entiers (`_p105_json_sur`, récursif) — forme JSON, acceptée telle
+quelle par le frontend (`new Uint8Array(r.data)` dans le worker). Le
+diagnostic reste actif : `P104 SEND-ERREUR` signalerait toute récidive.
+`check_patches.py` vérifie le marqueur `_p105_json_sur`. `versionName` 0.0.56.

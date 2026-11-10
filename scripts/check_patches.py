@@ -314,6 +314,7 @@ def check_p104_diag() -> None:
         ("P104 disconnect sid=", "raison de déconnexion"),
         ("P104 ETAT sid=", "état des participants"),
         ("_p104_send_packet", "monkeypatch d'envoi"),
+        ("_p105_json_sur", "P105 : payload JSON-sûr (octets → listes)"),
     ):
         if marqueur not in t:
             err(f"P104 : {label} absent de socket/main.py (marqueur {marqueur})")

@@ -3371,8 +3371,23 @@ async def disconnect(sid, reason=None):
             _jd("P104 ETAT sid=%s participants=%s" % (
                 str(request_info.get('session_id'))[-6:], _parts))
         except Exception:
-            pass""",
-        "P104 état des participants à l'appel",
+            pass
+        # P105 — cause racine (tracée par P104 SEND-ERREUR) : les octets bruts
+        # du payload (fichiers récoltés par P51/P77 : {'name', 'data': bytes})
+        # cassent l'encodage JSON du paquet — l'envi meurt dans une exception
+        # avalée par asyncio.wait(tasks) et l'appel reste muet (« bac à sable
+        # muet »). On convertit tout octet en liste d'entiers : forme JSON,
+        # acceptée telle quelle par le frontend (new Uint8Array(r.data)).
+        def _p105_json_sur(_o):
+            if isinstance(_o, (bytes, bytearray, memoryview)):
+                return list(bytes(_o))
+            if isinstance(_o, dict):
+                return {k: _p105_json_sur(v) for k, v in _o.items()}
+            if isinstance(_o, (list, tuple)):
+                return [_p105_json_sur(v) for v in _o]
+            return _o
+        event_data = _p105_json_sur(event_data)""",
+        "P104 état participants + P105 payload JSON-sûr",
     )
 
 

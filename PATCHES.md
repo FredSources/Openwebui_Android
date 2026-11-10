@@ -67,3 +67,21 @@ Tous les patchs sont générés par `scripts/prepare_src.py` (idempotent, rejoua
 
 `scripts/smoke.sh` (hôte, Python 3.13) : serveur démarré, `/health` → `{"status":true}`,
 frontend servi, `POST /api/v1/auths/signin` → 200 + JWT.
+
+## Bac à sable Pyodide — le piège des DEUX copies
+
+Le bundle frontend embarque **deux copies** de la logique du bac à sable :
+
+- `workers/pyodide.worker-*.js` — worker **persistant**, instancié par
+  `new Worker(new URL(…))`. C'est **lui qui s'exécute** (`android_main.py` force
+  `ENABLE_PYODIDE_FILE_PERSISTENCE=true`, contrôle P44).
+- `chunks/*.js` (fonction `patch_pyodide_universel`) — copie de **repli**
+  « universel » (iframe / worker recréé depuis un blob), **jamais atteinte**
+  dans notre configuration.
+
+| # | Cible | Modification | Motif |
+|---|-------|-------------|-------|
+| P38 | `workers/pyodide.worker-*.js` | boot `packages:["micropip","numpy","pandas","sympy"]` | les paquets scientifiques étaient indisponibles (`ModuleNotFoundError`) quand la détection regex d'import échouait |
+| P44b | `chunks/*.js` | même boot sur la copie de repli | filet de sécurité si le mode persistant est désactivé |
+| P102 | `chunks/*.js` | boot réduit à `['micropip','numpy']` | ~115 Mo de wasm au boot → OOM Android. **Erreur de cible** : seul le repli fut allégé, le worker garda le boot lourd (v0.0.53 inopérante) |
+| **P103** | `workers/pyodide.worker-*.js` | boot réduit à `packages:["micropip","numpy"]`, pandas/sympy **à la demande** (`j(self.packages)`) | le worker est la copie exécutée : c'est lui qu'il fallait alléger. Contrôle `check_patches.py` aligné (boot allégé exigé partout, boot lourd rejeté partout) — journal v0.0.54 |

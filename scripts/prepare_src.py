@@ -3200,6 +3200,32 @@ def patch_pyodide_packages() -> None:
         )
 
 
+def patch_pyodide_worker_boot() -> None:
+    """P103 — boot ALLÉGÉ du worker Pyodide (la copie RÉELLEMENT exécutée).
+    P38 préinstallait numpy/pandas/sympy au boot = ~115 Mo de wasm d'un coup →
+    le lowmemorykiller Android tuait/bloquait le worker (« disconnected before
+    answering »), et le thread saturé ne pouvait même pas exécuter le timer de
+    secours P99b. P102 (v0.0.53) n'avait allégé que la copie de repli
+    (chunks/*.js — patch_pyodide_universel) : le worker embarqué gardait le boot
+    lourd. Correctif ciblant le worker : boot ['micropip','numpy'], pandas/sympy
+    en chargement à la demande (j(self.packages) les installe si le code les
+    importe)."""
+    import glob as _glob
+
+    cibles = sorted(
+        _glob.glob(str(DST / "frontend" / "_app" / "immutable" / "workers" / "pyodide.worker-*.js"))
+    )
+    if not cibles:
+        raise SystemExit("PATCH EN ÉCHEC [P103] : worker pyodide introuvable")
+    for cible in cibles:
+        replace_once(
+            Path(cible),
+            'packages:["micropip","numpy","pandas","sympy"]',
+            'packages:["micropip","numpy"]',
+            "P103 pyodide worker : boot allégé (pandas/sympy à la demande)",
+        )
+
+
 def patch_typst_tool() -> None:
     """P11 — outil « compile_typst » (.typ → PDF) dans les outils embarqués."""
     builtin = DST / "tools" / "builtin.py"
@@ -3760,6 +3786,7 @@ def main() -> int:
     patch_memory_recall()
     patch_kb_backfill()
     patch_pyodide_packages()
+    patch_pyodide_worker_boot()
     patch_pyodide_universel()
     patch_extra_wheels()
     patch_pyodide_detection()

@@ -1874,3 +1874,71 @@ Correctifs :
   /fm/logs/clear) — demande utilisateur.
 - P101 : indicateur de démarrage (version + ping_timeout) pour vérifier le
   déploiement.
+
+## 2026-11-10 — revue d'état : v0.0.53 publiée, chaîne verte
+
+Revue de session (lecture seule, aucune modification de code) :
+- run CI 42880590199 **vert** (4 min 48 s) sur le tag `v0.0.53` ;
+- release GitHub `v0.0.53` créée avec assets nommés `OpenWebUI_Android-0.0.53-{debug,release}.apk` ;
+- arbre git propre, `version_code` = 16.
+Reste à faire inchangé : Phase 4 (test appareil réel — l'élément clé pour
+valider les correctifs mémoire P102 / ping_timeout P100 sur `execute_code`),
+Phase 5 (APK release signé, notice BSD-3), et les idées en attente
+(connect-to-server, mise à jour in-app, widget).
+
+## 2026-11-10 — v0.0.54 : P103 — boot allégé du VRAI worker (cause racine des décrochages)
+
+Test utilisateur du 0.0.53 : « même problème » (curseur sans fin sur
+execute_code). Diagnostic en deux temps.
+
+**1. Traces temps réel** (récupérées via `/fm/logs/live` — accessible en
+boucle locale sans auth — puis `/fm/logs/download` avec compte admin) :
+- 20:35:23 `DEBUT execute_code delai=120s` → `engine=pyodide` → `essai 1/16`
+  → `P99 pool=['HOwlfP4ERv']` : l'appel EST livré à la session ;
+- AUCUNE réponse du worker — ni résultat, ni l'erreur « ERREUR WORKER » du
+  bornage P99b (90 s) ;
+- 20:37:49 (+146 s) : `essai 1 -> Client session disconnected` +
+  « disconnected before answering » — la session socket meurt ;
+- ensuite `pool=[]` DÉFINITIF (essais 2→12 « not owned … or disconnected ») :
+  le frontend ne se **reconnecte jamais**. Or MainActivity ne gère pas
+  `onRenderProcessGone` → un tuage du processus rendu ferait crasher l'appli
+  entière (serveur compris). Le serveur répondait toujours : la WebView est
+  **gelée**, pas morte. Timing cohérent avec un client silencieux dès ~+120 s
+  (ping 25 + timeout 20 ≈ 145 s).
+
+**2. Forensique de l'APK réellement installé**
+(`Download/OpenWebUI_Android-0.0.53-release.apk` — version confirmée par la
+page /fm : `_FM_VERSION=0.0.53`). LE PIÈGE DES DEUX COPIES : le bundle
+embarque la logique du bac à sable Pyodide en deux exemplaires —
+- `workers/pyodide.worker-*.js` : worker persistant, instancié par
+  `new Worker(new URL(…))` — **c'est lui qui s'exécute**
+  (`ENABLE_PYODIDE_FILE_PERSISTENCE` forcé à true) ;
+- `chunks/wN8N8j40.js` : copie de repli « universel » (iframe/blob), jamais
+  atteinte dans notre configuration.
+Constat : le worker embarqué chargeait ENCORE
+`packages:["micropip","numpy","pandas","sympy"]` (~115 Mo de wasm) —
+**P102 (v0.0.53) n'avait allégé que la copie de repli** (le patch ciblait
+`patch_pyodide_universel` = les chunks). Le worker s'étouffait au boot
+(OOM/thrashing), son thread bloqué ne pouvait même pas exécuter le timer de
+secours P99b (setTimeout inatteignable) → silence total → gel UI → session
+tuée. Tous les correctifs socket des versions précédentes réparaient la
+communication pendant que le correspondant était asphyxié.
+
+Cause racine UNIQUE de tous les « disconnected before answering » : boot
+lourd du worker.
+
+Correctifs :
+- **P103** : boot allégé du worker `packages:["micropip","numpy"]`
+  (pandas/sympy en chargement à la demande via `j(self.packages)` — la
+  détection de paquets P46 côté frontend les installe si le code les importe).
+  Appliqué dans `src-assets/` (asset embarqué) ET dans `scripts/prepare_src.py`
+  (`patch_pyodide_worker_boot`, juste après P38 qui rejoue le boot lourd).
+- **Contrôle `check_patches.py`** (évolution justifiée — règle du 2026-11-08) :
+  l'ancien contrôle P38 EXIGEAIT le boot lourd dans le worker — il validait
+  l'état défectueux et aurait bloqué P103 (faux négatif avéré). Désormais :
+  boot allégé exigé dans les DEUX copies (worker + chunks), boot lourd rejeté
+  partout.
+- `versionName` 0.0.53 → 0.0.54.
+- Docs : `PATCHES.md` (section « le piège des deux copies » + tableau
+  P38/P44b/P102/P103), `docs/maintenance.typ` (dépannage + table des patchs,
+  PDF recompilé).

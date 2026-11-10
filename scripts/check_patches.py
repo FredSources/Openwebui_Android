@@ -155,7 +155,14 @@ def check_build_gradle() -> None:
 
 
 def check_pyodide_paquets() -> None:
-    """P38 : le worker Pyodide doit préinstaller numpy/pandas/sympy au boot.
+    """P38/P102/P103 : le worker Pyodide (la copie RÉELLEMENT exécutée —
+    android_main.py force ENABLE_PYODIDE_FILE_PERSISTENCE) doit démarrer
+    ALLÉGÉ ['micropip','numpy'], pandas/sympy en chargement à la demande.
+    Évolution justifiée (journal v0.0.54) : l'ancien contrôle EXIGEAIT le boot
+    lourd numpy/pandas/sympy dans le worker — il validait l'état qui tuait le
+    worker par OOM (~115 Mo de wasm) et aurait bloqué le correctif P103. Le
+    piège des DEUX copies est couvert : boot allégé exigé dans le worker ET
+    dans la copie de repli (chunks), boot lourd rejeté partout.
     P15 déplace le frontend vers src-assets/ en fin de prepare → on contrôle
     la destination finale (nom de fichier haché → vérification par glob)."""
     import glob as _glob
@@ -166,27 +173,33 @@ def check_pyodide_paquets() -> None:
         str(SRC / "open_webui" / "frontend" / "_app" / "immutable" / "workers" / "pyodide.worker-*.js")
     )
     if not cibles:
-        err("P38 : worker pyodide introuvable dans frontend/_app/immutable/workers/")
+        err("P103 : worker pyodide introuvable dans frontend/_app/immutable/workers/")
         return
     for cible in cibles:
         with open(cible, encoding="utf-8", errors="ignore") as fh:
             contenu = fh.read()
-        if 'packages:["micropip","numpy","pandas","sympy"]' not in contenu:
-            err(f"P38 : paquets de boot numpy/pandas/sympy absents — {cible}")
+        if 'packages:["micropip","numpy"]' not in contenu:
+            err(f"P103 : boot allégé absent du worker (attendu packages:[\"micropip\",\"numpy\"]) — {cible}")
+        if 'packages:["micropip","numpy","pandas","sympy"]' in contenu:
+            err(f"P103 : boot lourd numpy/pandas/sympy encore présent dans le worker — {cible}")
         if "L.catch(()=>{L=null})" not in contenu:
             err(f"P49a : init du worker non réinitialisable — {cible}")
-    # P44 : la voie worker doit être activée (sinon l'iframe contourne P38/P41)
+    # P44 : la voie worker doit être activée (sinon l'iframe contourne P103/P41)
     am = PROJ / "app" / "src" / "main" / "python" / "android_main.py"
     if am.exists() and 'ENABLE_PYODIDE_FILE_PERSISTENCE", "true"' not in am.read_text(encoding="utf-8", errors="ignore"):
         err("P44 : ENABLE_PYODIDE_FILE_PERSISTENCE non activé dans android_main.py")
-    # P44b/P102 : boot allégé (numpy au boot, pandas/sympy à la demande —
-    # ~115 Mo de wasm au boot tuait le worker par lowmemorykiller Android).
+    # P44b/P102 : la copie de repli (chunks, iframe/blob) doit être alignée —
+    # boot allégé (numpy au boot, pandas/sympy à la demande — ~115 Mo de wasm
+    # au boot tuaient le worker par lowmemorykiller Android).
     chunks = _glob.glob(str(PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "*.js"))
     if chunks and not any(
         "packages: ['micropip','numpy']" in open(c, encoding="utf-8", errors="ignore").read()
         for c in chunks
     ):
         err("P44b/P102 : boot allégé absent (attendu packages: ['micropip','numpy'])")
+    for c in chunks:
+        if "packages: ['micropip','numpy','pandas','sympy']" in open(c, encoding="utf-8", errors="ignore").read():
+            err(f"P103 : boot lourd présent dans la copie de repli — {c}")
 
 
 def check_p41_harvest() -> None:

@@ -1805,3 +1805,7 @@ servait à rien : la session était bonne mais le filtre frontend rejetait.
 Correctif P98 : accepter execute:python même si l'id porté est périmé (la
 livraison sio.call(to=session_id) est déjà ciblée sur le bon client). Le
 gestionnaire répond via l'ack `i(...)` → sio.call se résout.
+
+## 2026-11-10 — v0.0.49 PUBLIÉE : cause racine execute_code corrigée
+
+Assets 0.0.49 conformes. Correctif P98 (filtre session_id frontend).

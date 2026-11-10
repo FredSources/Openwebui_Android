@@ -1809,3 +1809,17 @@ gestionnaire répond via l'ack `i(...)` → sio.call se résout.
 ## 2026-11-10 — v0.0.49 PUBLIÉE : cause racine execute_code corrigée
 
 Assets 0.0.49 conformes. Correctif P98 (filtre session_id frontend).
+
+## 2026-11-10 — v0.0.50 : diagnostic de session (P99) + logging élargi
+
+0.0.49 n'a pas suffi : la trace montre DEUX modes d'échec — parfois la session
+n'est pas trouvée (disconnect rapide ~2 s), parfois trouvée mais le worker ne
+répond pas (~28 s). Or serveur.log était VIDE d'avertissement socket : la
+capture de logging ne capte pas les loggeurs open_webui.* (les traces P97
+apparaissent car elles écrivent directement dans le fichier).
+
+Ajouts pour trancher définitivement :
+- P99 : dans __event_caller__, journalise dans exec.log l'état réel du
+  SESSION_POOL (sid, uid, clés) à chaque appel — on verra si la session y est ;
+- capture de logging élargie (open_webui, socketio, engineio) → serveur.log
+  recevra enfin les avertissements socket.

@@ -1549,7 +1549,8 @@ def install() -> None:
     try:
         h = _Handler()
         h.setFormatter(logging.Formatter("%(message)s"))
-        for nom in ("", "uvicorn", "uvicorn.error", "uvicorn.access", "android_main"):
+        for nom in ("", "uvicorn", "uvicorn.error", "uvicorn.access", "android_main",
+                    "open_webui", "socketio", "engineio"):
             logging.getLogger(nom).addHandler(h)
     except Exception:
         pass
@@ -2995,6 +2996,23 @@ def patch_event_session_fallback() -> None:
             log.warning(f'Event caller: session {session_id} not owned by requesting user or disconnected')
             return {'error': 'Client session disconnected.'}""",
         "P84 event_call : repli sur la session vivante",
+    )
+    replace_once(
+        DST / "socket" / "main.py",
+        """    async def __event_caller__(event_data):
+        session_id = request_info['session_id']""",
+        """    async def __event_caller__(event_data):
+        session_id = request_info['session_id']
+        # P99 diagnostic session (écrit directement dans exec.log)
+        try:
+            from open_webui.android_logs import journal_exec as _jd
+            _jd("P99 sid=%s uid=%s pool=%s" % (
+                str(request_info.get('session_id'))[:10],
+                str(request_info.get('user_id'))[:10],
+                sorted(str(k)[:10] for k in SESSION_POOL.keys())))
+        except Exception:
+            pass""",
+        "P99 diagnostic session event_call",
     )
 
 

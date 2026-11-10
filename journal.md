@@ -2104,3 +2104,26 @@ la seule voie complète (ramassage, persistance, bornage, boot allégé P103).
 `check_patches.py` vérifie le forçage et rejette la décision conditionnelle
 (évolution justifiée : le contrôle P44 ne vérifiait que la variable
 d'environnement, jamais la décision réelle du bundle).
+
+### Leçon d'architecture (question utilisateur, 2026-11-11) — pourquoi deux copies ?
+
+Open WebUI d'origine embarque la logique du bac à sable en DEUX MODES : le
+*worker* (persistant, IndexedDB) et le *repli universel* (iframe/blob, éphémère)
+pour les navigateurs sans IndexedDB. Le bundleur les empaquette différemment
+(entrée worker minifiée vs texte brut dans un chunk), mais ils sortent de la
+MÊME source au build : identiques par construction, et le choix se fait « à la
+demande » au premier execute_code, quand la config est chargée — donc jamais
+faussé en amont.
+
+Le bug du projet n'est pas amont : il est venu de NOS patchs.
+(1) P70/P71 (préchauffage) crée le bac à sable AU CHARGEMENT DE LA PAGE, avant
+la config → le drapeau enable_pyodide_file_persistence est undefined → la
+copie de repli est choisie et cachée à vie. (2) Nos correctifs furent posés par
+remplacement de chaînes sur un exemplaire à la fois : les bons patchs (P41
+ramassage, P51 persistance, P99b bornage) allèrent dans le worker, jamais
+exécuté. (3) Les contrôles validaient le fichier patché, pas la copie exécutée.
+
+Règles qui découlent : ne jamais créer un ressort avant que sa configuration
+soit disponible ; tout patch de la logique du bac à sable doit viser la copie
+exécutée (worker forcé par P106) et le contrôle doit porter sur la décision
+effective du bundle.

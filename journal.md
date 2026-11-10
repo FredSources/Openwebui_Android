@@ -1942,3 +1942,15 @@ Correctifs :
 - Docs : `PATCHES.md` (section « le piège des deux copies » + tableau
   P38/P44b/P102/P103), `docs/maintenance.typ` (dépannage + table des patchs,
   PDF recompilé).
+
+## 2026-11-10 — v0.0.54 PUBLIÉE : boot allégé du worker confirmé dans l'APK livré
+
+Run 42891888099 **vert** (conclusion success) sur le tag `v0.0.54` — chaîne
+gardée : verifier_tag ✓ + check_apk (contrôle 9) ✓. Release `v0.0.54` avec
+assets nommés `OpenWebUI_Android-0.0.54-{debug,release}.apk`.
+
+Contrôle de contenu de l'asset release téléchargé (au-delà des noms) :
+`packages:["micropip","numpy"]` dans le worker **et** dans la copie de repli —
+le boot lourd a disparu de l'artefact livré. Attendu au prochain test
+appareil : `execute_code` répond (numpy disponible, pandas/sympy chargés à la
+demande), session socket stable, plus de « disconnected before answering ».

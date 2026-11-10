@@ -2033,3 +2033,47 @@ Run 42921767989 **vert** (conclusion success) sur le tag `v0.0.56` — chaîne
 gardée : verifier_tag ✓ + check_apk ✓. Assets `OpenWebUI_Android-0.0.56-{debug,release}.apk`.
 Attendu au test appareil : `execute_code` répond même avec des fichiers dans le
 dossier uploads et du code pandas/matplotlib ; `P104 SEND` sans `SEND-ERREUR`.
+
+## 2026-11-11 — v0.0.56 VALIDÉE sur appareil + cause racine expliquée
+
+**Validation utilisateur** (transcription de session conservée par l'utilisateur) :
+execute_code répond systématiquement — `status: success` sur tous les tests :
+- contrôles numpy/pandas/matplotlib (Python 3.14.2, Emscripten-5.0.3-wasm32) ✓ ;
+- pandas DataFrame + calculs (somme des carrés = 285) ✓ ;
+- matplotlib : PNG écrit (43,7 Ko) + CSV relu ✓ ;
+- liste de /mnt/uploads, réseau bloqué (OSError attendu) ✓ ;
+- écriture fichier persist_test.txt ✓.
+Aucun « bac à sable muet », aucun timeout 320 s. **Le bug historique est clos.**
+
+### Le bug corrigé (P105) — explication de référence
+
+Le serveur envoyait au bac à sable une commande d'exécution qui embarquait les
+petits fichiers du dossier uploads (P51/P77 : « découvrabilité », ≤ 64 Ko)
+sous forme d'**octets bruts** (`data: ent.read_bytes()`). Cette commande doit
+être encodée en JSON pour partir sur le WebSocket ; or `json.dumps` refuse les
+octets (`Object of type bytes is not JSON serializable`). L'exception tuait la
+tâche d'envoi, **avalée par `asyncio.wait(tasks)`** (aucune trace, aucun
+journal) : le paquet ne partait jamais, l'appel restait suspendu jusqu'au
+timeout 320 s (« bac à sable muet ») ou à la mort de la session.
+
+Effet « parfois ça marche » : dossier uploads vide → aucun octet → succès ;
+un seul petit fichier présent → échec systématique. Tous les correctifs
+précédents (P95-P103 : reprise, sessions, mémoire, ping) traitaient des
+**conséquences** de paquets jamais envoyés — d'où leur inefficacité.
+
+Correctif : `_p105_json_sur` (dans `__event_caller__`) convertit récursivement
+tout octet du payload en liste d'entiers — forme JSON reconstruite côté client
+par `new Uint8Array(r.data)`. Le traçage `P104 SEND-ERREUR` (v0.0.55) arme la
+détection de toute récidive.
+
+### Suite ouverte — remontée des fichiers (P41) : à traiter
+
+La transcription de test montre que les fichiers écrits dans `/mnt/uploads` par
+le code Python **ne sont pas remontés** : `files: []` dans toutes les réponses,
+`display_file` répond « Fichier introuvable », et les écritures ne semblent pas
+persistées entre deux exécutions (le PNG du run n'apparaît plus au run suivant ;
+seuls les fichiers d'entrée injectés y figurent). Pistes : le ramassage du
+worker (`__inNames`/`__snap` qui sautent les fichiers d'entrée ou inchangés),
+la persistance IDBFS (`A()`/syncfs), et le format des données (base64 côté
+worker vs listes depuis P105). À investiguer au prochain tour — le périmètre
+reste le bac à sable, l'outil répondant désormais correctement.

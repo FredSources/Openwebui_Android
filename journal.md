@@ -1954,3 +1954,44 @@ Contrôle de contenu de l'asset release téléchargé (au-delà des noms) :
 le boot lourd a disparu de l'artefact livré. Attendu au prochain test
 appareil : `execute_code` répond (numpy disponible, pandas/sympy chargés à la
 demande), session socket stable, plus de « disconnected before answering ».
+
+## 2026-11-10 — v0.0.55 : P104 — la livraison ciblée par sid ne livre JAMAIS (diagnostic)
+
+Suite du test « même problème » (v0.0.54) : le bac à sable répond parfaitement
+quand on le pilote directement (sonde navigateur : `print(2+3)` → `stdout:"5\n"`
+en 3,5 s — worker ET iframe testés), la chaîne frontend complète aussi
+(injection d'une trame `execute:python` dans le client socket.io réel : handler
+→ `Me()` → sable → réponse), mais **la trame envoyée par le serveur n'arrive
+jamais au client**.
+
+Faits établis (sondes Playwright + client python-socketio, trames WebSocket
+capturées) :
+1. `execute_code` EST appelé (trace DEBUT), la session est dans le pool, et
+   `sio.call('events', …, to=sid)` est lancé vers le bon sid ;
+2. le client ne reçoit **jamais** la trame `execute:python` — même un client
+   python-socketio pur, connecté, en heartbeats, pendant 4 minutes ;
+3. les émissions de *room* (streaming des chats, acks `43x`) arrivent
+   normalement — seules les émissions **ciblées par sid** sont perdues ;
+4. la même chaîne (module `socket.main` réel de l'app, même `JSONOnlyPacket`,
+   même codec orjson, mêmes options, mêmes versions libs) **fonctionne hors
+   Android** — livraison et ack en moins d'une seconde ;
+5. aucun « Cannot send to sid » (engineio) dans les journaux : le paquet est
+   remis à `socket.send()` sans erreur signalée ;
+6. les sessions meurent ensuite (disconnect) ou passent au timeout 320 s —
+   d'où les « Client session disconnected » et le « bac à sable muet ».
+
+Le piège des deux copies (P102/P103) était réel mais n'était donc pas la seule
+cause : malgré le boot allégé, la commande n'est jamais délivrée.
+
+**P104 — instrumentation de la livraison** (ce commit) :
+- `sio._send_packet` est enveloppé : tout paquet EVENT avec id d'ack remis au
+  transport est journalisé (`P104 SEND eio=… id=…`) avec ses erreurs ;
+- `P104 ETAT` : les participants RÉELS du manager au moment de l'appel ;
+- `P104 disconnect` : la raison de chaque déconnexion socket ;
+- `P104 auth socket` : les échecs d'authentification qui déconnectent la session ;
+- route d'auto-test **`/fm/diag/eventcall`** (admin, boucle locale) : l'app
+  s'envoie `execute:python` à elle-même et renvoie la réponse + l'état interne —
+  test de la chaîne complète à la demande, sans intervention sur l'écran.
+
+`versionName` 0.0.55 ; `check_patches.py` contrôle les 4 marqueurs P104
+(évolution justifiée : sans ces traces, tout test appareil reste muet).

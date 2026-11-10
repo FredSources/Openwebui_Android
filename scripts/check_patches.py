@@ -302,6 +302,26 @@ def check_typo_courantes() -> None:
             err(f"{p.relative_to(SRC)} : utilise asyncio sans l'importer")
 
 
+def check_p104_diag() -> None:
+    """P104 — diagnostic de livraison des appels outils : le traçage des envois,
+    l'état des participants, les raisons de déconnexion et la route d'auto-test
+    doivent être présents. Évolution justifiée (journal v0.0.55) : la livraison
+    sio.call(to=sid) ne se voit nulle part — sans ces traces, chaque test
+    appareil reste muet."""
+    t = (SRC / "open_webui" / "socket" / "main.py").read_text(encoding="utf-8", errors="ignore")
+    for marqueur, label in (
+        ("P104 SEND eio=", "traçage des envois"),
+        ("P104 disconnect sid=", "raison de déconnexion"),
+        ("P104 ETAT sid=", "état des participants"),
+        ("_p104_send_packet", "monkeypatch d'envoi"),
+    ):
+        if marqueur not in t:
+            err(f"P104 : {label} absent de socket/main.py (marqueur {marqueur})")
+    fm = (SRC / "open_webui" / "android_fm.py").read_text(encoding="utf-8", errors="ignore")
+    if "fm_diag_eventcall" not in fm:
+        err("P104 : route d'auto-test /fm/diag/eventcall absente de android_fm.py")
+
+
 def main() -> int:
     check_fichiers()
     check_compile_typst_hors_bloc()
@@ -311,6 +331,7 @@ def main() -> int:
     check_pyodide_paquets()
     check_p41_harvest()
     check_p54_ciblage()
+    check_p104_diag()
     check_js_syntax()
     check_build_gradle()
     check_compilation()

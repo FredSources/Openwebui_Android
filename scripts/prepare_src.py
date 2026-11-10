@@ -1384,6 +1384,59 @@ async def fm_logs_clear(request: Request, user=Depends(get_verified_user)):
     _al.vider()
     return _Red('/fm?folder=logs', status_code=303)
 
+
+@app.get('/fm/diag/eventcall')
+async def fm_diag_eventcall(request: Request, user=Depends(get_verified_user)):
+    """P104 — auto-test de la livraison des appels outils : l'app s'envoie à
+    elle-même execute:python sur la session vivante de l'administrateur et
+    renvoie la réponse (ou l'échec + l'état interne du gestionnaire de
+    sessions). Diagnostic complet de la chaîne execute_code à la demande."""
+    import asyncio as _aio
+    import json as _j
+    import time as _t
+    if user.role != 'admin':
+        return _HTMLResponse("reserve aux administrateurs", status_code=403)
+    hote = (request.client.host if request.client else '')
+    if hote not in ('127.0.0.1', '::1', 'localhost'):
+        return _HTMLResponse(_fm_page("<h1>Acces refuse</h1>"), status_code=403)
+    try:
+        from open_webui.socket.main import (
+            sio as _sio, SESSION_POOL as _pool,
+            get_session_ids_by_user_ids as _gids)
+        cibles = [s for s in _gids([user.id]) if s in _pool]
+        etat = {
+            'sessions_vivantes': [str(s)[-8:] for s in cibles],
+            'pool': [str(k)[-8:] for k in _pool.keys()],
+        }
+        if not cibles:
+            return _HTMLResponse("<pre>" + _j.dumps(
+                {'erreur': 'aucune session vivante', **etat}, indent=1) + "</pre>")
+        cible = cibles[-1]
+        try:
+            etat['participants'] = [
+                (str(a)[-8:], str(b)[-8:])
+                for a, b in _sio.manager.get_participants('/', cible)]
+        except Exception as e:
+            etat['participants'] = ['err: %s' % e]
+        payload = {'type': 'execute:python', 'data': {
+            'id': 'diag-%s' % int(_t.time()), 'code': 'print(2+3)',
+            'packages': [], 'exec_timeout': 30, 'session_id': cible, 'files': []}}
+        debut = _t.time()
+        try:
+            rep = await _aio.wait_for(
+                _sio.call('events',
+                          {'chat_id': 'diag', 'message_id': 'diag', 'data': payload},
+                          to=cible, timeout=None),
+                timeout=45)
+            etat['reponse'] = rep
+        except Exception as e:
+            etat['reponse'] = '%s: %s' % (type(e).__name__, e)
+        etat['duree_s'] = round(_t.time() - debut, 1)
+        return _HTMLResponse("<pre>" + _j.dumps(
+            etat, indent=1, ensure_ascii=False, default=str) + "</pre>")
+    except Exception as exc:
+        return _fm_error(exc)
+
 '''
 
 
@@ -3226,6 +3279,103 @@ def patch_pyodide_worker_boot() -> None:
         )
 
 
+def patch_p104_diag() -> None:
+    """P104 — diagnostic de la livraison des appels outils (« execute_code muet »).
+    Constats (2026-11-10) : sio.call(to=sid) ne livre JAMAIS le paquet dans l'app
+    (3 clients testés : navigateur, client python — les émissions de room arrivent,
+    les ciblées par sid non) alors que le même module fonctionne hors Android.
+    On instrumente : (1) tout paquet EVENT avec id d'ack remis à la couche
+    transport + ses erreurs, (2) l'état réel des participants au moment de
+    l'appel, (3) les raisons de déconnexion, (4) les échecs d'auth socket — et
+    une route /fm/diag/eventcall exécute execute:python depuis l'app elle-même
+    pour tester la chaîne complète à la demande."""
+    # 1 — traçage des envois (après la création de sio)
+    replace_once(
+        DST / "socket" / "main.py",
+        "# Timeout duration in seconds\nTIMEOUT_DURATION = 3",
+        """# P104 — traçage des envois de paquets EVENT avec id d'ack (appels outils) :
+# toute la chaîne est saine en analyse statique ; on voit enfin si le paquet est
+# remis au transport et s'il l'est avec le bon eio_sid.
+try:
+    _p104_orig_send = sio._send_packet
+
+    async def _p104_send_packet(eio_sid, pkt):
+        try:
+            if getattr(pkt, 'packet_type', None) == 2 and getattr(pkt, 'id', None) is not None:
+                from open_webui.android_logs import journal_exec as _jd
+                _jd("P104 SEND eio=%s id=%s" % (str(eio_sid)[-6:], pkt.id))
+        except Exception:
+            pass
+        try:
+            return await _p104_orig_send(eio_sid, pkt)
+        except Exception as _e:
+            try:
+                from open_webui.android_logs import journal_exec as _jd
+                _jd("P104 SEND-ERREUR eio=%s %s" % (str(eio_sid)[-6:], _e))
+            except Exception:
+                pass
+            raise
+
+    sio._send_packet = _p104_send_packet
+except Exception:
+    pass
+
+# Timeout duration in seconds
+TIMEOUT_DURATION = 3""",
+        "P104 traçage des envois outils",
+    )
+    # 2 — raison de déconnexion
+    replace_once(
+        DST / "socket" / "main.py",
+        """@sio.event
+async def disconnect(sid, reason=None):
+    await encryption.disconnect(sid)""",
+        """@sio.event
+async def disconnect(sid, reason=None):
+    log.warning('P104 disconnect sid=%s reason=%s', str(sid)[-6:], reason)
+    await encryption.disconnect(sid)""",
+        "P104 raison de déconnexion",
+    )
+    # 3 — échec d'authentification socket (déconnecte la session)
+    replace_once(
+        DST / "socket" / "main.py",
+        """    except Exception:
+        log.debug('Socket authentication expired for %s', sid)
+    LOCAL_AUTHENTICATED_SIDS.discard(sid)""",
+        """    except Exception:
+        log.warning('P104 auth socket echouee (exception) sid=%s', str(sid)[-6:])
+        log.debug('Socket authentication expired for %s', sid)
+    else:
+        log.warning('P104 auth socket refusee sid=%s', str(sid)[-6:])
+    LOCAL_AUTHENTICATED_SIDS.discard(sid)""",
+        "P104 échec auth socket",
+    )
+    # 4 — état des participants au moment de l'appel (après la trace P99)
+    replace_once(
+        DST / "socket" / "main.py",
+        """                sorted(str(k)[:10] for k in SESSION_POOL.keys())))
+        except Exception:
+            pass""",
+        """                sorted(str(k)[:10] for k in SESSION_POOL.keys())))
+        except Exception:
+            pass
+        # P104 — les participants RÉELS du manager au moment de l'appel
+        try:
+            from open_webui.android_logs import journal_exec as _jd
+            _parts = []
+            try:
+                _parts = [(str(a)[-6:], str(b)[-6:]) for a, b in
+                          sio.manager.get_participants('/', str(request_info.get('session_id')))]
+            except Exception as _e:
+                _parts = ['err:%s' % _e]
+            _jd("P104 ETAT sid=%s participants=%s" % (
+                str(request_info.get('session_id'))[-6:], _parts))
+        except Exception:
+            pass""",
+        "P104 état des participants à l'appel",
+    )
+
+
 def patch_typst_tool() -> None:
     """P11 — outil « compile_typst » (.typ → PDF) dans les outils embarqués."""
     builtin = DST / "tools" / "builtin.py"
@@ -3798,6 +3948,7 @@ def main() -> int:
     patch_execute_code_gate()
     patch_web_main_content()
     patch_event_session_fallback()
+    patch_p104_diag()
     patch_prewarm()
     patch_sandbox_boot()
     patch_audit_suite()

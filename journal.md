@@ -1995,3 +1995,10 @@ cause : malgré le boot allégé, la commande n'est jamais délivrée.
 
 `versionName` 0.0.55 ; `check_patches.py` contrôle les 4 marqueurs P104
 (évolution justifiée : sans ces traces, tout test appareil reste muet).
+
+## 2026-11-10 — v0.0.55 PUBLIÉE : instrumentation P104 disponible
+
+Run 42918112871 **vert** (conclusion success) sur le tag `v0.0.55` — chaîne
+gardée : verifier_tag ✓ + check_apk ✓. Assets `OpenWebUI_Android-0.0.55-{debug,release}.apk`.
+Attendu au prochain test : `/fm/diag/eventcall` répond (auto-test) et les
+traces `P104 SEND/ETAT/disconnect` localisent la perte du paquet ciblé.

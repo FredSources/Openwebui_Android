@@ -321,6 +321,20 @@ def check_p104_diag() -> None:
     fm = (SRC / "open_webui" / "android_fm.py").read_text(encoding="utf-8", errors="ignore")
     if "fm_diag_eventcall" not in fm:
         err("P104 : route d'auto-test /fm/diag/eventcall absente de android_fm.py")
+    # P106 — la voie worker doit être FORCÉE dans le bundle (la décision au
+    # chargement du module lit une config pas encore arrivée → iframe choisie,
+    # qui n'a ni ramassage P41 ni persistance IDBFS : piège des deux copies).
+    import glob as _g
+    chunks = _g.glob(str(PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "*.js"))
+    if chunks and not any(
+        "const cp=()=>new hp" in open(c, encoding="utf-8", errors="ignore").read()
+        for c in chunks
+    ):
+        err("P106 : la voie worker n'est pas forcée dans le bundle (attendu const cp=()=>new hp)")
+    for c in chunks:
+        t2 = open(c, encoding="utf-8", errors="ignore").read()
+        if "enable_pyodide_file_persistence?new hp:new ap" in t2:
+            err(f"P106 : la décision iframe/worker conditionnelle est encore présente — {c}")
 
 
 def main() -> int:

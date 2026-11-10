@@ -2077,3 +2077,30 @@ worker (`__inNames`/`__snap` qui sautent les fichiers d'entrée ou inchangés),
 la persistance IDBFS (`A()`/syncfs), et le format des données (base64 côté
 worker vs listes depuis P105). À investiguer au prochain tour — le périmètre
 reste le bac à sable, l'outil répondant désormais correctement.
+
+## 2026-11-11 — v0.0.57 : P106 — la voie worker du bac à sable n'avait JAMAIS tourné
+
+Suite de la validation v0.0.56 (execute_code répond ✓) : les fichiers écrits
+dans `/mnt/uploads` ne remontent pas (`files: []`), `display_file` répond
+« Fichier introuvable », et les écritures ne survivent pas à l'exécution
+suivante (seuls les fichiers d'entrée sont présents).
+
+**Diagnostic (piège des deux copies — 3ᵉ occurrence)** : l'appli exécute le
+bac à sable dans la copie **iframe** (`chunks/*.js`) — qui ne contient NI le
+ramassage des fichiers produits (P41), NI la persistance IDBFS (P51), NI le
+bornage d'erreur (P99b). Ces patchs vivent uniquement dans le **worker**
+(`workers/pyodide.worker-*.js`)… qui n'est JAMAIS instancié. Pourquoi : le
+bundle crée le bac à sable au chargement du module (`__prewarm` → `cp()`), or
+`cp()` lit `features.enable_pyodide_file_persistence` dans la config — pas
+encore chargée à cet instant → `undefined` → la copie iframe est choisie puis
+mise en cache pour toute la vie de la page. L'API renvoie pourtant bien
+`enable_pyodide_file_persistence: True` (vérifié sur `/api/config`), et
+`android_main` force l'environnement (P44) — mais la décision est prise trop
+tôt. Constat d'écoute : aucune des traces « ERREUR WORKER » (P99b) n'a jamais
+apparu — cohérent : le code P99b n'était pas exécuté.
+
+**P106** : la voie worker est forcée dans le bundle (`const cp=()=>new hp`) —
+la seule voie complète (ramassage, persistance, bornage, boot allégé P103).
+`check_patches.py` vérifie le forçage et rejette la décision conditionnelle
+(évolution justifiée : le contrôle P44 ne vérifiait que la variable
+d'environnement, jamais la décision réelle du bundle).

@@ -2054,6 +2054,27 @@ def _patch_first_match(pattern: str, old: str, new: str, name: str) -> None:
     raise SystemExit(f"PATCH EN ÉCHEC [{name}] : aucune ancre dans {pattern}")
 
 
+def patch_p106_voie_worker() -> None:
+    """P106 — la voie WORKER du bac à sable n'a jamais tourné. Le bundle crée
+    le bac à sable AU CHARGEMENT DU MODULE (`__prewarm` → `cp()`), avant que la
+    configuration n'arrive : `features.enable_pyodide_file_persistence` est
+    alors `undefined` → la copie de repli (iframe) est choisie et mise en cache
+    pour toute la vie de la page. Tout ce qui vit dans le worker — ramassage des
+    fichiers produits (P41), persistance IDBFS (P51), bornage d'erreur (P99b),
+    boot allégé (P103) — n'a donc JAMAIS été exécuté : observations du
+    2026-11-11 (`files: []`, écritures non persistées, display_file « introuvable »).
+    C'est la 3e occurrence du « piège des deux copies ». android_main force déjà
+    ENABLE_PYODIDE_FILE_PERSISTENCE=true (P44) : on force la voie worker dans le
+    bundle, seule voie complète."""
+    root = DST / "frontend" / "_app" / "immutable"
+    _patch_first_match(
+        str(root / "chunks" / "*.js"),
+        "const cp=()=>qd(rp)?.features?.enable_pyodide_file_persistence?new hp:new ap",
+        "const cp=()=>new hp",
+        "P106 voie worker forcée pour le bac à sable",
+    )
+
+
 def patch_upload_harvest() -> None:
     """P41 — contrat /mnt/uploads (audit 2026-11-08 22:20) : le prompt système
     promet « écrivez dans /mnt/uploads/ pour retrouver vos fichiers dans le
@@ -3964,6 +3985,7 @@ def main() -> int:
     patch_web_main_content()
     patch_event_session_fallback()
     patch_p104_diag()
+    patch_p106_voie_worker()
     patch_prewarm()
     patch_sandbox_boot()
     patch_audit_suite()

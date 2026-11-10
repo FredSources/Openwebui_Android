@@ -21,7 +21,7 @@ import"./NZTpNUN0.js";import"./69_IOA4Y.js";import{E as qd,p as jd,aB as Kd,g as
 			stderr: function (text) {
 				stderr = stderr ? stderr + text + '\n' : text + '\n';
 			},
-			packages: ['micropip','numpy','pandas','sympy']
+			packages: ['micropip','numpy']
 		});
 		pyodide.FS.mkdirTree('/mnt/uploads');
 		await pyodide.pyimport('micropip').install(packages || []);

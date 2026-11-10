@@ -179,13 +179,14 @@ def check_pyodide_paquets() -> None:
     am = PROJ / "app" / "src" / "main" / "python" / "android_main.py"
     if am.exists() and 'ENABLE_PYODIDE_FILE_PERSISTENCE", "true"' not in am.read_text(encoding="utf-8", errors="ignore"):
         err("P44 : ENABLE_PYODIDE_FILE_PERSISTENCE non activé dans android_main.py")
-    # P44b : filet de sécurité, le boot de l'iframe embarque aussi les paquets
+    # P44b/P102 : boot allégé (numpy au boot, pandas/sympy à la demande —
+    # ~115 Mo de wasm au boot tuait le worker par lowmemorykiller Android).
     chunks = _glob.glob(str(PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "*.js"))
     if chunks and not any(
-        "packages: ['micropip','numpy','pandas','sympy']" in open(c, encoding="utf-8", errors="ignore").read()
+        "packages: ['micropip','numpy']" in open(c, encoding="utf-8", errors="ignore").read()
         for c in chunks
     ):
-        err("P44b : boot de l'iframe sans paquets scientifiques")
+        err("P44b/P102 : boot allégé absent (attendu packages: ['micropip','numpy'])")
 
 
 def check_p41_harvest() -> None:

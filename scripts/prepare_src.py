@@ -582,6 +582,8 @@ FM_CODE = '''
 try:
     from open_webui import android_logs as _allog
     _allog.install()
+    import os as _osv
+    _allog.journal_exec("P101 version=@@VERSION@@ ping_timeout=%s" % _osv.environ.get('WEBSOCKET_SERVER_PING_TIMEOUT', '?'))
 except Exception:
     pass
 
@@ -1077,7 +1079,8 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 "<div class='bar'><a class='btn' href='/fm?folder=settings'>&#8592; Paramètres</a>"
                 "<a class='btn2 btn' href='/fm?folder=logs&log=" + _quote(sel) + "'>&#8635; Rafraîchir</a>"
                 "<a class='btn2 btn' href='/fm/logs/live?hist=100'>&#9654; Live</a>"
-                "<a class='btn' href='/fm/logs/download?all=1'>&#128229; Tout télécharger (zip)</a></div>"
+                "<a class='btn' href='/fm/logs/download?all=1'>&#128229; Tout télécharger (zip)</a>"
+                "<form method='post' action='/fm/logs/clear' style='display:inline'><button class='del'>&#128465; Vider</button></form></div>"
                 "<table class='logtable'><thead><tr><th>Nom</th><th>Taille</th><th>Modifié</th><th>Actions</th></tr></thead><tbody>"
                 + rows_log + "</tbody></table>"
                 "<h2 style='font-size:1rem;margin:16px 0 8px'>" + _html.escape(sel) + " — dernières "
@@ -1369,6 +1372,18 @@ async def fm_logs_live(request: Request):
 
     return _SR(_flux(), media_type='text/plain; charset=utf-8')
 
+
+@app.post('/fm/logs/clear')
+async def fm_logs_clear(request: Request, user=Depends(get_verified_user)):
+    """P101 — vide tous les journaux (après analyse)."""
+    from open_webui import android_logs as _al
+    from fastapi.responses import RedirectResponse as _Red
+
+    if not _journaux_actifs():
+        return _HTMLResponse("journaux desactives", status_code=404)
+    _al.vider()
+    return _Red('/fm?folder=logs', status_code=303)
+
 '''
 
 
@@ -1599,6 +1614,23 @@ def supprimer(nom: str) -> bool:
         return True
     except Exception:
         return False
+
+
+def vider() -> int:
+    """P101 — vide tous les journaux (après analyse). Retourne le nombre de
+    fichiers supprimés."""
+    n = 0
+    try:
+        for p in list(_dir().iterdir()):
+            if _VALID.match(p.name):
+                try:
+                    p.unlink()
+                    n += 1
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    return n
 '''
 
 
@@ -2069,8 +2101,11 @@ def patch_pyodide_universel() -> None:
     _patch_first_match(
         str(root / "chunks" / "*.js"),
         "packages: ['micropip']",
-        "packages: ['micropip','numpy','pandas','sympy']",
-        "P44b pyodide iframe : paquets de boot",
+        # P102 : numpy/pandas/sympy au boot = ~115 Mo de wasm d'un coup → le
+        # lowmemorykiller Android tuait le worker (« disconnected before
+        # answering »). pandas/sympy passent en chargement à la demande.
+        "packages: ['micropip','numpy']",
+        "P44b/P102 pyodide : boot allégé (pandas/sympy à la demande)",
     )
     # P98 — le gestionnaire n'exécutait execute:python que si
     # u.session_id === n().id ; après reconnexion n().id change mais

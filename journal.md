@@ -1857,3 +1857,20 @@ car la session était coupée avant.
 Correctif P100 : WEBSOCKET_SERVER_PING_TIMEOUT 20 → 300 s. Le client occupé
 a le temps de charger Pyodide sans être déconnecté ; le worker (P99b) répond
 dans la foulée.
+
+## 2026-11-10 — v0.0.53 : boot allégé (mémoire) + vidage des journaux
+
+Hypothèse utilisateur (la bonne) : le worker est TUÉ pour mémoire. P44b forçait
+['micropip','numpy','pandas','sympy'] au boot = ~115 Mo de wasm d'un coup → le
+lowmemorykiller Android (ou la limite du worker) tuait le bac à sable → plus
+jamais de réponse → « disconnected before answering ». C'est pourquoi TOUS les
+correctifs socket tombaient : on réparait la communication pendant que le
+correspondant était mort.
+
+Correctifs :
+- P102 : boot allégé ['micropip','numpy'] — pandas/sympy en chargement à la
+  demande (le lazy j(self.packages) les charge si le code les importe).
+- P101 : vidage des journaux (bouton 🗑 Vider dans /fm → Journaux, route
+  /fm/logs/clear) — demande utilisateur.
+- P101 : indicateur de démarrage (version + ping_timeout) pour vérifier le
+  déploiement.

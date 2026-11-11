@@ -2204,3 +2204,29 @@ gardée : verifier_tag ✓ + check_apk ✓. Assets `OpenWebUI_Android-0.0.60-{de
 Attendu au test appareil : `status: success` sur les réussites (plus de warning
 FS.syncfs filtré), fichiers produits visibles au gestionnaire /fm, retrouvés par
 display_file, persistants entre exécutions.
+
+## 2026-11-11 — v0.0.60 VALIDÉE — objectifs de la session atteints
+
+Validation utilisateur : « c'est bon » — execute_code fonctionne, les fichiers
+sont visibles, le statut est juste. Le seul message restant
+(« The inference service is overloaded ») vient du SERVICE D'INFÉRENCE DISTANT
+(HTTP 429 rate_limited sur opencode.ai/DeepSeek — vu aussi dans serveur.log) :
+hors périmètre de l'appli, correctif = réessayer plus tard ou changer de
+modèle. L'appli remonte l'erreur proprement.
+
+Bilan de la session du 2026-11-10/11 — six correctifs, tous validés :
+- P103 (v0.0.54) : boot allégé du worker (mémoire) ;
+- P104 (v0.0.55) : instrumentation de la livraison (SEND/ETAT/disconnect,
+  route /fm/diag/eventcall) — c'est elle qui a fait sortir l'erreur cachée ;
+- P105 (v0.0.56) : CAUSE RACINE des « bac à sable muet » — octets bruts non
+  JSON-sérialisables dans le payload → l'envoi mourait silencieusement ;
+- P106 (v0.0.57) : voie worker forcée — 3ᵉ occurrence du piège des deux copies
+  (ramassage P41 + persistance IDBFS enfin exécutés) ;
+- P70 révoqué (v0.0.58) : préchauffage retiré (il amorçait le bug des copies) ;
+- P107 (v0.0.59) : paramètre TO restauré (régression de la révocation) ;
+- P108 (v0.0.60) : fichiers produits ENREGISTRÉS (base + stockage) et statut
+  débarrassé des avertissements FS bénins.
+
+Prochaine étape naturelle : Phase 4 du plan initial — campagne de tests
+appareil complets (chat, dictée, recherche, upload+RAG, Typst, tenue en
+arrière-plan), puis Phase 5 (APK release signé, notice BSD-3, tag de livraison).

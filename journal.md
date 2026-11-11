@@ -2520,3 +2520,13 @@ Vérifications : 4 pages /fm en 200, tiroir/onglets/marqueur validés par
 sonde, `check_patches.py` vert, `py_compile` OK. Harnais 8090 complété
 (stubs `searxng_settings_load/save` — le 500 observé venait du harnais, pas
 de l'appli). `versionName` 0.0.71.
+
+## 2026-11-11 — v0.0.71 PUBLIÉE : tiroir ☰ mobile, onglets, corrections de rendu
+
+Run 43086150047 **success** sur le tag `v0.0.71` — chaîne gardée : verifier_tag ✓
++ check_apk ✓. Assets `OpenWebUI_Android-0.0.71-{debug,release}.apk`.
+Attendu sur l'appareil : ☰ qui ouvre/ferme la sidebar en tiroir (voile,
+fermeture au clic), onglets sur une ligne avec onglet actif centré, plus de
+`@@OWUI_LOGS@@` dans les réglages Open WebUI, cases à cocher SearXNG
+alignées. Contrôle visuel hôte fait (5 écrans, harnais 8090, arrêté après
+test — conforme à la règle AGENTS.md).

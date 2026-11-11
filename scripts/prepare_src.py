@@ -1202,14 +1202,18 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 _fm_onglets('logs')
                 + "<div class='settings'><h1>&#128220; Journaux</h1>"
                 + "<div class='card'><h2>&#128260; Journalisation</h2>"
-                + "<form method='post' action='/fm/logs/toggle'>"
-                + "<label class='chk'><input type='checkbox' name='off'"
-                + ("" if _journaux_actifs() else " checked")
-                + "> désactiver la journalisation (aucune nouvelle écriture)</label>"
-                + "<label class='chk'><input type='checkbox' name='netoff'"
-                + ("" if _journaux_reseau() else " checked")
-                + "> désactiver l’évacuation par le réseau (téléchargement, zip, flux live)</label>"
-                + "<div class='svcbar'><button class='primary'>&#128190; Enregistrer</button></div></form></div>"
+                + "<p class='sub'><span class='dot' style='background:"
+                + ("#22c55e" if _journaux_actifs() else "#ef4444") + "'></span> Logs : <b>"
+                + ("actifs" if _journaux_actifs() else "désactivés") + "</b> &mdash; "
+                + "<span class='dot' style='background:"
+                + ("#22c55e" if _journaux_reseau() else "#ef4444") + "'></span> Évacuation réseau : <b>"
+                + ("active" if _journaux_reseau() else "désactivée") + "</b></p>"
+                + "<form method='post' action='/fm/logs/toggle'><div class='svcbar'>"
+                + "<button class='ghost' name='action' value='logs_on'>&#9654; Activer les logs</button>"
+                + "<button class='ghost' name='action' value='logs_off'>&#9208; Désactiver les logs</button>"
+                + "<button class='ghost' name='action' value='net_on'>&#9654; Activer l'évacuation réseau</button>"
+                + "<button class='ghost' name='action' value='net_off'>&#9208; Désactiver l'évacuation réseau</button>"
+                + "</div></form></div>"
                 + "<div class='card'><h2>&#128196; Fichiers journaux</h2>"
                 "<div class='bar'>"
                 "<a class='btn' href='/fm?folder=logs&log=" + _quote(sel) + "'>&#8635; Rafraîchir</a>"
@@ -1547,15 +1551,16 @@ async def fm_logs_toggle(request: Request, user=Depends(get_verified_user)):
     défaut) coupe toute nouvelle écriture. Effet IMMÉDIAT + mémorisé dans
     data/openwebui.env (OWUI_LOGS=on/off)."""
     form = await request.form()
-    off = bool(form.get('off'))
-    netoff = bool(form.get('netoff'))
-    _osj.environ['OWUI_LOGS'] = 'off' if off else 'on'
-    _osj.environ['OWUI_LOGS_NET'] = 'off' if netoff else 'on'
+    action = str(form.get('action') or '')
+    if action in ('logs_on', 'logs_off'):
+        _osj.environ['OWUI_LOGS'] = 'on' if action == 'logs_on' else 'off'
+    if action in ('net_on', 'net_off'):
+        _osj.environ['OWUI_LOGS_NET'] = 'on' if action == 'net_on' else 'off'
     import android_main as _am
     lignes = [l for l in _am.env_read().splitlines()
               if l.strip() and not l.strip().startswith(('OWUI_LOGS=', 'OWUI_LOGS_NET='))]
-    lignes.append('OWUI_LOGS=' + ('off' if off else 'on'))
-    lignes.append('OWUI_LOGS_NET=' + ('off' if netoff else 'on'))
+    lignes.append('OWUI_LOGS=' + _osj.environ.get('OWUI_LOGS', 'off'))
+    lignes.append('OWUI_LOGS_NET=' + _osj.environ.get('OWUI_LOGS_NET', 'on'))
     _am.env_save(chr(10).join(lignes))
     return _Redirect('/fm?folder=logs', status_code=303)
 

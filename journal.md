@@ -2421,3 +2421,14 @@ vérifié dans le module généré (0 occurrence de `_Red(` dans la route,
 défaut (journalisation off par défaut — paradoxe de diagnostic) ; les
 prochains défauts de route devraient être habillés d'une trace visible.
 `versionName` 0.0.67.
+
+## 2026-11-11 — v0.0.68 : P116 — boutons Activer/Désactiver pour les journaux
+
+Préférence utilisateur : « je préfère des boutons activer les logs que
+désactiver les logs ». Les cases à cocher de l'écran Journaux sont remplacées
+par quatre boutons (▶ Activer les logs / ⏹ Désactiver les logs / ▶ Activer
+l'évacuation réseau / ⏹ Désactiver l'évacuation réseau), même style que le
+champ Service, avec l'état visible (points vert/rouge : Logs actifs /
+désactivés, Évacuation réseau active / désactivée). La route
+`/fm/logs/toggle` reçoit désormais `action=logs_on|logs_off|net_on|net_off`.
+`versionName` 0.0.68.

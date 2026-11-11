@@ -265,6 +265,7 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P105], [`socket/main.py`], [sanitisation JSON du payload des appels outils : tout octet brut (fichiers récoltés par P51/P77) devient une liste d'entiers — `json.dumps` levait `Object of type bytes is not JSON serializable` à l'envoi, l'exception avalée laissait l'appel muet : *cause racine* des « bac à sable muet » (journal v0.0.56)],
   [P106], [`chunks/*.js` (bundle)], [la voie *worker* du bac à sable est forcée — la décision iframe/worker était prise au chargement du module, avant la config : la copie iframe (sans ramassage P41 ni persistance IDBFS) était choisie à vie. 3ᵉ occurrence du piège des deux copies (journal v0.0.57)],
   [P70 — *révoqué*], [`nodes/0.*.js`], [le préchauffage du bac à sable est retiré (v0.0.58) : créer le bac à sable au chargement de la page, avant la config, amorçait le bug des deux copies — il est créé *à la demande*, comme en amont],
+  [P107], [`nodes/0.*.js`], [le paramètre `TO=120` (délai d'exécution) est restauré dans la signature de `Me()` — il était introduit par le même remplacement que P70 et la révocation l'avait emporté (« TO is not defined », journal v0.0.59)],
 )
 
 == Performances de démarrage

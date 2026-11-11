@@ -2148,3 +2148,18 @@ exécutés) + P70 révoqué (bac à sable créé à la demande, comme en amont).
 Attendu au test appareil : fichiers écrits dans /mnt/uploads visibles dans le
 gestionnaire et retrouvés par display_file, écritures persistantes entre
 exécutions ; premier appel plus lent de 3-5 s (montage wasm à la demande).
+
+## 2026-11-11 — v0.0.59 : P107 — le paramètre TO restauré (régression de la v0.0.58)
+
+Test appareil v0.0.58 : « execute_code frontend: TO is not defined » —
+régression de MA révocation de P70 : le paramètre `TO=120` (délai
+d'exécution) était introduit par le MÊME remplacement que le préchauffage ;
+retirer le bloc en entier a laissé un corps de fonction qui référence TO sans
+le déclarer (transmission `exec_timeout: TO` + minuteur « Execution timeout
+apres … »). Correctif P107 : le paramètre est restauré, le préchauffage reste
+révoqué. `check_patches.py` vérifie désormais la signature complète de `Me()`
+(évolution justifiée : un contrôle par marqueur ne voyait pas qu'une révocation
+emportait un fragment utile). `versionName` 0.0.59.
+
+Note positive : l'erreur est remontée IMMÉDIATEMENT à l'écran et dans les
+traces — la chaîne de diagnostic (P104/P105) fonctionne comme prévu.

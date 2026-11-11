@@ -335,6 +335,15 @@ def check_p104_diag() -> None:
         t2 = open(c, encoding="utf-8", errors="ignore").read()
         if "enable_pyodide_file_persistence?new hp:new ap" in t2:
             err(f"P106 : la décision iframe/worker conditionnelle est encore présente — {c}")
+    # P107 — la signature de Me() doit déclarer TO (le corps l'utilise :
+    # exec_timeout + minuteur) ; retirer le préchauffage P70 l'avait emporté.
+    import glob as _g2
+    nodes = _g2.glob(str(PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "nodes" / "0.*.js"))
+    if nodes and not any(
+        "Me=async(t,i,F,P=[],X=[],TO=120)=>{" in open(c, encoding="utf-8", errors="ignore").read()
+        for c in nodes
+    ):
+        err("P107 : le paramètre TO=120 est absent de la signature de Me()")
 
 
 def main() -> int:

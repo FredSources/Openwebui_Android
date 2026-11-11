@@ -2075,6 +2075,23 @@ def patch_p106_voie_worker() -> None:
     )
 
 
+def patch_p107_signature_to() -> None:
+    """P107 — le paramètre TO (délai d'exécution, défaut 120 s) doit figurer
+    dans la signature de Me() : le corps l'utilise (transmission
+    `exec_timeout: TO`, minuteur « Execution timeout apres … »). Ce paramètre
+    avait été introduit dans le même remplacement que le préchauffage P70 ;
+    la révocation de P70 (v0.0.58) l'a donc emporté avec lui — « TO is not
+    defined » observé le 2026-11-11. On restaure UNIQUEMENT le paramètre, le
+    préchauffage restant révoqué (création du bac à sable à la demande)."""
+    root = DST / "frontend" / "_app" / "immutable"
+    _patch_first_match(
+        str(root / "nodes" / "0.*.js"),
+        ",Me=async(t,i,F,P=[],X=[])=>{",
+        ",Me=async(t,i,F,P=[],X=[],TO=120)=>{",
+        "P107 signature TO=120 restaurée dans Me()",
+    )
+
+
 def patch_upload_harvest() -> None:
     """P41 — contrat /mnt/uploads (audit 2026-11-08 22:20) : le prompt système
     promet « écrivez dans /mnt/uploads/ pour retrouver vos fichiers dans le
@@ -3983,6 +4000,7 @@ def main() -> int:
     patch_event_session_fallback()
     patch_p104_diag()
     patch_p106_voie_worker()
+    patch_p107_signature_to()
     patch_prewarm()
     patch_sandbox_boot()
     patch_audit_suite()

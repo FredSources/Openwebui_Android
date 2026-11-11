@@ -2432,3 +2432,10 @@ champ Service, avec l'état visible (points vert/rouge : Logs actifs /
 désactivés, Évacuation réseau active / désactivée). La route
 `/fm/logs/toggle` reçoit désormais `action=logs_on|logs_off|net_on|net_off`.
 `versionName` 0.0.68.
+
+## 2026-11-11 — v0.0.68 PUBLIÉE : boutons Activer/Désactiver pour les journaux
+
+Run 43033249652 terminé (exit 0) sur le tag `v0.0.68` — assets
+`OpenWebUI_Android-0.0.68-{debug,release}.apk` publiés. Attendu à l'écran :
+état vert/rouge visible + quatre boutons ▶/⏹ (logs, évacuation réseau),
+aucune case à cocher, effet immédiat.

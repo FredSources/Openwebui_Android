@@ -2409,3 +2409,15 @@ Run 43029835799 **success** sur le tag `v0.0.66` — chaîne gardée : verifier_
 Attendu : activation/désactivation des journaux sans erreur interne, effet
 immédiat, vue fusionnée qui se remplit. Vérification par capture après
 installation.
+
+## 2026-11-11 — v0.0.67 : P115 — 2ᵉ cause du « Internal Error » de la bascule
+
+Toujours en erreur après la v0.0.66 (vérifié par appel direct : POST
+`/fm/logs/toggle` → 500, version 0.0.66 servie). Analyse du module généré :
+la route appelait `_Red(...)`, alias LOCAL de la route « Vider » — le module
+importe `RedirectResponse as _Redirect` : `NameError` → 500. Corrigé et
+vérifié dans le module généré (0 occurrence de `_Red(` dans la route,
+`_Redirect` présent). Le journal serveur n'était pas consultable pendant le
+défaut (journalisation off par défaut — paradoxe de diagnostic) ; les
+prochains défauts de route devraient être habillés d'une trace visible.
+`versionName` 0.0.67.

@@ -1557,7 +1557,7 @@ async def fm_logs_toggle(request: Request, user=Depends(get_verified_user)):
     lignes.append('OWUI_LOGS=' + ('off' if off else 'on'))
     lignes.append('OWUI_LOGS_NET=' + ('off' if netoff else 'on'))
     _am.env_save(chr(10).join(lignes))
-    return _Red('/fm?folder=logs', status_code=303)
+    return _Redirect('/fm?folder=logs', status_code=303)
 
 
 @app.get('/fm/logs/tail')

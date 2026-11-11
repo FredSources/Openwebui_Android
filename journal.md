@@ -2288,3 +2288,11 @@ Demande utilisateur — le gestionnaire de fichiers est refondu :
    journaux. Le POST `/fm/settings` gère les deux onglets
    (`searxng_settings_load/save` ajoutés dans `android_main.py`).
    `versionName` 0.0.61.
+
+## 2026-11-11 — v0.0.61 PUBLIÉE : refonte /fm + Paramètres à 2 onglets
+
+Run 43011249950 **vert** (conclusion success) sur le tag `v0.0.61` — chaîne
+gardée : verifier_tag ✓ + check_apk ✓. Assets `OpenWebUI_Android-0.0.61-{debug,release}.apk`.
+À valider à l'écran : arbre Fichiers (PDF/Images/Typst/Markdown/Autres), filtre
+base/disque/les deux, sidebar permanente, retour en haut à droite, onglets
+Paramètres Open WebUI/SearXNG avec points d'état et champ service.

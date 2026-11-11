@@ -2470,3 +2470,11 @@ Attendu : carte Journalisation en deux colonnes (fichier | réseau) séparées
 verticalement, « Vider » actif même sans journalisation, erreurs en modale
 sans changement de page, OWUI_LOGS/OWUI_LOGS_NET invisibles dans les réglages
 Open WebUI. Contrôle visuel des écrans après installation.
+
+## 2026-11-11 — v0.0.70 : P118 — colonnes égales et espacement des cartes
+
+Retours de mise en page : les deux colonnes de la carte Journalisation
+(« Logs fichier » / « Logs réseau ») doivent être de la même taille — la
+grille CSS (`1fr | filet | 1fr`) garantit l'égalité stricte (le flex laissait
+les contenus déformer les largeurs). Un espace plus marqué sépare chaque
+carte de ce qui la suit (marge basse 28 px). `versionName` 0.0.70.

@@ -652,7 +652,7 @@ _FM_STYLE = """
   .err { color: var(--danger); font-weight: 600; }
   .logtable td:nth-child(4), .logtable th:nth-child(4) { display: table-cell; }
   .settings { max-width: 780px; margin: 0 auto; padding-bottom: 60px; }
-  .card { border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; margin: 14px 0; background: var(--panel); }
+  .card { border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; margin: 16px 0 28px; background: var(--panel); }
   .card h2 { font-size: .95rem; margin: 0 0 2px; font-weight: 600; }
   .sub { color: var(--muted); font-size: 12.5px; margin: 2px 0 10px; line-height: 1.5; }
   .card label { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; margin: 12px 0 5px; }
@@ -694,8 +694,8 @@ _FM_STYLE = """
   .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
   .svcbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .chk { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
-  .twocol { display: flex; align-items: stretch; }
-  .twocol > div { flex: 1; min-width: 0; }
+  .twocol { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; }
+  .twocol > div { min-width: 0; }
   .vsep { border-left: 1px solid var(--border); margin: 0 16px; }
   .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 2147483001; align-items: center; justify-content: center; padding: 20px; }
   .modal.on { display: flex; }

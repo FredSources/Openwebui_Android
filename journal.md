@@ -2343,3 +2343,12 @@ Retours utilisateur, tous traités :
 4. **Évacuation réseau des journaux désactivable** : case dédiée
    (`OWUI_LOGS_NET`, active par défaut) — quand elle est cochée, les routes de
    téléchargement/zip/flux live répondent 404. `versionName` 0.0.63.
+
+## 2026-11-11 — v0.0.63 PUBLIÉE : journaux unifiés, suivi automatique, journalisation off par défaut
+
+Run 43020910431 **success** (4 min 36 s) sur le tag `v0.0.63` — chaîne gardée :
+verifier_tag ✓ + check_apk ✓. Assets `OpenWebUI_Android-0.0.63-{debug,release}.apk`
+(publiés ; incident mineur de suivi CI — EOF réseau — sans effet sur le build).
+À valider à l'écran : fusion des journaux, suivi automatique calé en bas,
+journalisation désactivée par défaut (case pré-cochée), évacuation réseau
+désactivable.

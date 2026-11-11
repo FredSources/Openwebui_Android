@@ -1549,8 +1549,8 @@ async def fm_logs_toggle(request: Request, user=Depends(get_verified_user)):
     form = await request.form()
     off = bool(form.get('off'))
     netoff = bool(form.get('netoff'))
-    os.environ['OWUI_LOGS'] = 'off' if off else 'on'
-    os.environ['OWUI_LOGS_NET'] = 'off' if netoff else 'on'
+    _osj.environ['OWUI_LOGS'] = 'off' if off else 'on'
+    _osj.environ['OWUI_LOGS_NET'] = 'off' if netoff else 'on'
     import android_main as _am
     lignes = [l for l in _am.env_read().splitlines()
               if l.strip() and not l.strip().startswith(('OWUI_LOGS=', 'OWUI_LOGS_NET='))]

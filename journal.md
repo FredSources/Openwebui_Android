@@ -2393,3 +2393,11 @@ Run 43027272430 **success** sur le tag `v0.0.65` — chaîne gardée : verifier_
 Attendu : 4 onglets visibles (Open WebUI, SearXNG, Maintenance, Journaux) même
 sans journalisation ; bascules d'activation présentes sur l'écran Journaux.
 Vérification par capture d'écran après installation de l'utilisateur.
+
+## 2026-11-11 — v0.0.66 : P114 — « Internal Error » à l'activation des journaux
+
+Retour utilisateur : activer la journalisation provoque une erreur interne.
+Cause : la route `/fm/logs/toggle` (P111) utilisait `os.environ` alors que
+`android_fm.py` n'importe `os` que sous l'alias `_osj` → `NameError` → 500.
+Corrigé (`_osj.environ`), vérifié dans le module généré (plus aucune
+référence à `os.`), contrôles verts. `versionName` 0.0.66.

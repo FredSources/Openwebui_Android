@@ -2461,3 +2461,12 @@ Note de fabrication : plusieurs régressions d'échappement de guillemets dans
 le gabarit généré (« Perhaps you forgot a comma ») — la chaîne FM_CODE exige
 des doubles antislashs ; consolidé et vérifié par compilation du module
 généré. `versionName` 0.0.69.
+
+## 2026-11-11 — v0.0.69 PUBLIÉE : Journalisation en deux colonnes, erreurs en modale
+
+Run 43038776353 **success** sur le tag `v0.0.69` — chaîne gardée : verifier_tag ✓
++ check_apk ✓. Assets `OpenWebUI_Android-0.0.69-{debug,release}.apk`.
+Attendu : carte Journalisation en deux colonnes (fichier | réseau) séparées
+verticalement, « Vider » actif même sans journalisation, erreurs en modale
+sans changement de page, OWUI_LOGS/OWUI_LOGS_NET invisibles dans les réglages
+Open WebUI. Contrôle visuel des écrans après installation.

@@ -694,6 +694,13 @@ _FM_STYLE = """
   .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
   .svcbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .chk { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+  .twocol { display: flex; align-items: stretch; }
+  .twocol > div { flex: 1; min-width: 0; }
+  .vsep { border-left: 1px solid var(--border); margin: 0 16px; }
+  .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 2147483001; align-items: center; justify-content: center; padding: 20px; }
+  .modal.on { display: flex; }
+  .modal-box { background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; max-width: 340px; text-align: center; }
+  .modal-box p { margin: 0 0 14px; }
 """
 
 
@@ -788,8 +795,19 @@ def _fm_page(inner: str, title: str = "Fichiers", folder: str = "all", src: str 
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         f'<title>{_html.escape(title)}</title>{theme_js}<style>{_FM_STYLE}</style></head>'
         '<body><div class="wrap"><aside class="side">' + _fm_side(folder, src, tab) + '</aside>'
-        f'<main class="main">{inner}</main></div>{retour}'
-        f'<footer class="ver">OpenWebUI Android {_FM_VERSION}</footer></body></html>'
+        f'<main class="main">{inner}</main></div>'
+        '<div class="modal" id="fmm"><div class="modal-box">'
+        '<p id="fmm-msg"></p>'
+        '<button class="ghost" onclick="document.getElementById(\\'fmm\\').classList.remove(\\'on\\')">OK</button>'
+        '</div></div>'
+        '<script>function fmErr(t){var m=document.getElementById("fmm");'
+        'document.getElementById("fmm-msg").textContent=t;m.classList.add("on")}'
+        'function fmPost(u,a){var b=a?new URLSearchParams({action:a}):null;'
+        'fetch(u,{method:"POST",body:b}).then(function(r){if(!r.ok){return r.text()'
+        '.then(function(t){throw new Error(t||("Erreur "+r.status))})}location.reload()})'
+        '.catch(function(e){fmErr(String(e.message||e))})}</script>'
+        + retour
+        + f'<footer class="ver">OpenWebUI Android {_FM_VERSION}</footer></body></html>'
     )
 
 
@@ -1043,10 +1061,12 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 if _s and not _s.startswith('#') and '=' in _s:
                     _k, _, _v = _s.partition('=')
                     vals[_k.strip()] = _v.strip()
+            # P117 : les réglages de journalisation (OWUI_LOGS / OWUI_LOGS_NET)
+            # sont TRANSPARENTS ici — gérés par l'onglet Journaux.
             connus = ('OLLAMA_BASE_URL', 'OPENAI_API_BASE_URL', 'OPENAI_API_KEY',
                       'RAG_EMBEDDING_ENGINE', 'RAG_OPENAI_API_BASE_URL',
                       'RAG_OPENAI_API_KEY', 'RAG_OPENAI_EMBEDDING_MODEL',
-                      'WEBUI_AUTH', 'ENABLE_SIGNUP', 'DEFAULT_LOCALE', 'OWUI_LOGS')
+                      'WEBUI_AUTH', 'ENABLE_SIGNUP', 'DEFAULT_LOCALE')
             aides = {
                 'OLLAMA_BASE_URL': 'ex. http://100.64.0.2:11434',
                 'OPENAI_API_BASE_URL': 'ex. https://api.openai.com/v1',
@@ -1058,12 +1078,12 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 'WEBUI_AUTH': 'true / false',
                 'ENABLE_SIGNUP': 'true / false',
                 'DEFAULT_LOCALE': 'ex. fr-FR',
-                'OWUI_LOGS': 'on / off (journaux)',
             }
             reste = chr(10).join(
                 _l for _l in brut.splitlines()
                 if not (_l.strip() and not _l.strip().startswith('#') and '=' in _l
-                        and _l.partition('=')[0].strip() in connus))
+                        and _l.partition('=')[0].strip() in (
+                            *connus, 'OWUI_LOGS', 'OWUI_LOGS_NET')))
 
             def _champ(nom):
                 type_ = 'password' if 'KEY' in nom else 'text'
@@ -1201,24 +1221,28 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
             inner = (
                 _fm_onglets('logs')
                 + "<div class='settings'><h1>&#128220; Journaux</h1>"
-                + "<div class='card'><h2>&#128260; Journalisation</h2>"
+                + "<div class='card'><h2>&#128260; Journalisation</h2><div class='twocol'>"
+                + "<div><p class='sub'>&#128196; Logs fichier</p>"
                 + "<p class='sub'><span class='dot' style='background:"
-                + ("#22c55e" if _journaux_actifs() else "#ef4444") + "'></span> Logs : <b>"
-                + ("actifs" if _journaux_actifs() else "désactivés") + "</b> &mdash; "
-                + "<span class='dot' style='background:"
-                + ("#22c55e" if _journaux_reseau() else "#ef4444") + "'></span> Évacuation réseau : <b>"
+                + ("#22c55e" if _journaux_actifs() else "#ef4444") + "'></span> <b>"
+                + ("actifs" if _journaux_actifs() else "désactivés") + "</b></p>"
+                + "<div class='svcbar'>"
+                + "<button class='ghost' onclick=\\"fmPost('/fm/logs/toggle','logs_on')\\">&#9654; Activer</button>"
+                + "<button class='ghost' onclick=\\"fmPost('/fm/logs/toggle','logs_off')\\">&#9208; Désactiver</button>"
+                + "</div></div><div class='vsep'></div><div>"
+                + "<p class='sub'>&#127760; Logs réseau</p>"
+                + "<p class='sub'><span class='dot' style='background:"
+                + ("#22c55e" if _journaux_reseau() else "#ef4444") + "'></span> <b>"
                 + ("active" if _journaux_reseau() else "désactivée") + "</b></p>"
-                + "<form method='post' action='/fm/logs/toggle'><div class='svcbar'>"
-                + "<button class='ghost' name='action' value='logs_on'>&#9654; Activer les logs</button>"
-                + "<button class='ghost' name='action' value='logs_off'>&#9208; Désactiver les logs</button>"
-                + "<button class='ghost' name='action' value='net_on'>&#9654; Activer l'évacuation réseau</button>"
-                + "<button class='ghost' name='action' value='net_off'>&#9208; Désactiver l'évacuation réseau</button>"
-                + "</div></form></div>"
+                + "<div class='svcbar'>"
+                + "<button class='ghost' onclick=\\"fmPost('/fm/logs/toggle','net_on')\\">&#9654; Activer</button>"
+                + "<button class='ghost' onclick=\\"fmPost('/fm/logs/toggle','net_off')\\">&#9208; Désactiver</button>"
+                + "</div></div></div></div>"
                 + "<div class='card'><h2>&#128196; Fichiers journaux</h2>"
                 "<div class='bar'>"
                 "<a class='btn' href='/fm?folder=logs&log=" + _quote(sel) + "'>&#8635; Rafraîchir</a>"
                 "<a class='btn' href='/fm/logs/download?all=1'>&#128229; Tout télécharger (zip)</a>"
-                "<form method='post' action='/fm/logs/clear' style='display:inline'><button class='del'>&#128465; Vider</button></form></div>"
+                "<button class='del' onclick=\\"fmPost('/fm/logs/clear')\\">&#128465; Vider</button></div>"
                 "<table class='logtable'><thead><tr><th>Nom</th><th>Taille</th><th>Modifié</th><th>Actions</th></tr></thead><tbody>"
                 + rows_log + "</tbody></table></div>"
                 + "<div class='card'><h2>" + _html.escape(sel) + " — dernières "
@@ -1539,8 +1563,6 @@ async def fm_logs_clear(request: Request, user=Depends(get_verified_user)):
     from open_webui import android_logs as _al
     from fastapi.responses import RedirectResponse as _Red
 
-    if not _journaux_actifs():
-        return _HTMLResponse("journaux desactives", status_code=404)
     _al.vider()
     return _Red('/fm?folder=logs', status_code=303)
 

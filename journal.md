@@ -2439,3 +2439,25 @@ Run 43033249652 terminé (exit 0) sur le tag `v0.0.68` — assets
 `OpenWebUI_Android-0.0.68-{debug,release}.apk` publiés. Attendu à l'écran :
 état vert/rouge visible + quatre boutons ▶/⏹ (logs, évacuation réseau),
 aucune case à cocher, effet immédiat.
+
+## 2026-11-11 — v0.0.69 : P117 — Journalisation en deux colonnes, erreurs en modale
+
+Demandes utilisateur, toutes traitées :
+
+1. **Séparation verticale** dans la carte Journalisation : colonne « Logs
+   fichier » (activer/désactiver l'écriture) | colonne « Logs réseau »
+   (activer/désactiver l'évacuation), filet vertical entre les deux.
+2. **« Vider » toujours possible** : la route `/fm/logs/clear` ne dépend plus
+   de la journalisation — on nettoie les journaux même quand l'écriture est
+   désactivée (bouton dédié sur l'écran Journaux).
+3. **Erreurs en MODALE** : les actions (basculer, vider) passent par `fmPost`
+   (fetch) et toute erreur s'affiche dans une popup `fmErr` **sans changement
+   de page** — succès = rechargement de la page en place.
+4. **Transparence de la config** : `OWUI_LOGS` et `OWUI_LOGS_NET` disparaissent
+   des réglages Open WebUI (champs et « Variables avancées ») — ils sont gérés
+   uniquement par l'onglet Journaux, cohérents avec l'activation des logs.
+
+Note de fabrication : plusieurs régressions d'échappement de guillemets dans
+le gabarit généré (« Perhaps you forgot a comma ») — la chaîne FM_CODE exige
+des doubles antislashs ; consolidé et vérifié par compilation du module
+généré. `versionName` 0.0.69.

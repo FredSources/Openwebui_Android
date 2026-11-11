@@ -2362,3 +2362,10 @@ l'évacuation réseau) et la visualisation ; la carte « Journaux » de l'onglet
 Open WebUI est retirée (redondante). Le contrôle P94 est recentré sur
 l'onglet (`folder=logs`) au lieu de l'ancien bouton — évolution justifiée :
 le point d'entrée s'est déplacé, pas disparu. `versionName` 0.0.64.
+
+## 2026-11-11 — v0.0.64 PUBLIÉE : l'onglet Journaux est l'unique entrée
+
+Run 43024354592 **success** sur le tag `v0.0.64` — chaîne gardée : verifier_tag ✓
++ check_apk ✓. Assets `OpenWebUI_Android-0.0.64-{debug,release}.apk`.
+À valider : l'onglet Journaux active + affiche les journaux ; l'onglet Open
+WebUI ne contient plus de lien vers les journaux.

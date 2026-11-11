@@ -2582,3 +2582,16 @@ Contrôle (sonde Playwright, harnais 8090) — tout est vert :
 | Mesures pixels | sidebar `#fafafa` sur 245 px, bordure `#e7e7e7` (gray-200) |
 
 `versionName` 0.0.72.
+
+## 2026-11-11 — v0.0.72 PUBLIÉE : sidebar et pages /fm alignées sur Open WebUI
+
+Run 43116659902 **success** sur le tag `v0.0.72` — chaîne gardée : verifier_tag ✓
++ check_apk ✓. Assets `OpenWebUI_Android-0.0.72-{debug,release}.apk`.
+
+Vérification mobile demandée (sonde 412×915, 5 écrans) : **0 px de
+débordement horizontal** partout, tiroir ☰ fermé par défaut sur chaque écran,
+tiroir ouvert conforme (fond `#fafafa`, bordure `#e7e7e7`, voile assombrissant),
+onglets sur une ligne avec actif auto-centré, thème sombre `#171717` mesuré.
+Contrôle desktop (1280×900) : sidebar inline 245 px, ☰ masqué, toggle en tête,
+mesures pixels conformes. Fonctionnel : repli/réouverture, persistance de
+l'état et de la largeur (drag 245→345 persisté, flèche → ±10 px).

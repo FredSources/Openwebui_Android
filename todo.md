@@ -55,11 +55,13 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 
 ## Phase 4 — Test appareil
 
-- [ ] Installation sur téléphone/tablette (`adb install` ou fichier)
-- [ ] Premier lancement : création de compte, connexion à Ollama distant
-- [ ] Vérifier : chat en streaming, upload de fichier, micro (dictée), coupure réseau
-- [ ] Tenue en arrière-plan (foreground service), relance après reboot
-- [ ] Mesurer taille APK, RAM et temps de démarrage (1er lancement : extraction)
+- [x] Installation sur téléphone/tablette (`adb install` ou fichier) — v0.0.60 installée et validée
+- [x] Premier lancement : compte admin actif, modèle distant (API OpenAI-compatible) connecté
+- [~] Vérifier : chat en streaming ✓ (validé ×10), upload de fichier ✓ (API + gestionnaire),
+      micro (dictée) ⏳ manuel, coupure réseau ⏳ manuel
+- [ ] Tenue en arrière-plan (foreground service), relance après reboot — ⏳ manuel
+- [~] Mesurer taille APK (235,7 Mo ✓), RAM ⏳ manuel, temps de démarrage (import serveur ~1 s ;
+      1er lancement plus lent : extraction des assets)
 
 ## Phase 5 — Finition
 

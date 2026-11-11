@@ -2230,3 +2230,23 @@ Bilan de la session du 2026-11-10/11 — six correctifs, tous validés :
 Prochaine étape naturelle : Phase 4 du plan initial — campagne de tests
 appareil complets (chat, dictée, recherche, upload+RAG, Typst, tenue en
 arrière-plan), puis Phase 5 (APK release signé, notice BSD-3, tag de livraison).
+
+## 2026-11-11 — Phase 4 : campagne de tests appareil (partie automatisée)
+
+Batterie exécutée depuis Termux contre l'appareil réel (appli v0.0.60 installée) :
+
+| Test | Résultat |
+|---|---|
+| Installation / version servie | ✅ v0.0.60 (marqueur P101 au démarrage) |
+| Santé serveur (`/health`) | ✅ `{"status":true}` |
+| Taille APK release | ✅ 235,7 Mo |
+| Démarrage (import → scheduler) | ✅ ~1 s (P101 01:40:14 → scheduler 01:40:15) |
+| Chat en streaming (modèle distant OpenAI-compatible) | ✅ validé ×10 (sondes de session) |
+| `execute_code` (21 réussites cumulées) + persistance fichiers | ✅ |
+| Fichiers produits → gestionnaire (`test_matplotlib.png`, `diagnostic_typst_test.pdf`) | ✅ enregistrés, listés, téléchargeables |
+| Upload de fichier (API + visibilité `/fm`) | ✅ `p4-test.txt` listé |
+| Recherche web SearXNG embarquée (`/search?q=test&format=json`) | ✅ résultats réels |
+
+Reste au MANUEL (l'utilisateur) : dictée (micro + permissions), coupure réseau
+(mode avion), tenue en arrière-plan (foreground service), relance après reboot,
+ressenti de fluidité/RAM. Consignés dans todo.md (Phase 4 en cours).

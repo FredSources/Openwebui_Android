@@ -2478,3 +2478,10 @@ Retours de mise en page : les deux colonnes de la carte Journalisation
 grille CSS (`1fr | filet | 1fr`) garantit l'égalité stricte (le flex laissait
 les contenus déformer les largeurs). Un espace plus marqué sépare chaque
 carte de ce qui la suit (marge basse 28 px). `versionName` 0.0.70.
+
+## 2026-11-11 — v0.0.70 PUBLIÉE : colonnes égales, espacement des cartes
+
+Run 43040424158 **success** sur le tag `v0.0.70` — chaîne gardée : verifier_tag ✓
++ check_apk ✓. Assets `OpenWebUI_Android-0.0.70-{debug,release}.apk`.
+Attendu : deux colonnes de même largeur dans la carte Journalisation, espace
+marqué sous chaque carte. Contrôle visuel des écrans après installation.

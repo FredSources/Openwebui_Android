@@ -2196,3 +2196,11 @@ Deux défauts restants, corrigés ici :
 
 `check_patches.py` vérifie les trois marqueurs (enregistrement, filtre, appel
 async). `versionName` 0.0.60.
+
+## 2026-11-11 — v0.0.60 PUBLIÉE : fichiers enregistrés, statut juste
+
+Run 42932395264 **vert** (conclusion success) sur le tag `v0.0.60` — chaîne
+gardée : verifier_tag ✓ + check_apk ✓. Assets `OpenWebUI_Android-0.0.60-{debug,release}.apk`.
+Attendu au test appareil : `status: success` sur les réussites (plus de warning
+FS.syncfs filtré), fichiers produits visibles au gestionnaire /fm, retrouvés par
+display_file, persistants entre exécutions.

@@ -2172,3 +2172,27 @@ Contenu cumulé depuis la v0.0.56 validée : P106 (voie worker forcée), P70
 révoqué (création à la demande), P107 (paramètre TO restauré). Attendu au
 test appareil : exécutions OK + fichiers écrits dans /mnt/uploads visibles au
 gestionnaire, retrouvés par display_file, persistants entre exécutions.
+
+## 2026-11-11 — v0.0.60 : P108 — fichiers produits enregistrés + statut juste
+
+Tests v0.0.59 (transcription utilisateur) : execute_code fonctionne, et le
+ramassage marche (`files: ["test_plot.png"]`, PNG 29 124 octets) — P106 validé.
+Deux défauts restants, corrigés ici :
+
+1. **Le fichier produit reste invisible** : `remonte_fichiers_sable` écrivait
+   le fichier sur disque (UPLOAD_DIR) mais ne créait AUCUNE fiche dans la base —
+   or le gestionnaire /fm, display_file et l'API fichiers listent la base.
+   D'où le « pas visible et accessible » d'origine. Correctif : chaque fichier
+   produit est stocké via `Storage.upload_file` et enregistré par
+   `Files.insert_new_file` (même patron que compile_typst), avec nom affichable,
+   type MIME et taille — et l'appel devient `await remonte_fichiers_sable(...,
+   user_id)`.
+2. **`status: error` sur les réussites** : `echec = bool(stderr)` — le warning
+   bénin Emscripten « FS.syncfs operations in flight at once » (deux écritures
+   de persistance lancées en même temps — la voie worker, nouvellement
+   exercée, est la première à faire tourner la persistance) atterrissait dans
+   stderr et faussait le verdict. Correctif : ces avertissements sont filtrés
+   avant le calcul du statut.
+
+`check_patches.py` vérifie les trois marqueurs (enregistrement, filtre, appel
+async). `versionName` 0.0.60.

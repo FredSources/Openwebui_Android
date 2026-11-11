@@ -2120,10 +2120,11 @@ def patch_upload_harvest() -> None:
         '''        else:
             return JSONCodec.dumps({'error': f'Unknown code interpreter engine: {engine}'})
 
-        # P41 : remontée des fichiers écrits dans /mnt/uploads vers le dossier
-        # uploads de l'app — le prompt système promet « écrivez dans
-        # /mnt/uploads/ pour les retrouver dans le navigateur de fichiers ».
-        fichiers_sortie = remonte_fichiers_sable(output)
+        # P41/P108 : remontée des fichiers écrits dans /mnt/uploads — stockés
+        # et ENREGISTRÉS (visibles au gestionnaire /fm, display_file, API).
+        # Le prompt système promet « écrivez dans /mnt/uploads/ pour les
+        # retrouver dans le navigateur de fichiers ».
+        fichiers_sortie = await remonte_fichiers_sable(output, (__user__ or {}).get('id'))
 
         # Handle image outputs''',
         "P41c execute_code : enregistrement des fichiers produits",
@@ -2137,7 +2138,12 @@ def patch_upload_harvest() -> None:
             'stderr': stderr,
             'result': result,
         }""",
-        """        echec = bool((stderr or '').strip())
+        """        # P108 : les avertissements bénins du système de fichiers Emscripten
+        # (syncfs concurrents, « probably just doing extra work ») ne sont pas
+        # des échecs d'exécution — sans quoi chaque réussite affichait error.
+        stderr = '\\n'.join(ligne for ligne in (stderr or '').splitlines()
+                           if 'FS.syncfs operations in flight' not in ligne) or None
+        echec = bool((stderr or '').strip())
         response = {
             'status': 'error' if echec else 'success',
             'stdout': stdout,
@@ -2288,32 +2294,57 @@ def journal_exec_ligne(msg) -> None:
         pass
 
 
-def remonte_fichiers_sable(output) -> list:
-    """P41 — remontée des fichiers écrits dans /mnt/uploads vers le dossier
-    uploads de l'app (le prompt système promet « écrivez dans /mnt/uploads/
-    pour les retrouver dans le navigateur de fichiers »). Retourne les noms
-    produits ; ne lève pas sur un fichier invalide."""
-    produits = []
-    if isinstance(output, dict):
-        for _f in (output.get('files') or []):
-            try:
-                import base64 as _b64
-                import os as _os2
-                from open_webui.config import UPLOAD_DIR as _UD
+async def remonte_fichiers_sable(output, user_id=None) -> list:
+    """P41/P108 — remontée des fichiers écrits dans /mnt/uploads : chaque
+    fichier produit est STOCKÉ via le fournisseur de stockage et ENREGISTRÉ
+    dans la base (visible au gestionnaire /fm, à display_file et à l'API
+    fichiers) — P108 : l'écriture seule sur disque laissait le fichier
+    invisible au gestionnaire. Retourne les noms affichables produits ;
+    ne lève pas sur un fichier invalide."""
+    import asyncio as _aio
+    import base64 as _b64
+    import io as _io
+    import uuid as _uuid
+    from open_webui.config import UPLOAD_DIR as _UD
+    from open_webui.models.files import FileForm, Files
+    from open_webui.storage.provider import Storage
 
-                _nom = _os2.path.basename(str(_f.get('name') or ''))
-                _don = _f.get('data')
-                if not _nom or not _don:
-                    continue
-                _brut = _b64.b64decode(_don)
-                _dest = _UD / _nom
-                if _dest.exists() and _dest.stat().st_size == len(_brut):
-                    continue  # déjà présent à l'identique (fichier d'entrée)
-                _UD.mkdir(parents=True, exist_ok=True)
-                _dest.write_bytes(_brut)
-                produits.append(_nom)
-            except Exception:
-                pass
+    produits = []
+    if not isinstance(output, dict):
+        return produits
+    for _f in (output.get('files') or []):
+        try:
+            import os as _os2
+            _nom = _os2.path.basename(str(_f.get('name') or ''))
+            _don = _f.get('data')
+            if not _nom or not _don:
+                continue
+            _brut = _b64.b64decode(_don)
+            _dest = _UD / _nom
+            if _dest.exists() and _dest.stat().st_size == len(_brut):
+                continue  # déjà présent à l'identique (fichier d'entrée)
+            _id = str(_uuid.uuid4())
+            _tronc, _point, _ext = _nom.rpartition('.')
+            _base = ''.join(c if (c.isalnum() or c in '-_. ') else '_'
+                           for c in (_tronc or _nom))[:80] or 'fichier'
+            _stocke = f'{_id}_{_base}' + (f'.{_ext}' if _point else '')
+            _type = ('image/png' if _ext.lower() == 'png' else
+                     'image/jpeg' if _ext.lower() in ('jpg', 'jpeg') else
+                     'text/csv' if _ext.lower() == 'csv' else
+                     'application/pdf' if _ext.lower() == 'pdf' else
+                     'application/octet-stream')
+            _, _chemin = await _aio.to_thread(
+                Storage.upload_file, _io.BytesIO(_brut), _stocke,
+                {'OpenWebUI-File-Id': _id})
+            await Files.insert_new_file(
+                user_id or '',
+                FileForm(id=_id, filename=_stocke, path=_chemin, data={},
+                         meta={'name': _nom, 'content_type': _type,
+                               'size': len(_brut)}),
+            )
+            produits.append(_nom)
+        except Exception:
+            pass
     return produits
 
 

@@ -344,6 +344,17 @@ def check_p104_diag() -> None:
         for c in nodes
     ):
         err("P107 : le paramètre TO=120 est absent de la signature de Me()")
+    # P108 — les fichiers produits doivent être ENREGISTRÉS (base + stockage,
+    # sinon invisibles au gestionnaire) et les avertissements FS bénins ne
+    # doivent pas faire basculer le statut à error.
+    at = (SRC / "open_webui" / "tools" / "android_tools.py").read_text(encoding="utf-8", errors="ignore")
+    if "await Files.insert_new_file(" not in at or "remonte_fichiers_sable" not in at:
+        err("P108 : l'enregistrement des fichiers produits est absent d'android_tools.py")
+    bt = (SRC / "open_webui" / "tools" / "builtin.py").read_text(encoding="utf-8", errors="ignore")
+    if "FS.syncfs operations in flight" not in bt:
+        err("P108 : le filtre d'avertissements FS bénins est absent de builtin.py")
+    if "await remonte_fichiers_sable(output" not in bt:
+        err("P108 : l'appel de remontée n'est pas async (avec user_id)")
 
 
 def main() -> int:

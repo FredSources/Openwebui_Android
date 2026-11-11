@@ -1156,10 +1156,6 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
 <p class="sub">Toute autre variable, une par ligne au format KEY=VALUE.</p>
 <textarea name="extras" spellcheck="false" class="envbox">@@RESTE@@</textarea>
 </div>
-<div class="card"><h2>&#128220; Journaux</h2>
-<p class="sub">Activité du serveur, erreurs <code>execute_code</code> et autres.</p>
-<a class="btn" href="/fm?folder=logs">Consulter les journaux</a>
-</div>
 <div class="bar" style="margin-top:18px">
 <button class="primary">&#128190; Enregistrer les réglages</button>
 </div>

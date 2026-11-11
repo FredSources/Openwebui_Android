@@ -2352,3 +2352,13 @@ verifier_tag ✓ + check_apk ✓. Assets `OpenWebUI_Android-0.0.63-{debug,releas
 À valider à l'écran : fusion des journaux, suivi automatique calé en bas,
 journalisation désactivée par défaut (case pré-cochée), évacuation réseau
 désactivable.
+
+## 2026-11-11 — v0.0.64 : P112 — l'onglet Journaux est l'unique entrée
+
+Demande utilisateur : « il faut la tab log pour pouvoir les activer et les
+visualiser ; dans le tab openwebui enlève le lien vers les journaux ».
+L'onglet **Journaux** centralise donc : la bascule d'activation (et
+l'évacuation réseau) et la visualisation ; la carte « Journaux » de l'onglet
+Open WebUI est retirée (redondante). Le contrôle P94 est recentré sur
+l'onglet (`folder=logs`) au lieu de l'ancien bouton — évolution justifiée :
+le point d'entrée s'est déplacé, pas disparu. `versionName` 0.0.64.

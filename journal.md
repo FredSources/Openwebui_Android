@@ -2485,3 +2485,38 @@ Run 43040424158 **success** sur le tag `v0.0.70` — chaîne gardée : verifier_
 + check_apk ✓. Assets `OpenWebUI_Android-0.0.70-{debug,release}.apk`.
 Attendu : deux colonnes de même largeur dans la carte Journalisation, espace
 marqué sous chaque carte. Contrôle visuel des écrans après installation.
+
+## 2026-11-11 — v0.0.71 : P119 — tiroir ☰ mobile, onglets, corrections de rendu
+
+Contrôle visuel complet des 5 écrans /fm (sonde Playwright, viewport 412×915,
+harnais 8090) — retours utilisateur : « le rendu n'est pas top sur un tel,
+il faudrait comme Open WebUI pouvoir collapse le sidebar plutôt que de le
+remonter au dessus ».
+
+Corrections appliquées :
+
+1. **Sidebar en tiroir mobile (P119)** : sous 820 px, la barre latérale n'est
+   plus empilée au-dessus du contenu — elle devient un panneau hors-canvas
+   (250 px, glissement 0,22 s) piloté par un bouton ☰ fixe en haut à gauche,
+   avec voile d'assombrissement (rgba(0,0,0,.45)) et fermeture au clic.
+   Vérifié par sonde : tiroir fermé x=-255 → ouvert x=0 → fermé au voile.
+2. **Onglets sur une ligne** : la règle mobile `.tabs` était écrasée par la
+   règle de base placée plus tard dans `_FM_STYLE` (cascade) — déplacée après ;
+   auto-centrage de l'onglet ACTIF au chargement (sinon « Journaux » restait
+   hors écran quand on était justement sur cette page).
+3. **Marqueur orphelin `@@OWUI_LOGS@@`** : P117 avait retiré la clé du
+   dictionnaire des champs mais pas le placeholder du template → le texte
+   `@@OWUI_LOGS@@` s'affichait dans « Sécurité & préférences ». Supprimé
+   (audit : seul placeholder orphelin du template).
+4. **Cases à cocher réalignées** : `.card label` (text-transform, display
+   block) et `.card input` (width 100 %) écrasaient `.chk` → case sur sa
+   propre ligne, décalée du libellé sur l'écran SearXNG. Exclues via
+   `.card label.chk` / `.card .chk input`.
+
+Bugs de fabrication de la passe (corrigés dans la foulée) : variable `o`
+locale à `fmSide` puis `ov` toujours hors portée → l'écouteur du voile n'était
+jamais attaché (« ov is not defined ») ; variable top-level `sv` dédiée.
+Vérifications : 4 pages /fm en 200, tiroir/onglets/marqueur validés par
+sonde, `check_patches.py` vert, `py_compile` OK. Harnais 8090 complété
+(stubs `searxng_settings_load/save` — le 500 observé venait du harnais, pas
+de l'appli). `versionName` 0.0.71.

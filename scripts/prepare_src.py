@@ -658,17 +658,24 @@ _FM_STYLE = """
   .card label { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; margin: 12px 0 5px; }
   .card input { width: 100%; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); font-size: 13.5px; }
   .card input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .card label.chk { display: flex; align-items: center; gap: 8px; margin: 12px 0 5px; text-transform: none; letter-spacing: normal; font-size: 13px; font-weight: 500; color: var(--fg); }
+  .card .chk input { width: auto; padding: 0; height: auto; }
   .envbox { width: 100%; min-height: 180px; font-family: ui-monospace, monospace; font-size: 12px; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); resize: vertical; }
   .primary { background: var(--btn-primary); color: var(--btn-primary-fg); }
   .ghost { background: var(--btn2); color: var(--btn2-fg); }
   .danger { background: var(--danger); color: #fff; }
   .ghost:hover, .primary:hover, .danger:hover { opacity: .9; }
   img, iframe, embed, video { max-width: 100%; height: auto; }
+  .sidebtn { display: none; position: fixed; top: 10px; left: 10px; z-index: 2147483002; width: 40px; height: 40px; padding: 0; align-items: center; justify-content: center; font-size: 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+  .sideov { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 2147483001; }
+  .sideov.on { display: block; }
   @media (max-width: 820px) {
     .wrap { display: block; }
-    .side { width: auto; display: flex; overflow-x: auto; padding: 8px 10px; gap: 4px; border-right: 0; border-bottom: 1px solid var(--border); }
+    .sidebtn { display: flex; }
+    .side { position: fixed; top: 0; left: 0; bottom: 0; width: 250px; z-index: 2147483001; transform: translateX(-102%); transition: transform .22s ease; overflow-y: auto; padding: 64px 10px 14px; border-right: 1px solid var(--border); border-bottom: 0; }
+    .side.open { transform: none; box-shadow: 0 0 30px rgba(0,0,0,.35); }
     .side a { white-space: nowrap; margin-bottom: 0; padding: 7px 12px; }
-    .main { padding: 12px; }
+    .main { padding: 58px 12px 12px; }
     h1 { font-size: 1.05rem; }
     table { font-size: .82rem; }
     th:nth-child(4), td:nth-child(4), th:nth-child(5), td:nth-child(5) { display: none; }
@@ -691,6 +698,10 @@ _FM_STYLE = """
   .tabs { display: flex; gap: 8px; margin: 4px 0 18px; flex-wrap: wrap; }
   .tabs .tab { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 12px; text-decoration: none; color: var(--fg); background: var(--panel); font-weight: 600; }
   .tabs .tab.on { border-color: var(--accent); background: var(--accent); color: var(--accent-fg); }
+  @media (max-width: 820px) {
+    .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+    .tabs .tab { flex: none; }
+  }
   .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
   .svcbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .chk { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
@@ -794,7 +805,10 @@ def _fm_page(inner: str, title: str = "Fichiers", folder: str = "all", src: str 
         '<!doctype html><html lang="fr"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         f'<title>{_html.escape(title)}</title>{theme_js}<style>{_FM_STYLE}</style></head>'
-        '<body><div class="wrap"><aside class="side">' + _fm_side(folder, src, tab) + '</aside>'
+        '<body>'
+        '<button class="sidebtn" id="sidebtn" title="Menu" aria-label="Menu">&#9776;</button>'
+        '<div class="sideov" id="sideov"></div>'
+        '<div class="wrap"><aside class="side">' + _fm_side(folder, src, tab) + '</aside>'
         f'<main class="main">{inner}</main></div>'
         '<div class="modal" id="fmm"><div class="modal-box">'
         '<p id="fmm-msg"></p>'
@@ -805,7 +819,22 @@ def _fm_page(inner: str, title: str = "Fichiers", folder: str = "all", src: str 
         'function fmPost(u,a){var b=a?new URLSearchParams({action:a}):null;'
         'fetch(u,{method:"POST",body:b}).then(function(r){if(!r.ok){return r.text()'
         '.then(function(t){throw new Error(t||("Erreur "+r.status))})}location.reload()})'
-        '.catch(function(e){fmErr(String(e.message||e))})}</script>'
+        '.catch(function(e){fmErr(String(e.message||e))})}'
+        'function fmSide(){var s=document.querySelector(".side");'
+        'var ov=document.getElementById("sideov");'
+        'if(!s||!ov)return;'
+        'var on=s.classList.toggle("open");ov.classList.toggle("on",on);}'
+        'var sb=document.getElementById("sidebtn");'
+        'if(sb){sb.addEventListener("click",fmSide);}'
+        'var sv=document.getElementById("sideov");'
+        'if(sv){sv.addEventListener("click",fmSide);}'
+        # onglets : l'onglet ACTIF reste visible (auto-centrage horizontal)
+        'var t=document.querySelector(".tabs .tab.on");'
+        'if(t){var pp=t.parentNode,rr=t.getBoundingClientRect(),'
+        'pr=pp.getBoundingClientRect();'
+        'if(pp.scrollWidth>pp.clientWidth){'
+        'pp.scrollLeft+=rr.left-pr.left-(pp.clientWidth-rr.width)/2;}}'
+        '</script>'
         + retour
         + f'<footer class="ver">OpenWebUI Android {_FM_VERSION}</footer></body></html>'
     )
@@ -1169,7 +1198,6 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
 @@WEBUI_AUTH@@
 @@ENABLE_SIGNUP@@
 @@DEFAULT_LOCALE@@
-@@OWUI_LOGS@@
 </div>
 <div class="card"><h2>&#128295; Variables avancées</h2>
 <p class="sub">Toute autre variable, une par ligne au format KEY=VALUE.</p>

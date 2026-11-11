@@ -2163,3 +2163,12 @@ emportait un fragment utile). `versionName` 0.0.59.
 
 Note positive : l'erreur est remontée IMMÉDIATEMENT à l'écran et dans les
 traces — la chaîne de diagnostic (P104/P105) fonctionne comme prévu.
+
+## 2026-11-11 — v0.0.59 PUBLIÉe : signature Me() complète, test fichiers attendu
+
+Run 42929234033 **vert** (conclusion success) sur le tag `v0.0.59` — chaîne
+gardée : verifier_tag ✓ + check_apk ✓. Assets `OpenWebUI_Android-0.0.59-{debug,release}.apk`.
+Contenu cumulé depuis la v0.0.56 validée : P106 (voie worker forcée), P70
+révoqué (création à la demande), P107 (paramètre TO restauré). Attendu au
+test appareil : exécutions OK + fichiers écrits dans /mnt/uploads visibles au
+gestionnaire, retrouvés par display_file, persistants entre exécutions.

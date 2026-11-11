@@ -622,8 +622,17 @@ _FM_STYLE = """
   a { color: var(--fg); text-decoration: none; }
   a:hover { text-decoration: underline; }
   .wrap { display: flex; min-height: 100vh; }
-  .side { width: var(--sidebar-width); min-width: 220px; max-width: 480px; padding: 10px 8px 14px; background: var(--side); border-right: 1px solid var(--border); position: relative; }
-  body.sidehide .side { display: none; }
+  .side { width: var(--sidebar-width); min-width: 220px; max-width: 480px; padding: 10px 8px 14px; background: var(--side); border-right: 1px solid var(--border); position: relative; transition: width .18s ease, min-width .18s ease, max-width .18s ease; }
+  /* P121 — mode réduit : icônes seules (56 px) */
+  body.sideicons .side { width: 56px; min-width: 56px; max-width: 56px; padding: 10px 6px 14px; }
+  body.sideicons .side .sl { display: none; }
+  body.sideicons .side a { justify-content: center; padding: 7px 4px; }
+  body.sideicons .side summary { justify-content: center; padding: 8px 4px; }
+  body.sideicons .side details a { padding-left: 4px; }
+  body.sideicons .side-head { justify-content: center; padding: 2px 0 10px; }
+  body.sideicons #sidebar-resizer { display: none; }
+  .side .si { display: inline-flex; align-items: center; flex: none; }
+  .side .si svg { display: block; }
   .side-head { display: flex; align-items: center; gap: 6px; padding: 2px 4px 10px; }
   #sidebar-toggle-button { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; background: transparent; color: var(--fg); border-radius: var(--radius-lg); cursor: pointer; }
   #sidebar-toggle-button:hover { background: var(--hover); }
@@ -676,17 +685,15 @@ _FM_STYLE = """
   .danger { background: var(--danger); color: #fff; }
   .ghost:hover, .primary:hover, .danger:hover { opacity: .9; }
   img, iframe, embed, video { max-width: 100%; height: auto; }
-  .sidebtn { display: none; position: fixed; top: 10px; left: 10px; z-index: 2147483002; width: 40px; height: 40px; padding: 0; align-items: center; justify-content: center; font-size: 18px; border-radius: var(--radius-lg); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
-  body.sidehide .sidebtn { display: flex; }
   .sideov { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 2147483001; }
   .sideov.on { display: block; }
   @media (max-width: 820px) {
     .wrap { display: block; }
-    .sidebtn { display: flex; }
-    .side { position: fixed; top: 0; left: 0; bottom: 0; width: min(var(--sidebar-width), 85vw); max-width: none; z-index: 2147483001; transform: translateX(-102%); transition: transform .22s ease; overflow-y: auto; padding: 60px 8px 14px; border-right: 1px solid var(--border); border-bottom: 0; }
-    .side.open { transform: none; box-shadow: 0 0 30px rgba(0,0,0,.35); }
+    .side { position: fixed; top: 0; left: 0; bottom: 0; width: 56px; max-width: none; min-width: 0; z-index: 2147483001; overflow-y: auto; overflow-x: hidden; padding: 10px 6px 14px; border-right: 1px solid var(--border); border-bottom: 0; transition: width .2s ease, box-shadow .2s ease; }
+    body:not(.sideicons) .side { width: min(var(--sidebar-width), 85vw); padding: 10px 8px 14px; box-shadow: 0 0 30px rgba(0,0,0,.35); }
     .side a { white-space: nowrap; margin-bottom: 0; padding: 7px 12px; }
-    .main { padding: 58px 12px 12px; }
+    .main { padding: 58px 12px 12px 68px; }
+    .ver { left: 66px; }
     h1 { font-size: 1.05rem; }
     table { font-size: .82rem; }
     th:nth-child(4), td:nth-child(4), th:nth-child(5), td:nth-child(5) { display: none; }
@@ -702,7 +709,7 @@ _FM_STYLE = """
   }
   /* P109 — arbre de navigation, onglets Paramètres, points d'état */
   .side details { margin: 2px 0; }
-  .side summary { cursor: pointer; padding: 8px 10px; border-radius: 8px; font-weight: 600; list-style: none; user-select: none; }
+  .side summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px 10px; border-radius: 8px; font-weight: 600; list-style: none; user-select: none; }
   .side summary::-webkit-details-marker { display: none; }
   .side summary:hover { background: var(--hover); }
   .side details a { padding-left: 26px; font-size: 13px; }
@@ -726,30 +733,66 @@ _FM_STYLE = """
 """
 
 
+# P121 — icônes SVG reprises du sprite d'Open WebUI
+# (src-assets/frontend/_app/immutable/chunks/wN8N8j40.js ; viewBox 24, stroke 1.5)
+_FM_SVG = ('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" '
+           'stroke="currentColor" stroke-width="1.5" stroke-linecap="round" '
+           'stroke-linejoin="round" aria-hidden="true">')
+_FM_ICONS = {
+    'folder': '<path d="M2 11V4.6C2 4.26863 2.26863 4 2.6 4H8.77805C8.92127 4 9.05977 4.05124 9.16852 4.14445L12.3315 6.85555C12.4402 6.94876 12.5787 7 12.722 7H21.4C21.7314 7 22 7.26863 22 7.6V11M2 11V19.4C2 19.7314 2.26863 20 2.6 20H21.4C21.7314 20 22 19.7314 22 19.4V11M2 11H22"></path>',
+    'list': '<path d="M8 6H20"></path><path d="M4 6.01L4.01 5.99889"></path><path d="M4 12.01L4.01 11.9989"></path><path d="M4 18.01L4.01 17.9989"></path><path d="M8 12H20"></path><path d="M8 18H20"></path>',
+    'pdf-logo': '<path d="M4 21.4V2.6C4 2.26863 4.26863 2 4.6 2H16.2515C16.4106 2 16.5632 2.06321 16.6757 2.17574L19.8243 5.32426C19.9368 5.43679 20 5.5894 20 5.74853V21.4C20 21.7314 19.7314 22 19.4 22H4.6C4.26863 22 4 21.7314 4 21.4Z"></path><path d="M16 2V5.4C16 5.73137 16.2686 6 16.6 6H20"></path><text x="12" y="15.2" text-anchor="middle" font-size="5.5" font-weight="700" fill="currentColor" stroke="none">PDF</text>',
+    'image': '<path d="M21 3.6V20.4C21 20.7314 20.7314 21 20.4 21H3.6C3.26863 21 3 20.7314 3 20.4V3.6C3 3.26863 3.26863 3 3.6 3H20.4C20.7314 3 21 3.26863 21 3.6Z"></path><path d="M3 16L10 13L21 18"></path><path d="M16 10C14.8954 10 14 9.10457 14 8C14 6.89543 14.8954 6 16 6C17.1046 6 18 6.89543 18 8C18 9.10457 17.1046 10 16 10Z"></path>',
+    'code': '<path d="M13.5 6L10 18.5"></path><path d="M6.5 8.5L3 12L6.5 15.5"></path><path d="M17.5 8.5L21 12L17.5 15.5"></path>',
+    'markdown-logo': '<rect x="3" y="6" width="18" height="12" rx="1.5"></rect><path d="M6 15V9L9 12L12 9V15"></path><path d="M16 9V15M14 13L16 15L18 13"></path>',
+    'package': '<path d="M20 5.99999L20 18C20 19.1046 19.1046 20 18 20H6C4.89543 20 4 19.1046 4 18V6C4 4.89543 4.89543 4 6 4H18C19.1045 4 19.9999 4.89543 20 5.99999Z"></path><path d="M12 9V4"></path>',
+    'settings': '<path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z"></path><path d="M19.6224 10.3954L18.5247 7.7448L20 6L18 4L16.2647 5.48295L13.5578 4.36974L12.9353 2H10.981L10.3491 4.40113L7.70441 5.51596L6 4L4 6L5.45337 7.78885L4.3725 10.4463L2 11V13L4.40111 13.6555L5.51575 16.2997L4 18L6 20L7.79116 18.5403L10.397 19.6123L11 22H13L13.6045 19.6132L16.2551 18.5155C16.6969 18.8313 18 20 18 20L20 18L18.5159 16.2494L19.6139 13.598L21.9999 12.9772L22 11L19.6224 10.3954Z"></path>',
+    'brain': '<path d="M9.5 4.5C7.9 3.4 5.6 4.3 5.2 6.2C3.7 6.6 2.7 8 2.8 9.6C1.8 10.7 1.8 12.6 2.9 13.7C2.5 15.7 4.1 17.5 6.1 17.5C6.8 19.2 9.1 19.6 10.3 18.2C10.9 17.5 11.2 16.6 11.2 15.7V6.9C11.2 5.9 10.6 5.1 9.5 4.5Z"></path><path d="M14.5 4.5C16.1 3.4 18.4 4.3 18.8 6.2C20.3 6.6 21.3 8 21.2 9.6C22.2 10.7 22.2 12.6 21.1 13.7C21.5 15.7 19.9 17.5 17.9 17.5C17.2 19.2 14.9 19.6 13.7 18.2C13.1 17.5 12.8 16.6 12.8 15.7V6.9C12.8 5.9 13.4 5.1 14.5 4.5Z"></path><path d="M8 9.2C8.8 9.2 9.5 9.7 9.8 10.4"></path><path d="M16 9.2C15.2 9.2 14.5 9.7 14.2 10.4"></path><path d="M8.6 14.2C9.4 14.2 10.1 13.8 10.5 13.1"></path><path d="M15.4 14.2C14.6 14.2 13.9 13.8 13.5 13.1"></path>',
+    'search': '<path d="M17 17L21 21"></path><path d="M3 11C3 15.4183 6.58172 19 11 19C13.213 19 15.2161 18.1015 16.6644 16.6493C18.1077 15.2022 19 13.2053 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11Z"></path>',
+    'tools': '<path d="M10.0503 10.6066L2.97923 17.6777C2.19818 18.4587 2.19818 19.7251 2.97923 20.5061C3.76027 21.2872 5.0266 21.2872 5.80765 20.5061L12.8787 13.4351"></path><path d="M17.1927 13.7994L21.071 17.6777C21.8521 18.4587 21.8521 19.7251 21.071 20.5061C20.29 21.2872 19.0236 21.2872 18.2426 20.5061L12.0341 14.2977"></path><path d="M6.73267 5.90381L4.61135 6.61092L2.49003 3.07539L3.90424 1.66117L7.43978 3.78249L6.73267 5.90381ZM6.73267 5.90381L9.5629 8.73404"></path><path d="M10.0503 10.6066C9.2065 8.45359 9.37147 5.62861 11.111 3.8891C12.8505 2.14958 16.0607 1.76778 17.8285 2.82844L14.7878 5.86911L14.5052 8.98015L17.6162 8.69754L20.6569 5.65686C21.7176 7.42463 21.3358 10.6349 19.5963 12.3744C17.8567 14.1139 15.0318 14.2789 12.8788 13.435"></path>',
+    'page-text': '<path d="M4 21.4V2.6C4 2.26863 4.26863 2 4.6 2H16.2515C16.4106 2 16.5632 2.06321 16.6757 2.17574L19.8243 5.32426C19.9368 5.43679 20 5.5894 20 5.74853V21.4C20 21.7314 19.7314 22 19.4 22H4.6C4.26863 22 4 21.7314 4 21.4Z"></path><path d="M8 10L16 10"></path><path d="M8 18L16 18"></path><path d="M8 14L12 14"></path><path d="M16 2V5.4C16 5.73137 16.2686 6 16.6 6H20"></path>',
+    'sidebar-expand': '<path d="M19 21L5 21C3.89543 21 3 20.1046 3 19L3 5C3 3.89543 3.89543 3 5 3L19 3C20.1046 3 21 3.89543 21 5L21 19C21 20.1046 20.1046 21 19 21Z"></path><path d="M9.5 21V3"></path><path d="M5.5 10L7.25 12L5.5 14"></path>',
+}
+
+
+def _fm_ico(nom: str) -> str:
+    return _FM_SVG + _FM_ICONS[nom] + '</svg>'
+
 def _fm_side(folder: str = "all", src: str = "both", tab: str = "owui") -> str:
-    """P109/P110 — sidebar PERMANENTE : arbre Fichiers + arbre Paramètres
-    (Open WebUI, SearXNG, Maintenance, Journaux) — navigation toujours visible."""
-    def _lien(url, label, on):
-        return f'<a href="{url}" class="{"on" if on else ""}">{label}</a>'
-    feuilles = [("all", "&#128194; Tous"), ("pdf", "&#128196; PDF"),
-                ("img", "&#128444; Images"), ("typ", "&#9998; Typst"),
-                ("md", "&#128221; Markdown"), ("other", "&#128230; Autres")]
-    fichiers = (
-        '<details open><summary>&#128193; Fichiers</summary>'
-        + "".join(_lien(f"/fm?folder={k}&src={src}", l, k == folder) for k, l in feuilles)
-        + '</details>'
-    )
-    entrees = [("/fm?folder=settings&tab=owui", "&#129302; Open WebUI",
+    """P109/P110/P121 — sidebar PERMANENTE : arbre Fichiers + arbre Paramètres
+    (Open WebUI, SearXNG, Maintenance, Journaux) — navigation toujours visible.
+    P121 : icônes du frontend Open WebUI, structure
+    <span class="si">icône</span><span class="sl">libellé</span> (mode réduit
+    body.sideicons = icônes seules, libellés masqués, tooltip title)."""
+    def _lien(url, label, on, ic):
+        return (f'<a href="{url}" class="{"on" if on else ""}" title="{label}">'
+                f'<span class="si">{_fm_ico(ic)}</span>'
+                f'<span class="sl">{label}</span></a>')
+
+    def _groupe(titre, ic, items):
+        return ('<details open><summary title="%s">'
+                '<span class="si">%s</span><span class="sl">%s</span></summary>'
+                % (titre, _fm_ico(ic), titre)) + items + '</details>'
+
+    feuilles = [("all", "Tous", "list"), ("pdf", "PDF", "pdf-logo"),
+                ("img", "Images", "image"), ("typ", "Typst", "code"),
+                ("md", "Markdown", "markdown-logo"),
+                ("other", "Autres", "package")]
+    fichiers = _groupe(
+        "Fichiers", "folder",
+        "".join(_lien(f"/fm?folder={k}&src={src}", lib, k == folder, ic)
+                for k, lib, ic in feuilles))
+    entrees = [("/fm?folder=settings&tab=owui", "Open WebUI", "brain",
                 folder == 'settings' and tab != 'searxng'),
-               ("/fm?folder=settings&tab=searxng", "&#128269; SearXNG",
+               ("/fm?folder=settings&tab=searxng", "SearXNG", "search",
                 folder == 'settings' and tab == 'searxng'),
-               ("/fm?folder=maintenance", "&#128736;&#65039; Maintenance", folder == 'maintenance')]
-    entrees.append(("/fm?folder=logs", "&#128220; Journaux", folder == 'logs'))
-    return (
-        fichiers
-        + '<details open><summary>&#9881;&#65039; Paramètres</summary>'
-        + "".join(_lien(u, l, on) for u, l, on in entrees) + '</details>'
-    )
+               ("/fm?folder=maintenance", "Maintenance", "tools",
+                folder == 'maintenance'),
+               ("/fm?folder=logs", "Journaux", "page-text", folder == 'logs')]
+    params = _groupe(
+        "Paramètres", "settings",
+        "".join(_lien(u, lib, on, ic) for u, lib, ic, on in entrees))
+    return fichiers + params
 
 
 def _fm_onglets(actif: str = "owui") -> str:
@@ -817,15 +860,15 @@ def _fm_page(inner: str, title: str = "Fichiers", folder: str = "all", src: str 
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         f'<title>{_html.escape(title)}</title>{theme_js}<style>{_FM_STYLE}</style></head>'
         '<body>'
-        '<button class="sidebtn" id="sidebtn" title="Menu" aria-label="Menu">&#9776;</button>'
         '<div class="sideov" id="sideov"></div>'
         '<div class="wrap"><aside class="side">'
         '<div class="side-head"><button id="sidebar-toggle-button" '
         'title="Réduire / agrandir la sidebar" aria-label="Réduire la sidebar">'
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" '
-        'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+        'stroke="currentColor" stroke-width="1.5" stroke-linecap="round" '
         'stroke-linejoin="round" aria-hidden="true">'
-        '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/>'
+        '<path d="M19 21L5 21C3.89543 21 3 20.1046 3 19L3 5C3 3.89543 3.89543 3 5 3L19 3C20.1046 3 21 3.89543 21 5L21 19C21 20.1046 20.1046 21 19 21Z"/>'
+        '<path d="M9.5 21V3"/><path d="M5.5 10L7.25 12L5.5 14"/>'
         '</svg></button></div>'
         + _fm_side(folder, src, tab)
         + '<div id="sidebar-resizer" role="separator" aria-orientation="vertical" '
@@ -841,27 +884,39 @@ def _fm_page(inner: str, title: str = "Fichiers", folder: str = "all", src: str 
         'fetch(u,{method:"POST",body:b}).then(function(r){if(!r.ok){return r.text()'
         '.then(function(t){throw new Error(t||("Erreur "+r.status))})}location.reload()})'
         '.catch(function(e){fmErr(String(e.message||e))})}'
-        'function fmSide(){var s=document.querySelector(".side");'
+        'function fmSide(){'
         'var ov=document.getElementById("sideov");'
-        'if(!s)return;'
-        'var hide=document.body.classList.toggle("sidehide");'
-        's.classList.toggle("open",!hide);'
-        'if(ov){ov.classList.toggle("on",!hide&&window.innerWidth<=820);}'
-        'try{localStorage.setItem("sidebar",hide?"false":"true");}catch(e){}}'
-        'var sb=document.getElementById("sidebtn");'
-        'if(sb){sb.addEventListener("click",fmSide);}'
+        'var mobile=window.innerWidth<=820;'
+        'var icons=document.body.classList.contains("sideicons");'
+        'document.body.classList.toggle("sideicons",!icons);'
+        'if(mobile){if(ov){ov.classList.toggle("on",icons);}}'
+        'else{if(!icons){var ds=document.querySelectorAll(".side details");'
+        'for(var i=0;i<ds.length;i++){ds[i].open=true;}}'
+        'try{localStorage.setItem("sidebar",icons?"full":"icons");}catch(e){}}'
+        'var b=document.getElementById("sidebar-toggle-button");'
+        'if(b){b.setAttribute("title",document.body.classList.contains("sideicons")'
+        '?"Agrandir la sidebar":"Réduire en icônes");}}'
         'var stb=document.getElementById("sidebar-toggle-button");'
         'if(stb){stb.addEventListener("click",fmSide);}'
         'var sv=document.getElementById("sideov");'
         'if(sv){sv.addEventListener("click",fmSide);}'
         '(function(){var h=null;try{h=localStorage.getItem("sidebar");}catch(e){}'
         'var mobile=window.innerWidth<=820;'
-        'var hide=h===null?mobile:(h!=="true");'
-        'if(hide){document.body.classList.add("sidehide");}'
-        'var s2=document.querySelector(".side");'
-        'if(s2){s2.classList.toggle("open",!hide);}'
+        'var icons=mobile?true:(h==="icons");'
+        'document.body.classList.toggle("sideicons",icons);'
+        'if(icons){var d0=document.querySelectorAll(".side details");'
+        'for(var i0=0;i0<d0.length;i0++){d0[i0].open=true;}}'
         'var ov2=document.getElementById("sideov");'
-        'if(ov2){ov2.classList.toggle("on",!hide&&mobile);}'
+        'if(ov2){ov2.classList.remove("on");}'
+        'var b2=document.getElementById("sidebar-toggle-button");'
+        'if(b2){b2.setAttribute("title",icons?"Agrandir la sidebar":"Réduire en icônes");}'
+        'var sms=document.querySelectorAll(".side summary");'
+        'for(var k=0;k<sms.length;k++){(function(sm){sm.addEventListener("click",function(e){'
+        'if(document.body.classList.contains("sideicons")){e.preventDefault();}});})(sms[k]);}'
+        'window.addEventListener("resize",function(){'
+        'var o=document.getElementById("sideov");'
+        'if(o){o.classList.toggle("on",window.innerWidth<=820'
+        '&&!document.body.classList.contains("sideicons"));}});'
         'var r=document.getElementById("sidebar-resizer");'
         'if(r){var MIN=220,MAX=480,cur=245;'
         'function setW(w){w=Math.min(MAX,Math.max(MIN,Math.round(w)));'

@@ -2595,3 +2595,61 @@ onglets sur une ligne avec actif auto-centré, thème sombre `#171717` mesuré.
 Contrôle desktop (1280×900) : sidebar inline 245 px, ☰ masqué, toggle en tête,
 mesures pixels conformes. Fonctionnel : repli/réouverture, persistance de
 l'état et de la largeur (drag 245→345 persisté, flèche → ±10 px).
+
+## 2026-11-11 — v0.0.73 : P121 — rétraction en icônes seules + icônes Open WebUI
+
+Demandes : « il manque la rétraction avec juste les icônes, le gros bouton est
+moche et inutile si il y a la rétraction avec juste les icônes » +
+« reprend la façon de faire les icônes ou reprends même ceux de OpenWebUI ».
+
+Relevé dans le sprite du frontend Open WebUI
+(`src-assets/frontend/_app/immutable/chunks/wN8N8j40.js`, 127 icônes) :
+
+1. **Icônes** : extraction programmatique des 13 SVG utilisés par la sidebar
+   (`folder, list, pdf-logo, image, code, markdown-logo, package, settings,
+   brain, search, tools, page-text, sidebar-expand`) — même `viewBox 0 0 24 24`,
+   `stroke="currentColor"` `stroke-width 1.5`, `stroke-linecap/linejoin round`
+   que le composant `Icon` d'Open WebUI ; les émojis des entrées sont retirés.
+2. **Structure** : chaque lien/groupe devient
+   `<span class="si">icône</span><span class="sl">libellé</span>` avec
+   `title="<libellé>"` (infobulle native en mode icônes).
+
+Implémentation (P121) :
+
+- **Suppression du ☰** : règles CSS `.sidebtn`, bouton HTML `#sidebtn` et
+  écouteur JS supprimés ; `body.sidehide` disparaît au profit de
+  `body.sideicons` ;
+- **Mode icônes seules** (`body.sideicons`) : `width/min-width/max-width`
+  56 px, `.sl` masqué, liens et titres centrés, `#sidebar-resizer` masqué,
+  groupes `details` forcés ouverts (clic sur `<summary>` neutralisé pour ne
+  pas replier l'arbre), bouton de repli qui met à jour son `title` ;
+- **Bouton de repli** : icône `sidebar-expand` d'Open WebUI (l'ancien SVG
+  maison rect+barre est remplacé) ; il bascule `icons ↔ full` et persiste
+  `localStorage.sidebar` ;
+- **Mobile** : la sidebar n'est plus un tiroir caché — c'est une **colonne
+  d'icônes permanente de 56 px** (contenu décalé `padding-left: 68px`,
+  `.ver` décalé à 66 px) ; le mode plein s'ouvre en **overlay avec voile**
+  (`body:not(.sideicons) .side` + `.sideov.on`) et un clic sur le voile
+  revient aux icônes ; mobile démarre toujours en icônes ;
+- **Padding haut mobile** : maintenu à 58 px (le FAB P40 reste fixé en haut
+  à droite — un passage à 14 px a fait chevaucher le FAB, corrigé après
+  mesure `tab_y=62 > fab_bottom=52`) ;
+- **Transition** : `width/min/max .18s ease` (desktop) et `.2s ease` (mobile)
+  pour un repli progressif.
+
+Contrôle (sonde Playwright `ui_probe6.py`, harnais 8090) — tout est vert :
+
+| Test | Résultat |
+|---|---|
+| Desktop défaut | déployé 245 px, titre « Réduire en icônes », 12 icônes |
+| Clic repli | 56 px, `.sl` masqué, resizer masqué, groupes ouverts, titre basculé |
+| Infobulle | `title="Journaux"` présente |
+| Persistance | icônes conservé après rechargement ; retour plein 245 px conservé |
+| ☰ | `#sidebtn` absent (0 occurrence) |
+| Mobile défaut | colonne 56 px, 0 px de débordement |
+| Mobile plein | overlay 245 px + voile `sideov on` |
+| Voile | retour aux icônes (56 px) |
+| Débordement | 0 px sur les 5 écrans |
+| Chevauchement FAB/onglets | False (`tab_y=62`, `fab_bottom=52`) |
+
+`versionName` 0.0.73.

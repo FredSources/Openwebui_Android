@@ -2369,3 +2369,19 @@ Run 43024354592 **success** sur le tag `v0.0.64` — chaîne gardée : verifier_
 + check_apk ✓. Assets `OpenWebUI_Android-0.0.64-{debug,release}.apk`.
 À valider : l'onglet Journaux active + affiche les journaux ; l'onglet Open
 WebUI ne contient plus de lien vers les journaux.
+
+## 2026-11-11 — v0.0.65 : P113 — l'onglet Journaux n'était pas visible (œuf et poule)
+
+Bug vu à l'écran (sonde Playwright sur l'appareil) : la barre d'onglets
+n'en montrait que trois (Open WebUI, SearXNG, Maintenance) — l'onglet
+**Journaux avait disparu**. Cause : P111 rend la journalisation
+DÉSACTIVÉE par défaut, or le code masquait l'onglet Journaux quand
+`_journaux_actifs()` est faux → la réactivation depuis l'UI était
+impossible (cul-de-sac : l'écran « Journaux désactivés » n'offrait aucune
+bascule). Correctif : l'onglet (sidebar + barre) est désormais TOUJOURS
+présent, et l'écran Journaux s'affiche même sans journalisation — les
+bascules d'activation y sont, c'est leur place. `versionName` 0.0.65.
+
+Note de méthode : la capture d'écran de la version installée a permis de
+VOIR le bug que la lecture de code n'avait pas vu — à refaire après chaque
+refonte d'UI.

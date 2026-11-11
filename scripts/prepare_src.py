@@ -715,8 +715,7 @@ def _fm_side(folder: str = "all", src: str = "both", tab: str = "owui") -> str:
                ("/fm?folder=settings&tab=searxng", "&#128269; SearXNG",
                 folder == 'settings' and tab == 'searxng'),
                ("/fm?folder=maintenance", "&#128736;&#65039; Maintenance", folder == 'maintenance')]
-    if _journaux_actifs():
-        entrees.append(("/fm?folder=logs", "&#128220; Journaux", folder == 'logs'))
+    entrees.append(("/fm?folder=logs", "&#128220; Journaux", folder == 'logs'))
     return (
         fichiers
         + '<details open><summary>&#9881;&#65039; Paramètres</summary>'
@@ -742,7 +741,7 @@ def _fm_onglets(actif: str = "owui") -> str:
         + _t('searxng', 'SearXNG', '/fm?folder=settings&tab=searxng',
              _vert if st.get('searxng') == 'actif' else _rouge)
         + _t('maintenance', 'Maintenance', '/fm?folder=maintenance')
-        + (_t('logs', 'Journaux', '/fm?folder=logs') if _journaux_actifs() else '')
+        + _t('logs', 'Journaux', '/fm?folder=logs')
         + '</div>'
     )
     return html
@@ -1170,8 +1169,6 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 page = page.replace('@@DOT_OW@@', dot_ow)
             return _HTMLResponse(_fm_page(page, 'Paramètres', folder='settings', src=src))
         if folder == 'logs':
-            if not _journaux_on:
-                return _HTMLResponse(_fm_page("<h1>Journaux d&eacute;sactiv&eacute;s</h1><p>La capture est coup&eacute;e &mdash; r&eacute;glage <code>owui logs</code> dans les Param&egrave;tres (appliqu&eacute; au red&eacute;marrage).</p>"))
             from open_webui import android_logs as _al
             sel = (request.query_params.get('log') or '').strip() or 'TOUS'
             try:

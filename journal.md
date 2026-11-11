@@ -2250,3 +2250,18 @@ Batterie exécutée depuis Termux contre l'appareil réel (appli v0.0.60 install
 Reste au MANUEL (l'utilisateur) : dictée (micro + permissions), coupure réseau
 (mode avion), tenue en arrière-plan (foreground service), relance après reboot,
 ressenti de fluidité/RAM. Consignés dans todo.md (Phase 4 en cours).
+
+## 2026-11-11 — Verdict utilisateur Phase 4 : « pas exactement le résultat attendu mais me convient »
+
+Réserve utilisateur notée sans objection — analyse de l'écart principal,
+la TAILLE DE L'APK : l'objectif documenté (« ≈ 150 Mo ») date de l'époque P13
+où le runtime Pyodide avait été RETIRÉ du frontend ; P23 l'a restauré
+(61 Mo annoncés, 84,4 Mo réels aujourd'hui dans `assets/frontend/pyodide/`
+avec les paquets scientifiques) pour rendre `execute_code` possible — d'où un
+APK à 235,7 Mo. L'écart est donc le COÛT DU BAC À SABLE fonctionnel, non une
+régression. Ajustement de la documentation : la table des performances devra
+mentionner cette composante. Leviers futurs si la taille devient un sujet :
+alléger le dépôt de paquets Pyodide embarqués (scipy/sklearn/statsmodels non
+utilisés par l'utilisateur), ou proposer un APK « léger » sans bac à sable.
+
+Décision : la taille actuelle est acceptée (« elle me convient ») ; on avance.

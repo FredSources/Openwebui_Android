@@ -280,7 +280,7 @@ successives, mesurées sur le CPU de l'appareil (temps jusqu'à `/health`) :
   [*Étape*], [*Avant*], [*Après*],
   [Import du serveur (mesuré)], [35,5 s], [≈ 11 s],
   [Taille du paquet Python `src/open_webui`], [264 Mo], [9,9 Mo],
-  [Taille APK], [245 Mo], [≈ 150 Mo],
+  [Taille APK], [245 Mo], [≈ 150 Mo — *avec* le bac à sable : 235,7 Mo (le runtime Pyodide restauré par P23 pèse 84,4 Mo ; l'objectif 150 Mo supposait ce runtime retiré par P13)],
 )
 
 - P13 : frontend allégé (248 → 85 Mo : source maps, `pyodide/`, `wasm/`) ;

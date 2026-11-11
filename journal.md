@@ -2138,3 +2138,13 @@ le bac à sable avant la config). Retiré : le bac à sable est créé à la dem
 au premier execute_code, comme en amont — la config est chargée à ce moment-là,
 toute la classe de bugs « décision avant config » disparaît. P71a (instantané
 des fichiers d'entrée, plafonds de remontée) est conservé. `versionName` 0.0.58.
+
+## 2026-11-11 — v0.0.58 PUBLIÉE : préchauffage retiré, voie worker forcée
+
+Run 42927630348 **vert** (conclusion success) sur le tag `v0.0.58` — chaîne
+gardée : verifier_tag ✓ + check_apk ✓. Assets `OpenWebUI_Android-0.0.58-{debug,release}.apk`.
+Contenu : P106 (voie worker forcée — ramassage P41 + persistance IDBFS enfin
+exécutés) + P70 révoqué (bac à sable créé à la demande, comme en amont).
+Attendu au test appareil : fichiers écrits dans /mnt/uploads visibles dans le
+gestionnaire et retrouvés par display_file, écritures persistantes entre
+exécutions ; premier appel plus lent de 3-5 s (montage wasm à la demande).

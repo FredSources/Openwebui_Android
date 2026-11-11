@@ -2323,3 +2323,23 @@ gardée : verifier_tag ✓ + check_apk ✓. Assets `OpenWebUI_Android-0.0.62-{de
 À valider à l'écran : largeurs/boutons/cases cohérents entre Open WebUI et
 SearXNG, absence de clé secrète, onglets Maintenance/Journaux sous Paramètres,
 bouton bleu au même endroit et synchronisé entre /fm et Open WebUI.
+
+## 2026-11-11 — v0.0.63 : P111 — journaux unifiés, suivi automatique, journalisation off par défaut
+
+Retours utilisateur, tous traités :
+
+1. **Mêmes logs partout** : l'écran Journaux ne montrait qu'un fichier (300
+   lignes) quand le flux live montrait tous les journaux fusionnés —
+   l'écran affiche désormais la **fusion** (notation « fichier | ligne », limite
+   la plus généreuse : 300 lignes par fichier), le bouton **Live** est retiré de
+   l'interface (la route reste pour les diagnostics).
+2. **Suivi automatique** : la vue se rafraîchit toutes les 3 s et se cale sur
+   les **dernières lignes** (barre de défilement en bas) — endpoint
+   `/fm/logs/tail` (texte brut).
+3. **Journalisation DÉSACTIVÉE par défaut** (accord utilisateur) : la case
+   « désactiver la journalisation » est pré-cochée au premier affichage ; les
+   écritures sont réellement coupées (garde dans `_ecrire`), effet immédiat +
+   mémorisé (`OWUI_LOGS=on/off` dans `data/openwebui.env`).
+4. **Évacuation réseau des journaux désactivable** : case dédiée
+   (`OWUI_LOGS_NET`, active par défaut) — quand elle est cochée, les routes de
+   téléchargement/zip/flux live répondent 404. `versionName` 0.0.63.

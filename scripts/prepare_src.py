@@ -934,8 +934,16 @@ def _fm_error(exc: Exception) -> str:
 
 
 def _journaux_actifs() -> bool:
-    """P95 — les journaux sont-ils actifs ? (réglage OWUI_LOGS, défaut on)."""
-    return _osj.environ.get('OWUI_LOGS', 'on').strip().lower() not in (
+    """P95/P111 — les journaux sont-ils actifs ? (réglage OWUI_LOGS).
+    P111 : par défaut, AUCUNE journalisation (accord utilisateur 2026-11-11)."""
+    return _osj.environ.get('OWUI_LOGS', 'off').strip().lower() not in (
+        'off', 'non', '0', 'false', 'desactive', 'aucun')
+
+
+def _journaux_reseau() -> bool:
+    """P111 — l’évacuation des journaux par le réseau (téléchargement, zip,
+    flux live) est DÉSACTIVABLE (réglage OWUI_LOGS_NET, active par défaut)."""
+    return _osj.environ.get('OWUI_LOGS_NET', 'on').strip().lower() not in (
         'off', 'non', '0', 'false', 'desactive', 'aucun')
 
 
@@ -1123,7 +1131,7 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
 <div class="svcbar">
 <button type="button" class="ghost" onclick="svc(&quot;openwebui&quot;,&quot;run&quot;)">&#9654; Démarrer</button>
 <button type="button" class="ghost" onclick="svc(&quot;openwebui&quot;,&quot;stop&quot;)">&#9208; Arrêter</button>
-<button type="button" class="danger" onclick="AndroidSystem.restartApp()">&#8635; Redémarrer l'application</button>
+<button type="button" class="ghost" onclick="AndroidSystem.restartApp()">&#8635; Redémarrer l'application</button>
 </div></div>
 <div class="card"><h2>&#129302; Modèles (LLM)</h2>
 <p class="sub">Connexion à Ollama ou à une API OpenAI-compatible.</p>
@@ -1169,7 +1177,7 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
             if not _journaux_on:
                 return _HTMLResponse(_fm_page("<h1>Journaux d&eacute;sactiv&eacute;s</h1><p>La capture est coup&eacute;e &mdash; r&eacute;glage <code>owui logs</code> dans les Param&egrave;tres (appliqu&eacute; au red&eacute;marrage).</p>"))
             from open_webui import android_logs as _al
-            sel = (request.query_params.get('log') or '').strip() or 'serveur.log'
+            sel = (request.query_params.get('log') or '').strip() or 'TOUS'
             try:
                 limite = max(20, min(int(request.query_params.get('n') or 300), 1000))
             except Exception:
@@ -1183,7 +1191,14 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 "</td></tr>"
                 for f in journaux
             ) or "<tr><td colspan='4' class='empty'>Aucun journal pour l'instant.</td></tr>"
-            contenu = _al.lecture(sel, limite)
+            if sel.upper() == 'TOUS':
+                _lignes = []
+                for _f in _al.fichiers():
+                    for _l in (_al.lecture(_f['nom'], limite) or '').splitlines():
+                        _lignes.append(_f['nom'] + ' | ' + _l)
+                contenu = chr(10).join(_lignes) or '(journaux vides)'
+            else:
+                contenu = _al.lecture(sel, limite)
             jl = []
             for _l in (contenu.splitlines() or ["(journal vide)"]):
                 _e = _html.escape(_l)
@@ -1192,19 +1207,34 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 jl.append(_e)
             inner = (
                 _fm_onglets('logs')
-                + "<h1>&#128220; Journaux</h1>"
+                + "<div class='settings'><h1>&#128220; Journaux</h1>"
+                + "<div class='card'><h2>&#128260; Journalisation</h2>"
+                + "<form method='post' action='/fm/logs/toggle'>"
+                + "<label class='chk'><input type='checkbox' name='off'"
+                + ("" if _journaux_actifs() else " checked")
+                + "> désactiver la journalisation (aucune nouvelle écriture)</label>"
+                + "<label class='chk'><input type='checkbox' name='netoff'"
+                + ("" if _journaux_reseau() else " checked")
+                + "> désactiver l’évacuation par le réseau (téléchargement, zip, flux live)</label>"
+                + "<div class='svcbar'><button class='primary'>&#128190; Enregistrer</button></div></form></div>"
+                + "<div class='card'><h2>&#128196; Fichiers journaux</h2>"
                 "<div class='bar'>"
-                "<a class='btn2 btn' href='/fm?folder=logs&log=" + _quote(sel) + "'>&#8635; Rafraîchir</a>"
-                "<a class='btn2 btn' href='/fm/logs/live?hist=100'>&#9654; Live</a>"
+                "<a class='btn' href='/fm?folder=logs&log=" + _quote(sel) + "'>&#8635; Rafraîchir</a>"
                 "<a class='btn' href='/fm/logs/download?all=1'>&#128229; Tout télécharger (zip)</a>"
                 "<form method='post' action='/fm/logs/clear' style='display:inline'><button class='del'>&#128465; Vider</button></form></div>"
                 "<table class='logtable'><thead><tr><th>Nom</th><th>Taille</th><th>Modifié</th><th>Actions</th></tr></thead><tbody>"
-                + rows_log + "</tbody></table>"
-                "<h2 style='font-size:1rem;margin:16px 0 8px'>" + _html.escape(sel) + " — dernières "
+                + rows_log + "</tbody></table></div>"
+                + "<div class='card'><h2>" + _html.escape(sel) + " — dernières "
                 + str(limite) + " lignes</h2>"
-                "<pre class='logbox'>" + "<br>".join(jl) + "</pre>"
+                "<pre class='logbox' id='logbox'>" + "<br>".join(jl) + "</pre>"
+                "<script>(function(){var p=document.getElementById('logbox');if(!p)return;"
+                "var u='/fm/logs/tail?n=" + str(limite) + "&log=" + _quote(sel) + "';"
+                "function s(){fetch(u).then(function(r){return r.text()}).then(function(t){"
+                "if(t&&t!==p.textContent){p.textContent=t}p.scrollTop=p.scrollHeight})"
+                ".catch(function(){})}"
+                "p.scrollTop=p.scrollHeight;setInterval(s,3000);})();</script>"
                 "<p class='sub'>Journaux complets téléchargeables ci-dessus : tracebacks Python "
-                "(dont les erreurs <code>execute_code</code>), erreurs uvicorn et activité des services.</p>"
+                "(dont les erreurs <code>execute_code</code>), erreurs uvicorn et activité des services.</p></div></div>"
             )
             return _HTMLResponse(_fm_page(inner, "Journaux", folder='logs'))
         if folder == 'maintenance':
@@ -1217,22 +1247,25 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                     taille_db += p_db.stat().st_size
             inner = (
                 _fm_onglets('maintenance')
-                + "<h1>\u2699\ufe0f Maintenance</h1>"
-                f"<p>Donnees de l'appli : <code>{_html.escape(str(_DD))}</code></p>"
-                f"<p>Base de donnees : {_fm_size(taille_db)} &mdash; Fichiers : {total} &mdash; "
-                f"<a href='/fm/raw?name=webui.db'>telecharger une sauvegarde de la base</a></p>"
+                + "<div class=\\"settings\\"><h1>&#128736;&#65039; Maintenance</h1>"
+                + "<div class=\\"card\\"><h2>&#128230; Données de l'application</h2>"
+                f"<p class='sub'>Données : <code>{_html.escape(str(_DD))}</code></p>"
+                f"<p class='sub'>Base de données : {_fm_size(taille_db)} &mdash; Fichiers : {total} &mdash; "
+                f"<a class='btn' href='/fm/raw?name=webui.db'>Télécharger une sauvegarde de la base</a></p>"
+                + "</div><div class=\\"card\\"><h2>&#128220; Index des documents</h2>"
+                + "<p class='sub'>Nettoie les entrées de l'index dont le fichier a disparu.</p>"
                 "<form method='post' action='/fm/fix-index'>"
-                "<button>&#128465; Nettoyer l'index des documents disparus</button></form>"
-                "<p><i>La configuration ne provient jamais de l'APK ; elle vit uniquement ici. "
-                "Si elle reapparait apres effacement, c'est Android qui l'a restauree "
-                "(sauvegarde automatique desactivee depuis v0.0.15).</i></p>"
+                "<button class='ghost'>&#128465; Nettoyer l'index des documents disparus</button></form>"
+                + "</div><div class=\\"card\\"><h2>&#9888;&#65039; Réinitialisation</h2>"
                 "<form method='post' action='/fm/reset'>"
-                "<button class='del'>&#9888; Tout effacer et reinitialiser</button></form>"
-                "<p style='color:#bbb'>Cette action est definitive : comptes, conversations, "
-                "fichiers et reglages.</p>"
-                "<p style='color:#999'>L'effacement s'applique au prochain demarrage (forcez l'arret "
-                "de l'appli puis relancez). Les donnees sont aussi visibles et supprimables depuis "
-                "votre gestionnaire de fichiers : <code>Android/data/org.openwebui.android/</code>.</p>"
+                "<button class='danger'>&#9888; Tout effacer et réinitialiser</button></form>"
+                "<p class='sub'>Cette action est définitive : comptes, conversations, fichiers et réglages. "
+                "Elle s'applique au prochain démarrage (forcez l'arrêt de l'appli puis relancez).</p>"
+                "<p class='sub'>La configuration ne provient jamais de l'APK ; elle vit uniquement ici. "
+                "Si elle réapparaît après effacement, c'est Android qui l'a restaurée "
+                "(sauvegarde automatique désactivée depuis v0.0.15). Les données sont aussi visibles "
+                "et supprimables depuis votre gestionnaire de fichiers : "
+                "<code>Android/data/org.openwebui.android/</code>.</p></div></div>"
 
             )
             return _HTMLResponse(_fm_page(inner, "Maintenance", folder='maintenance'))
@@ -1442,6 +1475,8 @@ async def fm_logs_download(request: Request, user=Depends(get_verified_user)):
 
     if not _journaux_actifs():
         return _HTMLResponse("journaux desactives", status_code=404)
+    if not _journaux_reseau():
+        return _HTMLResponse("evacuation reseau desactivee", status_code=404)
     if (request.query_params.get('all') or '').strip():
         import io as _io
         import zipfile as _zip
@@ -1473,6 +1508,8 @@ async def fm_logs_live(request: Request):
         return _HTMLResponse(_fm_page("<h1>Accès refusé</h1>"), status_code=403)
     if not _journaux_actifs():
         return _HTMLResponse("journaux desactives", status_code=404)
+    if not _journaux_reseau():
+        return _HTMLResponse("evacuation reseau desactivee", status_code=404)
     sel = (request.query_params.get('log') or '').strip()
     try:
         hist = max(0, min(int(request.query_params.get('hist') or 0), 2000))
@@ -1509,6 +1546,51 @@ async def fm_logs_clear(request: Request, user=Depends(get_verified_user)):
         return _HTMLResponse("journaux desactives", status_code=404)
     _al.vider()
     return _Red('/fm?folder=logs', status_code=303)
+
+
+@app.post('/fm/logs/toggle')
+async def fm_logs_toggle(request: Request, user=Depends(get_verified_user)):
+    """P111 — bascule de la journalisation : la case « désactiver » (vide par
+    défaut) coupe toute nouvelle écriture. Effet IMMÉDIAT + mémorisé dans
+    data/openwebui.env (OWUI_LOGS=on/off)."""
+    form = await request.form()
+    off = bool(form.get('off'))
+    netoff = bool(form.get('netoff'))
+    os.environ['OWUI_LOGS'] = 'off' if off else 'on'
+    os.environ['OWUI_LOGS_NET'] = 'off' if netoff else 'on'
+    import android_main as _am
+    lignes = [l for l in _am.env_read().splitlines()
+              if l.strip() and not l.strip().startswith(('OWUI_LOGS=', 'OWUI_LOGS_NET='))]
+    lignes.append('OWUI_LOGS=' + ('off' if off else 'on'))
+    lignes.append('OWUI_LOGS_NET=' + ('off' if netoff else 'on'))
+    _am.env_save(chr(10).join(lignes))
+    return _Red('/fm?folder=logs', status_code=303)
+
+
+@app.get('/fm/logs/tail')
+async def fm_logs_tail(request: Request):
+    """P111 — extrait des journaux (texte brut) pour le suivi automatique de
+    la vue : la page se rafraîchit et se cale sur les dernières lignes."""
+    from fastapi.responses import Response as _R
+    from open_webui import android_logs as _al
+    if not _journaux_actifs():
+        return _HTMLResponse("journaux desactives", status_code=404)
+    if not _journaux_reseau():
+        return _HTMLResponse("evacuation reseau desactivee", status_code=404)
+    try:
+        n = max(20, min(int(request.query_params.get('n') or 300), 1000))
+    except Exception:
+        n = 300
+    sel = (request.query_params.get('log') or '').strip() or 'TOUS'
+    if sel.upper() == 'TOUS':
+        lignes = []
+        for f in _al.fichiers():
+            for l in (_al.lecture(f['nom'], n) or '').splitlines():
+                lignes.append(f['nom'] + ' | ' + l)
+        texte = chr(10).join(lignes) or '(journaux vides)'
+    else:
+        texte = _al.lecture(sel, n) or '(journal vide)'
+    return _R(texte, media_type='text/plain; charset=utf-8')
 
 
 @app.get('/fm/diag/eventcall')
@@ -1698,6 +1780,11 @@ def suite(etats: dict) -> list:
 
 
 def _ecrire(nom: str, ligne: str) -> None:
+    # P111 — journalisation désactivée : aucune écriture (le réglage est lu à
+    # chaque ligne : l'effet est immédiat).
+    if os.environ.get('OWUI_LOGS', 'off').strip().lower() in (
+            'off', 'non', '0', 'false', 'desactive', 'aucun'):
+        return
     try:
         p = _dir() / nom
         with _lock:

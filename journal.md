@@ -2385,3 +2385,11 @@ bascules d'activation y sont, c'est leur place. `versionName` 0.0.65.
 Note de méthode : la capture d'écran de la version installée a permis de
 VOIR le bug que la lecture de code n'avait pas vu — à refaire après chaque
 refonte d'UI.
+
+## 2026-11-11 — v0.0.65 PUBLIÉE : onglet Journaux permanent
+
+Run 43027272430 **success** sur le tag `v0.0.65` — chaîne gardée : verifier_tag ✓
++ check_apk ✓. Assets `OpenWebUI_Android-0.0.65-{debug,release}.apk`.
+Attendu : 4 onglets visibles (Open WebUI, SearXNG, Maintenance, Journaux) même
+sans journalisation ; bascules d'activation présentes sur l'écran Journaux.
+Vérification par capture d'écran après installation de l'utilisateur.

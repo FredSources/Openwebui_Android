@@ -2315,3 +2315,11 @@ Retours utilisateur sur la refonte v0.0.61, tous traités :
    (haut à droite) sur les deux écrans, déplaçable, et **synchronisé** — les
    deux lisent/écrivent la même clé `fabPos` (fini `fabPosFm`/`fabPosSpa`).
    `versionName` 0.0.62.
+
+## 2026-11-11 — v0.0.62 PUBLIÉE : écrans cohérents, onglets étendus, FAB synchronisé
+
+Run 43015709291 **vert** (conclusion success) sur le tag `v0.0.62` — chaîne
+gardée : verifier_tag ✓ + check_apk ✓. Assets `OpenWebUI_Android-0.0.62-{debug,release}.apk`.
+À valider à l'écran : largeurs/boutons/cases cohérents entre Open WebUI et
+SearXNG, absence de clé secrète, onglets Maintenance/Journaux sous Paramètres,
+bouton bleu au même endroit et synchronisé entre /fm et Open WebUI.

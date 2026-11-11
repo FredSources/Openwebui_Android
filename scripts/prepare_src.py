@@ -682,14 +682,41 @@ _FM_STYLE = """
     button, .btn, .nav a { padding: 10px 14px; font-size: .95rem; }
     .ver { display: none; }
   }
+  /* P109 — arbre de navigation, onglets Paramètres, points d'état */
+  .side details { margin: 2px 0; }
+  .side summary { cursor: pointer; padding: 8px 10px; border-radius: 8px; font-weight: 600; list-style: none; user-select: none; }
+  .side summary::-webkit-details-marker { display: none; }
+  .side summary:hover { background: var(--hover); }
+  .side details a { padding-left: 26px; font-size: 13px; }
+  .tabs { display: flex; gap: 8px; margin: 4px 0 18px; flex-wrap: wrap; }
+  .tabs .tab { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 12px; text-decoration: none; color: var(--fg); background: var(--panel); font-weight: 600; }
+  .tabs .tab.on { border-color: var(--accent); background: var(--accent); color: var(--accent-fg); }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+  .svcbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 """
 
 
-def _fm_page(inner: str, title: str = "Fichiers") -> str:
-    # P37 — habillage aligné sur Open WebUI : police Inter, palette claire
-    # (#fff/#000), sombre (#171717/#eee) et oled-dark (noir pur) ; le thème est
-    # lu dans localStorage["theme"] comme le fait le frontend. Plus de bouton
-    # « retour assistant » : la navigation Android/back d'Open WebUI suffit.
+def _fm_side(folder: str = "all", src: str = "both") -> str:
+    """P109 — sidebar PERMANENTE : arbre Fichiers (tous, pdf, image, typst,
+    markdown, autres) au même niveau que Paramètres / Maintenance / Journaux."""
+    def _lien(k, label):
+        return f'<a href="/fm?folder={k}&src={src}" class="{"on" if k == folder else ""}">{label}</a>'
+    feuilles = [("all", "&#128194; Tous"), ("pdf", "&#128196; PDF"),
+                ("img", "&#128444; Images"), ("typ", "&#9998; Typst"),
+                ("md", "&#128221; Markdown"), ("other", "&#128230; Autres")]
+    return (
+        '<details open><summary>&#128193; Fichiers</summary>'
+        + "".join(_lien(k, l) for k, l in feuilles) + '</details>'
+        + _lien("settings", "&#9881;&#65039; Paramètres")
+        + _lien("maintenance", "&#128736;&#65039; Maintenance")
+        + (_lien("logs", "&#128220; Journaux") if _journaux_actifs() else "")
+    )
+
+
+def _fm_page(inner: str, title: str = "Fichiers", folder: str = "all", src: str = "both") -> str:
+    # P37/P109 — habillage COMPLET et PERMANENT : la sidebar (arbre de
+    # navigation) est TOUJOURS présente, le bouton de retour est FIXE en HAUT
+    # à droite ; thème aligné sur Open WebUI (lu dans localStorage["theme"]).
     theme_js = (
         '<script>(function(){var t=null;try{t=localStorage.getItem("theme");}catch(e){}'
         'var dark=(t==="dark"||t==="oled-dark")'
@@ -702,7 +729,7 @@ def _fm_page(inner: str, title: str = "Fichiers") -> str:
     # style, autre icône 💬), présent sur TOUTES les pages /fm.
     retour = (
         '<a href="/" id="fab-fm" title="Retour à Open WebUI — glisser pour déplacer" '
-        'style="position:fixed;right:12px;bottom:72px;z-index:2147483000;'
+        'style="position:fixed;top:10px;right:12px;z-index:2147483000;'
         'width:42px;height:42px;border-radius:50%;background:#3b82f6;color:#fff;'
         'display:flex;align-items:center;justify-content:center;font-size:20px;'
         'text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:grab;touch-action:none">'
@@ -726,7 +753,9 @@ def _fm_page(inner: str, title: str = "Fichiers") -> str:
         '<!doctype html><html lang="fr"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         f'<title>{_html.escape(title)}</title>{theme_js}<style>{_FM_STYLE}</style></head>'
-        f'<body>{inner}{retour}<footer class="ver">OpenWebUI Android {_FM_VERSION}</footer></body></html>'
+        '<body><div class="wrap"><aside class="side">' + _fm_side(folder, src) + '</aside>'
+        f'<main class="main">{inner}</main></div>{retour}'
+        f'<footer class="ver">OpenWebUI Android {_FM_VERSION}</footer></body></html>'
     )
 
 
@@ -738,18 +767,21 @@ def _fm_get(meta, key):
 
 
 def _fm_kind(name: str, ctype: str) -> str:
+    """P109 — catégories de l'arbre : pdf, image, typst, markdown, autres."""
     n = (name or "").lower()
     c = (ctype or "").lower()
     if c == "application/pdf" or n.endswith(".pdf"):
         return "pdf"
     if c.startswith("image/") or n.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")):
         return "img"
-    if c.startswith("text/") or n.endswith((".txt", ".md", ".csv", ".docx", ".xlsx", ".pptx", ".json", ".yaml", ".yml", ".typ")):
-        return "doc"
+    if n.endswith(".typ"):
+        return "typ"
+    if c in ("text/markdown", "text/x-markdown") or n.endswith((".md", ".markdown")):
+        return "md"
     return "other"
 
 
-_FM_ICO = {"pdf": "\\U0001f4c4", "img": "\\U0001f5bc", "doc": "\\U0001f4c3", "other": "\\U0001f4e6"}
+_FM_ICO = {"pdf": "\\U0001f4c4", "img": "\\U0001f5bc", "typ": "\\u270d", "md": "\\U0001f4c3", "other": "\\U0001f4e6"}
 
 
 def _fm_size(n) -> str:
@@ -880,6 +912,9 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
 
         q = (request.query_params.get('q') or '').strip().lower()
         folder = request.query_params.get('folder') or 'all'
+        # P109 — origine des fichiers : base (fiches), disque (orphelins) ou les deux.
+        src = (request.query_params.get('src') or 'both').strip() or 'both'
+        tab = (request.query_params.get('tab') or 'owui').strip() or 'owui'
         # P95 : les journaux sont coupables à l'exécution (réglage
         # OWUI_LOGS=off dans les Paramètres, appliqué au redémarrage).
         _journaux_on = _journaux_actifs()
@@ -904,6 +939,8 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 return 0.0
 
         items.sort(key=_key, reverse=True)
+        if src == 'disk':
+            items = []  # P109 : on ne montre que les fichiers « sur disque »
         refs = set()
         for f in result.items:
             try:
@@ -921,6 +958,8 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
             if q and q not in nom_aff.lower():
                 continue
             orph.append((p, nom_aff))
+        if src == 'base':
+            orph = []  # P109 : origine « en base » — on masque les orphelins du disque
         total = len(items) + len(orph)
         page_items = items[(page - 1) * per_page: page * per_page]
         rows_l = [_fm_row(f) for f in page_items]
@@ -943,16 +982,15 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 f"<button class=\\"del\\">Suppr.</button></form></td></tr>"
             )
         body = "".join(rows_l) or "<tr><td colspan=\\"6\\" class=\\"empty\\">Aucun fichier ici pour le moment.</td></tr>"
-        tabs = [("all", "\\U0001f4c1 Tous"), ("pdf", "\\U0001f4c4 PDF"), ("img", "\\U0001f5bc Images"),
-                ("doc", "\\U0001f4c3 Documents"), ("other", "\\U0001f4e6 Autres"),
-                ("settings", "\\u2699\\ufe0f Param\\u00e8tres"),
-                ("maintenance", "\\U0001f6e0\\ufe0f Maintenance"),
-                ("logs", "&#128220; Journaux")]
-        if not _journaux_on:
-            tabs = [t for t in tabs if t[0] != 'logs']
-        side = "".join(
-            f"<a href=\\"/fm?folder={k}&q={_quote(q)}\\" class=\\"{'on' if k == folder else ''}\\">{label}</a>"
-            for k, label in tabs
+        # P109 — la sidebar (arbre) est fournie par _fm_page ; ici, le sélecteur
+        # d'origine des fichiers : en base, sur disque, ou les deux.
+        src_liens = (
+            '<div class="tabs" style="margin:0 0 14px">'
+            + "".join(
+                f"<a class=\\"tab {'on' if src == k else ''}\\" "
+                f"href=\\"/fm?folder={folder}&src={k}&q={_quote(q)}\\">{l}</a>"
+                for k, l in (("both", "Les deux"), ("base", "En base"), ("disk", "Sur disque"))
+            ) + '</div>'
         )
         if folder == 'settings':
             import android_main as _am
@@ -994,12 +1032,81 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                     + _html.escape(aides.get(nom, '')) + '">'
                 )
 
-            page = """<div class="bar" style="margin-bottom:16px"><a class="btn" href="/fm">&#8592; Retour au navigateur</a></div>
-<p class="srv"><span class="dot" style="background:@@DOT_OW@@"></span> Open WebUI&nbsp;: <b>@@ST_OW@@</b>
-<span class="dot" style="background:@@DOT_SX@@;margin-left:24px"></span> SearXNG&nbsp;: <b>@@ST_SX@@</b></p>
-<form method="post" action="/fm/settings"><div class="settings">
-<h1>&#9881; Paramètres</h1>
-<p class="sub">Réglages écrits dans <code>data/openwebui.env</code> — appliqués à chaque démarrage ou redémarrage de l'application.</p>
+            st = _am.service_status()
+            _vert, _rouge = '#22c55e', '#ef4444'
+            dot_ow = _vert if st.get('openwebui') == 'actif' else _rouge
+            dot_sx = _vert if st.get('searxng') == 'actif' else _rouge
+            _js = ('<script>function svc(n,a){try{document.getElementById("svcmsg")'
+                   '.textContent=AndroidSystem.serverAction(n,a)}catch(e){document'
+                   '.getElementById("svcmsg").textContent="pont syst\u00e8me indisponible : "+e}}</script>')
+            onglets = (
+                '<div class="tabs">'
+                '<a class="tab ' + ('on' if tab != 'searxng' else '') + '" '
+                'href="/fm?folder=settings&tab=owui">'
+                '<span class="dot" style="background:' + dot_ow + '"></span> Open WebUI</a>'
+                '<a class="tab ' + ('on' if tab == 'searxng' else '') + '" '
+                'href="/fm?folder=settings&tab=searxng">'
+                '<span class="dot" style="background:' + dot_sx + '"></span> SearXNG</a>'
+                '</div>'
+            )
+            if tab == 'searxng':
+                sx = _am.searxng_settings_load()
+
+                def _chk(k):
+                    return 'checked' if k in (sx.get('formats') or []) else ''
+                page = (
+                    onglets
+                    + '<form method="post" action="/fm/settings">'
+                    + '<input type="hidden" name="tab" value="searxng">'
+                    + '<h1>&#9881; Param\u00e8tres &mdash; SearXNG</h1>'
+                    + '<div class="card"><h2>&#128268; Service</h2>'
+                    + '<p class="sub"><span class="dot" style="background:' + dot_sx + '"></span> '
+                    + '\u00c9tat : <b>' + _html.escape(st.get('searxng', 'arr\u00eat')) + '</b> &mdash; '
+                    + 'instance locale <code>127.0.0.1:8888</code></p>'
+                    + '<div class="svcbar">'
+                    + '<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;run&quot;)">'
+                    + '&#9654; D\u00e9marrer</button>'
+                    + '<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;stop&quot;)">'
+                    + '&#9208; Arr\u00eater</button>'
+                    + '<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;restart&quot;)">'
+                    + '&#8635; Red\u00e9marrer</button>'
+                    + '<a class="btn" href="/search?q=test&amp;format=json" target="_blank">'
+                    + '&#128269; Tester la recherche</a>'
+                    + '</div></div>'
+                    + '<div class="card"><h2>&#128269; Recherche</h2>'
+                    + '<p class="sub">Formats de r\u00e9ponse de l\u2019instance embarqu\u00e9e.</p>'
+                    + '<p><label style="display:inline"><input type="checkbox" name="SX_html" '
+                    + _chk('html') + '> html</label>'
+                    + '<label style="display:inline;margin-left:18px">'
+                    + '<input type="checkbox" name="SX_json" ' + _chk('json')
+                    + '> json (requis par l\u2019appli)</label></p>'
+                    + '<p><label style="display:inline">'
+                    + '<input type="checkbox" name="SX_limiter"'
+                    + (' checked' if sx.get('limiter') else '')
+                    + '> limiter (anti-abus, inutile en local)</label></p>'
+                    + '</div>'
+                    + '<div class="card"><h2>&#128273; Cl\u00e9 secr\u00e8te</h2>'
+                    + '<p class="sub">Empreinte : <code>'
+                    + _html.escape((sx.get('secret') or '')[:6] + '\u2026') + '</code></p>'
+                    + '<p><label style="display:inline"><input type="checkbox" name="SX_rekey">'
+                    + ' r\u00e9g\u00e9n\u00e9rer la cl\u00e9</label></p>'
+                    + '</div>'
+                    + '<div class="bar" style="margin-top:18px">'
+                    + '<button class="primary">&#128190; Enregistrer les r\u00e9glages</button></div>'
+                    + '</form><p id="svcmsg" class="sub"></p>' + _js
+                )
+            else:
+                page = """@@ONGLETS@@
+<form method="post" action="/fm/settings"><input type="hidden" name="tab" value="owui"><div class="settings">
+<h1>&#9881; Paramètres &mdash; Open WebUI</h1>
+<p class="sub">Réglages écrits dans <code>data/openwebui.env</code> — appliqués au prochain démarrage.</p>
+<div class="card"><h2>&#128268; Service</h2>
+<p class="sub"><span class="dot" style="background:@@DOT_OW@@"></span> État : <b>@@ST_OW@@</b></p>
+<div class="svcbar">
+<button type="button" class="ghost" onclick="svc(&quot;openwebui&quot;,&quot;run&quot;)">&#9654; Démarrer</button>
+<button type="button" class="ghost" onclick="svc(&quot;openwebui&quot;,&quot;stop&quot;)">&#9208; Arrêter</button>
+<button type="button" class="danger" onclick="AndroidSystem.restartApp()">&#8635; Redémarrer l'application</button>
+</div></div>
 <div class="card"><h2>&#129302; Modèles (LLM)</h2>
 <p class="sub">Connexion à Ollama ou à une API OpenAI-compatible.</p>
 @@OLLAMA_BASE_URL@@
@@ -1024,30 +1131,22 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
 <textarea name="extras" spellcheck="false" class="envbox">@@RESTE@@</textarea>
 </div>
 <div class="card"><h2>&#128220; Journaux</h2>
-<p class="sub">Activité du serveur, erreurs <code>execute_code</code> et autres — à consulter ou télécharger pour analyse.</p>
+<p class="sub">Activité du serveur, erreurs <code>execute_code</code> et autres.</p>
 <a class="btn" href="/fm?folder=logs">Consulter les journaux</a>
 </div>
 <div class="bar" style="margin-top:18px">
 <button class="primary">&#128190; Enregistrer les réglages</button>
-<button type="button" class="ghost" onclick="svc(&quot;openwebui&quot;,&quot;run&quot;)">&#9654; Open WebUI</button>
-<button type="button" class="ghost" onclick="svc(&quot;openwebui&quot;,&quot;stop&quot;)">&#9208; Arrêter</button>
-<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;run&quot;)">&#9654; SearXNG</button>
-<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;stop&quot;)">&#9208; Arrêter</button>
-<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;restart&quot;)">&#8635; SearXNG</button>
-<button type="button" class="danger" onclick="AndroidSystem.restartApp()">&#8635; Redémarrer l'application</button>
 </div>
 </div></form>
 <p id="svcmsg" class="sub"></p>
 <script>function svc(n,a){try{document.getElementById("svcmsg").textContent=AndroidSystem.serverAction(n,a)}catch(e){document.getElementById("svcmsg").textContent="pont système indisponible : "+e}}</script>"""
-            for _nom in connus:
-                page = page.replace('@@' + _nom + '@@', _champ(_nom))
-            page = page.replace('@@RESTE@@', _html.escape(reste))
-            st = _am.service_status()
-            page = page.replace('@@ST_OW@@', st.get('openwebui', 'arrêt'))
-            page = page.replace('@@ST_SX@@', st.get('searxng', 'arrêt'))
-            page = page.replace('@@DOT_OW@@', '#22c55e' if st.get('openwebui') == 'actif' else 'var(--muted)')
-            page = page.replace('@@DOT_SX@@', '#22c55e' if st.get('searxng') == 'actif' else 'var(--muted)')
-            return _HTMLResponse(_fm_page(page, 'Paramètres'))
+                for _nom in connus:
+                    page = page.replace('@@' + _nom + '@@', _champ(_nom))
+                page = page.replace('@@RESTE@@', _html.escape(reste))
+                page = page.replace('@@ONGLETS@@', onglets)
+                page = page.replace('@@ST_OW@@', st.get('openwebui', 'arrêt'))
+                page = page.replace('@@DOT_OW@@', dot_ow)
+            return _HTMLResponse(_fm_page(page, 'Paramètres', folder='settings', src=src))
         if folder == 'logs':
             if not _journaux_on:
                 return _HTMLResponse(_fm_page("<h1>Journaux d&eacute;sactiv&eacute;s</h1><p>La capture est coup&eacute;e &mdash; r&eacute;glage <code>owui logs</code> dans les Param&egrave;tres (appliqu&eacute; au red&eacute;marrage).</p>"))
@@ -1074,9 +1173,8 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                     _e = "<span class='err'>" + _e + "</span>"
                 jl.append(_e)
             inner = (
-                "<div class='wrap'><div class='side'>" + side + "</div><div class='main'>"
                 "<h1>&#128220; Journaux</h1>"
-                "<div class='bar'><a class='btn' href='/fm?folder=settings'>&#8592; Paramètres</a>"
+                "<div class='bar'>"
                 "<a class='btn2 btn' href='/fm?folder=logs&log=" + _quote(sel) + "'>&#8635; Rafraîchir</a>"
                 "<a class='btn2 btn' href='/fm/logs/live?hist=100'>&#9654; Live</a>"
                 "<a class='btn' href='/fm/logs/download?all=1'>&#128229; Tout télécharger (zip)</a>"
@@ -1088,9 +1186,8 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 "<pre class='logbox'>" + "<br>".join(jl) + "</pre>"
                 "<p class='sub'>Journaux complets téléchargeables ci-dessus : tracebacks Python "
                 "(dont les erreurs <code>execute_code</code>), erreurs uvicorn et activité des services.</p>"
-                "</div></div>"
             )
-            return _HTMLResponse(_fm_page(inner, "Journaux"))
+            return _HTMLResponse(_fm_page(inner, "Journaux", folder='logs'))
         if folder == 'maintenance':
             import os as _os3
             from open_webui.config import DATA_DIR as _DD
@@ -1100,7 +1197,6 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 if p_db.is_file():
                     taille_db += p_db.stat().st_size
             inner = (
-                "<div class='wrap'><div class='side'>" + side + "</div><div class='main'>"
                 "<h1>\u2699\ufe0f Maintenance</h1>"
                 f"<p>Donnees de l'appli : <code>{_html.escape(str(_DD))}</code></p>"
                 f"<p>Base de donnees : {_fm_size(taille_db)} &mdash; Fichiers : {total} &mdash; "
@@ -1117,14 +1213,14 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 "<p style='color:#999'>L'effacement s'applique au prochain demarrage (forcez l'arret "
                 "de l'appli puis relancez). Les donnees sont aussi visibles et supprimables depuis "
                 "votre gestionnaire de fichiers : <code>Android/data/org.openwebui.android/</code>.</p>"
-                "<div class='nav'><a href='/fm'>&#8592; navigateur</a></div></div></div>"
+
             )
             return _HTMLResponse(_fm_page(inner, "Maintenance"))
-        prev_link = f"<a href=\\"/fm?folder={folder}&q={_quote(q)}&page={page-1}\\">\\u2190 pr\\u00e9c\\u00e9dent</a>" if page > 1 else ""
-        next_link = f"<a href=\\"/fm?folder={folder}&q={_quote(q)}&page={page+1}\\">suivant \\u2192</a>" if page * per_page < total else ""
+        prev_link = f"<a href=\\"/fm?folder={folder}&q={_quote(q)}&src={src}&page={page-1}\\">\\u2190 pr\\u00e9c\\u00e9dent</a>" if page > 1 else ""
+        next_link = f"<a href=\\"/fm?folder={folder}&q={_quote(q)}&src={src}&page={page+1}\\">suivant \\u2192</a>" if page * per_page < total else ""
         inner = (
-            "<div class=\\"wrap\\"><div class=\\"side\\">" + side + "</div><div class=\\"main\\">"
             "<h1>Navigateur de fichiers</h1>"
+            + src_liens +
             f"<div class=\\"bar\\"><form method=\\"get\\" action=\\"/fm\\">"
             f"<input type=\\"hidden\\" name=\\"folder\\" value=\\"{folder}\\">"
             f"<input type=\\"search\\" name=\\"q\\" value=\\"{_html.escape(q)}\\" placeholder=\\"Rechercher un fichier\\">"
@@ -1132,9 +1228,8 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
             f"<table><thead><tr><th></th><th>Nom ({total})</th><th>Taille</th><th>Modifi\\u00e9</th>"
             f"<th>Type</th><th>Actions</th></tr></thead><tbody>{body}</tbody></table>"
             f"<div class=\\"nav\\">{prev_link}{next_link}</div>"
-            "</div></div>"
         )
-        return _HTMLResponse(_fm_page(inner))
+        return _HTMLResponse(_fm_page(inner, folder=folder, src=src))
     except Exception as exc:
         return _HTMLResponse(_fm_error(exc), status_code=500)
 
@@ -1147,9 +1242,9 @@ async def fm_preview(request: Request, user=Depends(get_verified_user)):
 
         f = await Files.get_file_by_id(request.query_params.get('id') or '')
         if f is None:
-            return _HTMLResponse(_fm_page("<h1>Fichier introuvable</h1><a href=\\"/fm\\">\\u2190 retour</a>"), status_code=404)
+            return _HTMLResponse(_fm_page("<h1>Fichier introuvable</h1>"), status_code=404)
         if user.role != 'admin' and f.user_id != user.id:
-            return _HTMLResponse(_fm_page("<h1>Acc\\u00e8s refus\\u00e9</h1><a href=\\"/fm\\">\\u2190 retour</a>"), status_code=403)
+            return _HTMLResponse(_fm_page("<h1>Acc\\u00e8s refus\\u00e9</h1>"), status_code=403)
         meta = f.meta or {}
         name = str(_fm_get(meta, 'name') or f.filename or f.id)
         kind = _fm_kind(name, str(_fm_get(meta, 'content_type') or ''))
@@ -1166,9 +1261,9 @@ async def fm_preview(request: Request, user=Depends(get_verified_user)):
                 ".catch(e=>document.getElementById('c').textContent='Erreur : '+e);</script>"
             )
         inner = (
-            f"<div class=\\"main\\"><h1>{_FM_ICO[kind]} {_html.escape(name)}</h1>"
+            f"<h1>{_FM_ICO[kind]} {_html.escape(name)}</h1>"
             f"<div class=\\"bar\\"><a class=\\"btn\\" href=\\"{url}\\" download>T\\u00e9l\\u00e9charger</a>"
-            "<a class=\\"btn\\" href=\\"/fm\\">\\u2190 navigateur</a></div>" + view + "</div>"
+            "</div>" + view
         )
         return _HTMLResponse(_fm_page(inner, name))
     except Exception as exc:
@@ -1242,7 +1337,7 @@ async def fm_fix_index(request: Request, user=Depends(get_verified_user)):
                 "<h1>&#9888; Index non inspectable</h1>"
                 "<p>Le backend vectoriel en cours ne permet pas d'énumérer les "
                 "collections : aucun nettoyage d'orphelin n'est possible.</p>"
-                "<div class='nav'><a href='/fm?folder=maintenance'>&#8592; maintenance</a></div>"))
+                ))
         for nom in noms:
             if str(nom).startswith("file-") and str(nom) not in connus:
                 try:
@@ -1254,7 +1349,7 @@ async def fm_fix_index(request: Request, user=Depends(get_verified_user)):
                else "Aucune collection orpheline : l'index est cohérent.")
         return _HTMLResponse(_fm_page(
             "<h1>&#9989; Index v\u00e9rifi\u00e9</h1><p>" + _html.escape(msg) + "</p>"
-            "<div class='nav'><a href='/fm?folder=maintenance'>&#8592; maintenance</a></div>"))
+            ))
     except Exception as exc:
         return _HTMLResponse(_fm_error(exc), status_code=500)
 
@@ -1266,19 +1361,30 @@ async def fm_settings_save(request: Request, user=Depends(get_verified_user)):
     try:
         form = await request.form()
         import android_main as _am
-        lignes = []
-        for _k in form.keys():
-            if _k.startswith('VAR_'):
-                _v = str(form.get(_k) or '').strip()
-                if _v:
-                    lignes.append(_k[4:] + '=' + _v)
-        _extras = str(form.get('extras') or '').strip()
-        if _extras:
-            lignes.append(_extras)
-        msg = _am.env_save(chr(10).join(lignes))
+        _tab = str(form.get('tab') or 'owui')
+        msgs = []
+        if _tab == 'searxng':
+            _formats = []
+            if form.get('SX_html'):
+                _formats.append('html')
+            if form.get('SX_json'):
+                _formats.append('json')
+            msgs.append(_am.searxng_settings_save(
+                _formats, bool(form.get('SX_limiter')), bool(form.get('SX_rekey'))))
+        else:
+            lignes = []
+            for _k in form.keys():
+                if _k.startswith('VAR_'):
+                    _v = str(form.get(_k) or '').strip()
+                    if _v:
+                        lignes.append(_k[4:] + '=' + _v)
+            _extras = str(form.get('extras') or '').strip()
+            if _extras:
+                lignes.append(_extras)
+            msgs.append(_am.env_save(chr(10).join(lignes)))
         return _HTMLResponse(_fm_page(
-            "<h1>&#9989; R\u00e9glages</h1><p>" + _html.escape(msg) + "</p>"
-            "<div class='nav'><a href='/fm?folder=settings'>&#8592; param\u00e8tres</a></div>"))
+            "<h1>&#9989; R\u00e9glages</h1><p>" + _html.escape(' '.join(msgs)) + "</p>",
+            'Paramètres', folder='settings', src='both'))
     except Exception as exc:
         return _HTMLResponse(_fm_error(exc), status_code=500)
 
@@ -1291,7 +1397,7 @@ async def fm_raw(request: Request, user=Depends(get_verified_user)):
     nom = (request.query_params.get('name') or '').strip()
     p = _fm_chemin_local(nom)
     if p is None:
-        return _HTMLResponse(_fm_page("<h1>Fichier introuvable</h1><a href=\\"/fm\\">\\u2190 retour</a>"), status_code=404)
+        return _HTMLResponse(_fm_page("<h1>Fichier introuvable</h1>"), status_code=404)
     return _FR(p, filename=p.name)
 
 
@@ -1329,7 +1435,7 @@ async def fm_logs_download(request: Request, user=Depends(get_verified_user)):
                      headers={'Content-Disposition': 'attachment; filename="journaux-openwebui-android.zip"'})
     p = _al.chemin((request.query_params.get('name') or '').strip())
     if p is None:
-        return _HTMLResponse(_fm_page("<h1>Journal introuvable</h1><a href='/fm?folder=logs'>&#8592; journaux</a>"), status_code=404)
+        return _HTMLResponse(_fm_page("<h1>Journal introuvable</h1>"), status_code=404)
     return _FR(p, filename=p.name, media_type='text/plain')
 
 

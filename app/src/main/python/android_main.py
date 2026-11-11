@@ -261,6 +261,45 @@ def _ensure_searxng_settings(data_dir: Path) -> Path:
     return path
 
 
+def searxng_settings_load() -> dict:
+    """P109 — réglages SearXNG lisibles pour l'écran Paramètres."""
+    import re
+    path = Path(os.environ.get("SEARXNG_SETTINGS_PATH")
+                or (Path(os.environ.get("DATA_DIR", ".")) / "searxng-settings.yml"))
+    out = {"formats": ["html", "json"], "limiter": False, "secret": ""}
+    try:
+        texte = path.read_text(encoding="utf-8")
+        out["secret"] = (re.search(r'secret_key:\s*"([^"]*)"', texte) or [None, ""])[1] \
+            if re.search(r'secret_key:\s*"([^"]*)"', texte) else ""
+        out["limiter"] = bool(re.search(r"limiter:\s*true", texte))
+        bloc = re.search(r"formats:\s*\n((\s*-\s*\w+\s*\n)+)", texte)
+        if bloc:
+            out["formats"] = re.findall(r"-\s*(\w+)", bloc.group(1))
+    except Exception as exc:
+        log.warning("lecture réglages SearXNG : %s", exc)
+    return out
+
+
+def searxng_settings_save(formats, limiter: bool, rekey: bool = False) -> str:
+    """P109 — réécrit les réglages SearXNG (formats, limiter, clé régénérée)."""
+    import secrets as _secrets
+    path = _ensure_searxng_settings(Path(os.environ.get("DATA_DIR", ".")))
+    actuel = searxng_settings_load()
+    cle = _secrets.token_urlsafe(32) if (rekey or not actuel.get("secret")) else actuel["secret"]
+    formats = [f for f in ("html", "json") if f in (formats or [])]
+    if not formats:
+        formats = ["html"]
+    path.write_text(
+        SEARXNG_SETTINGS_TEMPLATE.format(secret=cle, port=SEARXNG_PORT).replace(
+            "  formats:\n    - html\n    - json",
+            "  formats:\n" + "".join(f"    - {f}\n" for f in formats)).replace(
+            "  limiter: false", f"  limiter: {'true' if limiter else 'false'}"),
+        encoding="utf-8",
+    )
+    log.info("réglages SearXNG écrits : %s (formats=%s limiter=%s)", path, formats, limiter)
+    return "Réglages SearXNG enregistrés — appliqués au redémarrage du service."
+
+
 def _start_searxng() -> None:
     """Lance l'instance SearXNG embarquée sur 127.0.0.1:8888 (thread daemon)."""
 

@@ -267,6 +267,7 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P70 — *révoqué*], [`nodes/0.*.js`], [le préchauffage du bac à sable est retiré (v0.0.58) : créer le bac à sable au chargement de la page, avant la config, amorçait le bug des deux copies — il est créé *à la demande*, comme en amont],
   [P107], [`nodes/0.*.js`], [le paramètre `TO=120` (délai d'exécution) est restauré dans la signature de `Me()` — il était introduit par le même remplacement que P70 et la révocation l'avait emporté (« TO is not defined », journal v0.0.59)],
   [P108], [`tools/android_tools.py` + `tools/builtin.py`], [les fichiers produits par le bac à sable sont *enregistrés* (stockage + base — visibles au gestionnaire, `display_file`, API) et les avertissements FS bénins ne font plus basculer le statut à `error` (journal v0.0.60)],
+  [P109], [`android_fm.py` + `android_main.py`], [refonte du gestionnaire `/fm` : sidebar permanente (arbre Fichiers : PDF, Images, Typst, Markdown, Autres), filtre d'origine base/disque/les deux, retour fixe en haut à droite, écran Paramètres en 2 onglets (Open WebUI | SearXNG) avec points d'état et champ service (journal v0.0.61)],
 )
 
 == Performances de démarrage

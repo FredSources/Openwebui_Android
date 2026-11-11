@@ -2265,3 +2265,26 @@ alléger le dépôt de paquets Pyodide embarqués (scipy/sklearn/statsmodels non
 utilisés par l'utilisateur), ou proposer un APK « léger » sans bac à sable.
 
 Décision : la taille actuelle est acceptée (« elle me convient ») ; on avance.
+
+## 2026-11-11 — v0.0.61 : P109 — refonte du gestionnaire /fm et de l'écran Paramètres
+
+Demande utilisateur — le gestionnaire de fichiers est refondu :
+
+1. **Sidebar PERMANENTE** (toutes les pages, aperçu compris) avec arbre
+   « Fichiers » au même niveau que Paramètres, s'ouvrant sur : Tous, PDF,
+   Images, **Typst**, **Markdown**, Autres (catégories `_fm_kind` élargies,
+   Typst et Markdown sortis de « documents »).
+2. **Filtre d'origine** des fichiers : *Les deux* / *En base* (fiches) /
+   *Sur disque* (orphelins) — paramètre `src=`, conservé par la recherche et
+   la pagination.
+3. **Bouton de retour fixe en HAUT à droite** (toujours présent, déplaçable),
+   et suppression des liens « ← retour/navigateur/paramètres/maintenance »
+   redondants (la sidebar suffit) — seuls restent la pagination et « réessayer ».
+4. **Écran Paramètres en 2 onglets** : `Open WebUI` et `SearXNG`, chacun avec un
+   **point vert/rouge d'état** à côté du nom, puis un **champ service**
+   (démarrer / arrêter / redémarrer) et plus bas les **réglages utiles** —
+   SearXNG : formats (html/json), limiter, clé secrète (empreinte +
+   régénération) ; Open WebUI : modèles, RAG, sécurité, variables avancées,
+   journaux. Le POST `/fm/settings` gère les deux onglets
+   (`searxng_settings_load/save` ajoutés dans `android_main.py`).
+   `versionName` 0.0.61.

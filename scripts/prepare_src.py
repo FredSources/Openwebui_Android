@@ -693,27 +693,62 @@ _FM_STYLE = """
   .tabs .tab.on { border-color: var(--accent); background: var(--accent); color: var(--accent-fg); }
   .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
   .svcbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .chk { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
 """
 
 
-def _fm_side(folder: str = "all", src: str = "both") -> str:
-    """P109 — sidebar PERMANENTE : arbre Fichiers (tous, pdf, image, typst,
-    markdown, autres) au même niveau que Paramètres / Maintenance / Journaux."""
-    def _lien(k, label):
-        return f'<a href="/fm?folder={k}&src={src}" class="{"on" if k == folder else ""}">{label}</a>'
+def _fm_side(folder: str = "all", src: str = "both", tab: str = "owui") -> str:
+    """P109/P110 — sidebar PERMANENTE : arbre Fichiers + arbre Paramètres
+    (Open WebUI, SearXNG, Maintenance, Journaux) — navigation toujours visible."""
+    def _lien(url, label, on):
+        return f'<a href="{url}" class="{"on" if on else ""}">{label}</a>'
     feuilles = [("all", "&#128194; Tous"), ("pdf", "&#128196; PDF"),
                 ("img", "&#128444; Images"), ("typ", "&#9998; Typst"),
                 ("md", "&#128221; Markdown"), ("other", "&#128230; Autres")]
-    return (
+    fichiers = (
         '<details open><summary>&#128193; Fichiers</summary>'
-        + "".join(_lien(k, l) for k, l in feuilles) + '</details>'
-        + _lien("settings", "&#9881;&#65039; Paramètres")
-        + _lien("maintenance", "&#128736;&#65039; Maintenance")
-        + (_lien("logs", "&#128220; Journaux") if _journaux_actifs() else "")
+        + "".join(_lien(f"/fm?folder={k}&src={src}", l, k == folder) for k, l in feuilles)
+        + '</details>'
+    )
+    entrees = [("/fm?folder=settings&tab=owui", "&#129302; Open WebUI",
+                folder == 'settings' and tab != 'searxng'),
+               ("/fm?folder=settings&tab=searxng", "&#128269; SearXNG",
+                folder == 'settings' and tab == 'searxng'),
+               ("/fm?folder=maintenance", "&#128736;&#65039; Maintenance", folder == 'maintenance')]
+    if _journaux_actifs():
+        entrees.append(("/fm?folder=logs", "&#128220; Journaux", folder == 'logs'))
+    return (
+        fichiers
+        + '<details open><summary>&#9881;&#65039; Paramètres</summary>'
+        + "".join(_lien(u, l, on) for u, l, on in entrees) + '</details>'
     )
 
 
-def _fm_page(inner: str, title: str = "Fichiers", folder: str = "all", src: str = "both") -> str:
+def _fm_onglets(actif: str = "owui") -> str:
+    """P110 — barre d'onglets commune à toute la zone Paramètres : Open WebUI,
+    SearXNG (points vert/rouge d'état), Maintenance, Journaux — même largeur et
+    mêmes styles sur tous les écrans."""
+    import android_main as _am
+    st = _am.service_status()
+    _vert, _rouge = '#22c55e', '#ef4444'
+
+    def _t(k, label, href, dot=''):
+        d = f'<span class="dot" style="background:{dot}"></span> ' if dot else ''
+        return f'<a class="tab{" on" if k == actif else ""}" href="{href}">{d}{label}</a>'
+    html = (
+        '<div class="tabs">'
+        + _t('owui', 'Open WebUI', '/fm?folder=settings&tab=owui',
+             _vert if st.get('openwebui') == 'actif' else _rouge)
+        + _t('searxng', 'SearXNG', '/fm?folder=settings&tab=searxng',
+             _vert if st.get('searxng') == 'actif' else _rouge)
+        + _t('maintenance', 'Maintenance', '/fm?folder=maintenance')
+        + (_t('logs', 'Journaux', '/fm?folder=logs') if _journaux_actifs() else '')
+        + '</div>'
+    )
+    return html
+
+
+def _fm_page(inner: str, title: str = "Fichiers", folder: str = "all", src: str = "both", tab: str = "owui") -> str:
     # P37/P109 — habillage COMPLET et PERMANENT : la sidebar (arbre de
     # navigation) est TOUJOURS présente, le bouton de retour est FIXE en HAUT
     # à droite ; thème aligné sur Open WebUI (lu dans localStorage["theme"]).
@@ -735,7 +770,7 @@ def _fm_page(inner: str, title: str = "Fichiers", folder: str = "all", src: str 
         'text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:grab;touch-action:none">'
         '&#128172;</a>'
         '<script>(function(){var el=document.getElementById("fab-fm");if(!el)return;'
-        'try{var s=JSON.parse(localStorage.getItem("fabPosFm")||"null");'
+        'try{var s=JSON.parse(localStorage.getItem("fabPos")||"null");'
         'if(s){el.style.left=s.l+"px";el.style.top=s.t+"px";el.style.right="auto";el.style.bottom="auto";}}catch(e){}'
         'var sx,sy,ox,oy,drag=0,moved=0;'
         'el.addEventListener("pointerdown",function(e){drag=1;moved=0;sx=e.clientX;sy=e.clientY;'
@@ -745,7 +780,7 @@ def _fm_page(inner: str, title: str = "Fichiers", folder: str = "all", src: str 
         'moved=1;el.style.left=(ox+dx)+"px";el.style.top=(oy+dy)+"px";'
         'el.style.right="auto";el.style.bottom="auto";e.preventDefault();});'
         'el.addEventListener("pointerup",function(){if(!drag)return;drag=0;if(moved){'
-        'try{localStorage.setItem("fabPosFm",JSON.stringify({l:parseInt(el.style.left)||0,t:parseInt(el.style.top)||0}));}catch(e){}}});'
+        'try{localStorage.setItem("fabPos",JSON.stringify({l:parseInt(el.style.left)||0,t:parseInt(el.style.top)||0}));}catch(e){}}});'
         'el.addEventListener("click",function(e){if(moved){e.preventDefault();e.stopPropagation();moved=0;}});'
         '})();</script>'
     )
@@ -753,7 +788,7 @@ def _fm_page(inner: str, title: str = "Fichiers", folder: str = "all", src: str 
         '<!doctype html><html lang="fr"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         f'<title>{_html.escape(title)}</title>{theme_js}<style>{_FM_STYLE}</style></head>'
-        '<body><div class="wrap"><aside class="side">' + _fm_side(folder, src) + '</aside>'
+        '<body><div class="wrap"><aside class="side">' + _fm_side(folder, src, tab) + '</aside>'
         f'<main class="main">{inner}</main></div>{retour}'
         f'<footer class="ver">OpenWebUI Android {_FM_VERSION}</footer></body></html>'
     )
@@ -1039,16 +1074,7 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
             _js = ('<script>function svc(n,a){try{document.getElementById("svcmsg")'
                    '.textContent=AndroidSystem.serverAction(n,a)}catch(e){document'
                    '.getElementById("svcmsg").textContent="pont syst\u00e8me indisponible : "+e}}</script>')
-            onglets = (
-                '<div class="tabs">'
-                '<a class="tab ' + ('on' if tab != 'searxng' else '') + '" '
-                'href="/fm?folder=settings&tab=owui">'
-                '<span class="dot" style="background:' + dot_ow + '"></span> Open WebUI</a>'
-                '<a class="tab ' + ('on' if tab == 'searxng' else '') + '" '
-                'href="/fm?folder=settings&tab=searxng">'
-                '<span class="dot" style="background:' + dot_sx + '"></span> SearXNG</a>'
-                '</div>'
-            )
+            onglets = _fm_onglets('searxng' if tab == 'searxng' else 'owui')
             if tab == 'searxng':
                 sx = _am.searxng_settings_load()
 
@@ -1056,7 +1082,7 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                     return 'checked' if k in (sx.get('formats') or []) else ''
                 page = (
                     onglets
-                    + '<form method="post" action="/fm/settings">'
+                    + '<div class="settings"><form method="post" action="/fm/settings">'
                     + '<input type="hidden" name="tab" value="searxng">'
                     + '<h1>&#9881; Param\u00e8tres &mdash; SearXNG</h1>'
                     + '<div class="card"><h2>&#128268; Service</h2>'
@@ -1075,25 +1101,17 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                     + '</div></div>'
                     + '<div class="card"><h2>&#128269; Recherche</h2>'
                     + '<p class="sub">Formats de r\u00e9ponse de l\u2019instance embarqu\u00e9e.</p>'
-                    + '<p><label style="display:inline"><input type="checkbox" name="SX_html" '
+                    + '<label class="chk"><input type="checkbox" name="SX_html" '
                     + _chk('html') + '> html</label>'
-                    + '<label style="display:inline;margin-left:18px">'
-                    + '<input type="checkbox" name="SX_json" ' + _chk('json')
-                    + '> json (requis par l\u2019appli)</label></p>'
-                    + '<p><label style="display:inline">'
-                    + '<input type="checkbox" name="SX_limiter"'
+                    + '<label class="chk"><input type="checkbox" name="SX_json" ' + _chk('json')
+                    + '> json (requis par l\u2019appli)</label>'
+                    + '<label class="chk"><input type="checkbox" name="SX_limiter"'
                     + (' checked' if sx.get('limiter') else '')
-                    + '> limiter (anti-abus, inutile en local)</label></p>'
-                    + '</div>'
-                    + '<div class="card"><h2>&#128273; Cl\u00e9 secr\u00e8te</h2>'
-                    + '<p class="sub">Empreinte : <code>'
-                    + _html.escape((sx.get('secret') or '')[:6] + '\u2026') + '</code></p>'
-                    + '<p><label style="display:inline"><input type="checkbox" name="SX_rekey">'
-                    + ' r\u00e9g\u00e9n\u00e9rer la cl\u00e9</label></p>'
+                    + '> limiter (anti-abus, inutile en local)</label>'
                     + '</div>'
                     + '<div class="bar" style="margin-top:18px">'
                     + '<button class="primary">&#128190; Enregistrer les r\u00e9glages</button></div>'
-                    + '</form><p id="svcmsg" class="sub"></p>' + _js
+                    + '</form></div><p id="svcmsg" class="sub"></p>' + _js
                 )
             else:
                 page = """@@ONGLETS@@
@@ -1173,7 +1191,8 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                     _e = "<span class='err'>" + _e + "</span>"
                 jl.append(_e)
             inner = (
-                "<h1>&#128220; Journaux</h1>"
+                _fm_onglets('logs')
+                + "<h1>&#128220; Journaux</h1>"
                 "<div class='bar'>"
                 "<a class='btn2 btn' href='/fm?folder=logs&log=" + _quote(sel) + "'>&#8635; Rafraîchir</a>"
                 "<a class='btn2 btn' href='/fm/logs/live?hist=100'>&#9654; Live</a>"
@@ -1197,7 +1216,8 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 if p_db.is_file():
                     taille_db += p_db.stat().st_size
             inner = (
-                "<h1>\u2699\ufe0f Maintenance</h1>"
+                _fm_onglets('maintenance')
+                + "<h1>\u2699\ufe0f Maintenance</h1>"
                 f"<p>Donnees de l'appli : <code>{_html.escape(str(_DD))}</code></p>"
                 f"<p>Base de donnees : {_fm_size(taille_db)} &mdash; Fichiers : {total} &mdash; "
                 f"<a href='/fm/raw?name=webui.db'>telecharger une sauvegarde de la base</a></p>"
@@ -1215,7 +1235,7 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 "votre gestionnaire de fichiers : <code>Android/data/org.openwebui.android/</code>.</p>"
 
             )
-            return _HTMLResponse(_fm_page(inner, "Maintenance"))
+            return _HTMLResponse(_fm_page(inner, "Maintenance", folder='maintenance'))
         prev_link = f"<a href=\\"/fm?folder={folder}&q={_quote(q)}&src={src}&page={page-1}\\">\\u2190 pr\\u00e9c\\u00e9dent</a>" if page > 1 else ""
         next_link = f"<a href=\\"/fm?folder={folder}&q={_quote(q)}&src={src}&page={page+1}\\">suivant \\u2192</a>" if page * per_page < total else ""
         inner = (
@@ -1369,8 +1389,7 @@ async def fm_settings_save(request: Request, user=Depends(get_verified_user)):
                 _formats.append('html')
             if form.get('SX_json'):
                 _formats.append('json')
-            msgs.append(_am.searxng_settings_save(
-                _formats, bool(form.get('SX_limiter')), bool(form.get('SX_rekey'))))
+            msgs.append(_am.searxng_settings_save(_formats, bool(form.get('SX_limiter'))))
         else:
             lignes = []
             for _k in form.keys():
@@ -1383,8 +1402,9 @@ async def fm_settings_save(request: Request, user=Depends(get_verified_user)):
                 lignes.append(_extras)
             msgs.append(_am.env_save(chr(10).join(lignes)))
         return _HTMLResponse(_fm_page(
-            "<h1>&#9989; R\u00e9glages</h1><p>" + _html.escape(' '.join(msgs)) + "</p>",
-            'Paramètres', folder='settings', src='both'))
+            _fm_onglets(_tab if _tab == 'searxng' else 'owui')
+            + "<h1>&#9989; R\u00e9glages</h1><p>" + _html.escape(' '.join(msgs)) + "</p>",
+            'Paramètres', folder='settings', src='both', tab=_tab))
     except Exception as exc:
         return _HTMLResponse(_fm_error(exc), status_code=500)
 
@@ -1873,13 +1893,13 @@ def patch_files_button() -> None:
         '})();</script>\n'
         + notif_shim +
         '<a href="/fm" id="fab-spa" title="Fichiers : PDF générés et téléversements — glisser pour déplacer" '
-        'style="position:fixed;right:12px;bottom:72px;z-index:2147483000;'
+        'style="position:fixed;top:10px;right:12px;z-index:2147483000;'
         'width:42px;height:42px;border-radius:50%;background:#3b82f6;color:#fff;'
         'display:flex;align-items:center;justify-content:center;font-size:20px;'
         'text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:grab;touch-action:none">'
         '&#128206;</a>'
         '<script>(function(){var el=document.getElementById("fab-spa");if(!el)return;'
-        'try{var s=JSON.parse(localStorage.getItem("fabPosSpa")||"null");'
+        'try{var s=JSON.parse(localStorage.getItem("fabPos")||"null");'
         'if(s){el.style.left=s.l+"px";el.style.top=s.t+"px";el.style.right="auto";el.style.bottom="auto";}}catch(e){}'
         'var sx,sy,ox,oy,drag=0,moved=0;'
         'el.addEventListener("pointerdown",function(e){drag=1;moved=0;sx=e.clientX;sy=e.clientY;'
@@ -1889,7 +1909,7 @@ def patch_files_button() -> None:
         'moved=1;el.style.left=(ox+dx)+"px";el.style.top=(oy+dy)+"px";'
         'el.style.right="auto";el.style.bottom="auto";e.preventDefault();});'
         'el.addEventListener("pointerup",function(){if(!drag)return;drag=0;if(moved){'
-        'try{localStorage.setItem("fabPosSpa",JSON.stringify({l:parseInt(el.style.left)||0,t:parseInt(el.style.top)||0}));}catch(e){}}});'
+        'try{localStorage.setItem("fabPos",JSON.stringify({l:parseInt(el.style.left)||0,t:parseInt(el.style.top)||0}));}catch(e){}}});'
         'el.addEventListener("click",function(e){if(moved){e.preventDefault();e.stopPropagation();moved=0;}});'
         '})();</script>\n</body>'
     )

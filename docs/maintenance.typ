@@ -268,6 +268,7 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P107], [`nodes/0.*.js`], [le paramètre `TO=120` (délai d'exécution) est restauré dans la signature de `Me()` — il était introduit par le même remplacement que P70 et la révocation l'avait emporté (« TO is not defined », journal v0.0.59)],
   [P108], [`tools/android_tools.py` + `tools/builtin.py`], [les fichiers produits par le bac à sable sont *enregistrés* (stockage + base — visibles au gestionnaire, `display_file`, API) et les avertissements FS bénins ne font plus basculer le statut à `error` (journal v0.0.60)],
   [P109], [`android_fm.py` + `android_main.py`], [refonte du gestionnaire `/fm` : sidebar permanente (arbre Fichiers : PDF, Images, Typst, Markdown, Autres), filtre d'origine base/disque/les deux, retour fixe en haut à droite, écran Paramètres en 2 onglets (Open WebUI | SearXNG) avec points d'état et champ service (journal v0.0.61)],
+  [P110], [`android_fm.py` + `index.html`], [cohérence des écrans Paramètres (largeur, boutons, cases cochées alignées), plus de clé secrète SearXNG, Maintenance/Journaux en onglets sous Paramètres, bouton bleu de bascule synchronisé entre /fm et Open WebUI (clé `fabPos`) — journal v0.0.62)],
 )
 
 == Performances de démarrage

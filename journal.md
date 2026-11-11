@@ -2296,3 +2296,22 @@ gardée : verifier_tag ✓ + check_apk ✓. Assets `OpenWebUI_Android-0.0.61-{de
 À valider à l'écran : arbre Fichiers (PDF/Images/Typst/Markdown/Autres), filtre
 base/disque/les deux, sidebar permanente, retour en haut à droite, onglets
 Paramètres Open WebUI/SearXNG avec points d'état et champ service.
+
+## 2026-11-11 — v0.0.62 : P110 — cohérence des écrans /fm, onglets étendus, FAB synchronisé
+
+Retours utilisateur sur la refonte v0.0.61, tous traités :
+
+1. **Cohérence Open WebUI / SearXNG** : même conteneur `.settings` (largeur
+   identique), mêmes classes de boutons par rôle, cases à cocher alignées
+   (classe `.chk`, une par ligne).
+2. **Plus de clé secrète** pour l'instance SearXNG locale : la section (affichage
+   + génération) est retirée de l'écran, et le POST ne peut plus régénérer la
+   clé — elle reste interne au fichier de réglages, jamais exposée.
+3. **Maintenance et Journaux en onglets sous Paramètres** : barre commune
+   `Open WebUI | SearXNG | Maintenance | Journaux` sur les quatre écrans,
+   avec points vert/rouge d'état sur les deux services ; la sidebar porte les
+   deux arbres (Fichiers + Paramètres).
+4. **Bouton bleu de bascule /fm ↔ Open WebUI** : même position par défaut
+   (haut à droite) sur les deux écrans, déplaçable, et **synchronisé** — les
+   deux lisent/écrivent la même clé `fabPos` (fini `fabPosFm`/`fabPosSpa`).
+   `versionName` 0.0.62.

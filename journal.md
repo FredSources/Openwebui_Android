@@ -2530,3 +2530,55 @@ fermeture au clic), onglets sur une ligne avec onglet actif centré, plus de
 `@@OWUI_LOGS@@` dans les réglages Open WebUI, cases à cocher SearXNG
 alignées. Contrôle visuel hôte fait (5 écrans, harnais 8090, arrêté après
 test — conforme à la règle AGENTS.md).
+
+## 2026-11-11 — v0.0.72 : P120 — sidebar et pages /fm alignées sur Open WebUI
+
+Demande : « je voudrais le même visuel et la même façon de se replier ou de
+se déplier, la même façon pour l'interaction, seul le contenu change » +
+« profite en pour avoir un rendu cohérent avec Open WebUI sur le reste des
+pages /fm ».
+
+Relevé dans le frontend compilé (`src-assets/frontend/_app/immutable/`) :
+
+1. **Mécanique sidebar** : largeur `--sidebar-width` défaut **245 px**,
+   bornes **220/480** (`ee`/`at`), poignée `#sidebar-resizer`
+   (`cursor-col-resize`, `touch-action:none`, pointer capture, flèches
+   ←/→ ±10 px), persistance `localStorage.sidebarWidth` posée sur
+   `document.documentElement` ; état visible persisté `localStorage.sidebar`
+   (mobile fermé par défaut) ; bouton `#sidebar-toggle-button`
+   (`rounded-lg`, `hover:bg-gray-100 dark:hover:bg-gray-850`, icône `size-4`,
+   aria-label « Open/Close Sidebar ») ; items `rounded-xl px-2 py-1.5` avec
+   sélection `bg-black/[0.035] dark:bg-white/[0.045]` ; bordure
+   `border-e gray-50 / gray-850/30`.
+2. **Thème** : corps light `#000/#fff`, dark `#eee/#171717` (le nôtre était
+   déjà aligné) ; palette gray oklch neutre convertie en hexa
+   (50 `#fafafa` … 900 `#171717`) ; rayons `lg .5rem · xl .75rem · 2xl 1rem` ;
+   placeholder `#b4b4b4`.
+
+Implémentation (P120) :
+
+- sidebar : `width: var(--sidebar-width)` (220–480), head avec bouton de repli
+  (SVG panneau), poignée `#sidebar-resizer` (`role="separator"`, `tabindex=0`),
+  items en flex `rounded-xl` ;
+- état unifié `body.sidehide` : desktop ouvert par défaut, mobile **fermé**,
+  mémorisé (`localStorage.sidebar`) ; le ☰ s'affiche sur mobile **et** en
+  desktop replié ; le voile ne sert qu'au tiroir mobile ;
+- persistance : `localStorage.sidebarWidth` à chaque fin de drag et au clavier,
+  relue au chargement ;
+- harmonisation des pages : rayons OWUI sur boutons, cartes, champs de saisie
+  et recherche, placeholder `#b4b4b4`, palette gray (fond sidebar `#fafafa`,
+  bordures `#e7e7e7`).
+
+Contrôle (sonde Playwright, harnais 8090) — tout est vert :
+
+| Test | Résultat |
+|---|---|
+| Desktop défaut | visible, 245 px, ☰ masqué |
+| Repli / réouverture | `sidehide` posé/enlevé, ☰ visible au repli |
+| Persistance repli | conservé après rechargement |
+| Drag poignée | 245 → 345 px, `sidebarWidth=345` persisté |
+| Flèche → | 345 → 355 px |
+| Mobile défaut | caché, ☰ visible ; ouverture tiroir + voile ; fermeture au voile |
+| Mesures pixels | sidebar `#fafafa` sur 245 px, bordure `#e7e7e7` (gray-200) |
+
+`versionName` 0.0.72.

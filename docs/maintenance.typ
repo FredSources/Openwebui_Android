@@ -452,6 +452,9 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P119],
   [`android_fm.py`],
   [sidebar en *tiroir mobile* (bouton ☰ + voile d'assombrissement) au lieu d'être empilée au-dessus du contenu ; barre d'onglets sur une ligne défilante avec auto-centrage de l'onglet actif ; marqueur orphelin `@@OWUI_LOGS@@` supprimé des réglages ; cases à cocher réalignées avec leur libellé — journal v0.0.71)],
+  [P120],
+  [`android_fm.py`],
+  [sidebar et pages /fm alignées sur Open WebUI : bouton de repli `#sidebar-toggle-button`, largeur `--sidebar-width` (245 px, bornes 220-480) pilotée par la poignée `#sidebar-resizer` (drag + flèches), état et largeur persistés (`localStorage.sidebar` / `sidebarWidth`, mobile fermé par défaut), items `rounded-xl` à sélection translucide, palette gray 50-900 et rayons `lg`/`xl`/`2xl` d'Open WebUI sur toutes les pages — journal v0.0.72],
 )
 
 == Performances de démarrage

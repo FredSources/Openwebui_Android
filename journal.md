@@ -2653,3 +2653,13 @@ Contrôle (sonde Playwright `ui_probe6.py`, harnais 8090) — tout est vert :
 | Chevauchement FAB/onglets | False (`tab_y=62`, `fab_bottom=52`) |
 
 `versionName` 0.0.73.
+
+## 2026-11-12 — v0.0.73 PUBLIÉE : rétraction en icônes seules + icônes Open WebUI
+
+Run 43123876070 **success** sur le tag `v0.0.73` — chaîne gardée : verifier_tag ✓
++ check_apk ✓. Assets `OpenWebUI_Android-0.0.73-{debug,release}.apk`.
+
+Revalidations supplémentaires : thème sombre en mode icônes (desktop 56 px +
+fond `#171717` mesuré, mobile colonne 56 px sans débordement), chevauchement
+FAB/onglets corrigé (`tab_y=62 > fab_bottom=52`), harnais 8090 arrêté après
+les tests (0 processus survivant).

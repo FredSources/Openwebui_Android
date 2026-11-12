@@ -468,6 +468,14 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P123],
   [`prepare_src.py` + `index.html`],
   [icône du bouton flottant `/fm` : le trombone 📎 devient un SVG dessiné *fichier + roue crante* (document à pli et lignes, engrenage 8 dents sur disque `#3b82f6`, viewBox 24, trait 1.5, 22 px dans le disque de 42 px), titre « Fichiers et paramètres de l'application » — le sprite amont ne fournit ni `paperclip` ni `gear` (123 noms relevés) ; contrôle `check_patches.py` : plus d'émoji `&#128206;`, SVG exigé — journal v0.0.75],
+
+  [P124],
+  [`android_fm.py`],
+  [sidebar `/fm` responsive aux trois paliers : téléphone ≤600 px en tiroir hors-canvas (`translateX(-100%)` + `visibility:hidden`) ouvert par le bouton `#side-open` (icône `sidebar-expand`) via le voile (sélecteur `.sideov.on ~ .wrap .side`, `~` et non `+` — le bouton est inséré entre les deux), toggle et poignée masqués ; tablette 601-820 px inchangée (colonne d'icônes 56 px) ; desktop ≥821 px inchangé (245 px + resizer) — journal v0.0.76],
+
+  [P125],
+  [`prepare_src.py` (→ `android_fm.py`)],
+  [icônes et style des pages `/fm` calqués sur Open WebUI : les 23 entités d'émojis (▶ ⏹ ↺ ⚠ ✅ ⚙ 🔌 🔍 💾 🤖 📑 🔒 🔧 📝 📷 📄 🌐 📥 🗅 🛠 📦 💬 + sélecteur de variation supprimé) deviennent les icônes SVG du sprite OWUI par le décorateur `_fm_deco` appliqué une fois sur le document complet (43 entités, 0 dans un attribut/CSS/JS vérifié), 16 icônes ajoutées à `_FM_ICONS` (29 en tout), 3 exceptions par placeholder `@@ICO:nom@@` (Fichiers journaux `folder`, Index des documents `grid`, Nettoyer l'index `refresh`) ; style OWUI : boutons 28 px / 12 px / graisse 400 / `rounded-lg` en `inline-flex`, secondaire blanc + bordure, champs 6×8 px 11 px sans contour + focus blue-400, cases à cocher 14 px avec coche SVG blanche (`appearance:none`, bleu 600 cochée), `html{word-break:break-word}`, palier ≤480 px à 34 px de haut ; contrôle `check_patches.py` étendu (`check_p125_fm`, 8 sabotages testés) — journal v0.0.76],
 )
 
 == Performances de démarrage

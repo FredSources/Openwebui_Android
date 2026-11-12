@@ -590,6 +590,7 @@ except Exception:
 _FM_VERSION = "@@VERSION@@"
 import html as _html
 import os as _osj
+import re as _re
 import traceback as _tb
 from datetime import datetime as _dt
 from urllib.parse import quote as _quote
@@ -606,7 +607,8 @@ _FM_STYLE = """
     --border: #e7e7e7; --muted: #616161; --hover: rgba(0,0,0,.035);
     --accent: #3b82f6; --accent-fg: #ffffff;
     --btn-primary: #171717; --btn-primary-fg: #ffffff;
-    --btn2: #efefef; --btn2-fg: #171717;
+    /* P125 — secondaire OWUI : blanc + bordure gray-200 (light) */
+    --btn2: #ffffff; --btn2-fg: #171717;
     --danger: #dc2626;
   }
   html.dark {
@@ -614,10 +616,12 @@ _FM_STYLE = """
     --side: #171717; --panel: #1f1f1f;
     --border: #2c2c2c; --muted: #9b9b9b; --hover: rgba(255,255,255,.045);
     --btn-primary: #eeeeee; --btn-primary-fg: #171717;
-    --btn2: #2c2c2c; --btn2-fg: #eeeeee;
+    --btn2: #1f1f1f; --btn2-fg: #eeeeee;
   }
   html.oled-dark { --bg: #000000; --side: #0a0a0a; --panel: #0a0a0a; }
   * { box-sizing: border-box; }
+  /* P125 — même règle que le frontend OWUI : aucun mot long ne déborde */
+  html { word-break: break-word; }
   body { font-family: var(--font); margin: 0; background: var(--bg); color: var(--fg); font-size: 14px; }
   a { color: var(--fg); text-decoration: none; }
   a:hover { text-decoration: underline; }
@@ -645,22 +649,31 @@ _FM_STYLE = """
   .side a.on { background: var(--hover); color: var(--fg); opacity: 1; font-weight: 500; }
   .main { flex: 1; padding: 18px 20px; min-width: 0; }
   h1 { font-size: 1.15rem; margin: 0 0 14px; font-weight: 600; }
+  /* P125 — icône du sprite devant le titre : alignée sur la ligne de texte */
+  h1 > svg, h2 > svg, h3 > svg { vertical-align: -3px; margin-right: 5px; }
   .bar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
-  input[type=search] { background: var(--panel); border: 1px solid var(--border); color: var(--fg); padding: 8px 12px; border-radius: var(--radius-lg); min-width: 200px; font: inherit; }
-  button, .btn { background: var(--btn-primary); color: var(--btn-primary-fg); border: 0; padding: 8px 14px; border-radius: var(--radius-lg); cursor: pointer; font-size: .85rem; font-weight: 500; font-family: inherit; }
+  /* P125 — champs alignés sur OWUI : 6px/8px, 11 px, sans contour de focus,
+     bordure bleue (blue-400) à la place de l'outline. */
+  input[type=search] { background: var(--panel); border: 1px solid var(--border); color: var(--fg); padding: 6px 8px; border-radius: var(--radius-lg); min-width: 200px; font-size: 11px; outline: none; font-family: inherit; }
+  input[type=search]:focus { border-color: #60a5fa; }
+  /* P125 — boutons OWUI : 28 px de haut, 10 px de gouttière, 12 px/400,
+     radius .5rem ; inline-flex pour aligner l'icône SVG sur le libellé. */
+  button, .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; vertical-align: middle; min-height: 28px; background: var(--btn-primary); color: var(--btn-primary-fg); border: 0; padding: 0 10px; border-radius: var(--radius-lg); cursor: pointer; font-size: 12px; font-weight: 400; font-family: inherit; line-height: 1.45; }
+  button > svg, .btn > svg { display: block; flex: none; }
   button:hover, .btn:hover { opacity: .9; text-decoration: none; }
-  .btn2 { background: var(--btn2); color: var(--btn2-fg); }
+  .btn2 { background: var(--btn2); color: var(--btn2-fg); border: 1px solid var(--border); }
   .del { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
   .del:hover { background: rgba(220, 38, 38, .12); opacity: 1; }
   td:last-child { white-space: nowrap; }
-  td .btn, td button, td form button { padding: 6px 10px; font-size: .8rem; margin: 2px 4px 2px 0; display: inline-block; }
+  td .btn, td button, td form button { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 0 10px; font-size: 11px; margin: 2px 4px 2px 0; }
   table { width: 100%; border-collapse: collapse; font-size: .88rem; }
   th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .02em; }
   tr:hover td { background: var(--hover); }
   .ico { font-size: 1.2rem; }
   .nav { margin: 16px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .nav a { padding: 6px 12px; border: 1px solid var(--border); border-radius: 10px; color: var(--fg); background: var(--panel); }
+  /* P125 — liens-boutons (.nav) : mêmes cotes que les boutons secondaires */
+  .nav a { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); color: var(--fg); background: var(--panel); font-size: 12px; }
   .nav a:hover { background: var(--hover); text-decoration: none; }
   .empty { color: var(--muted); padding: 30px 0; }
   .err { background: rgba(220, 38, 38, .1); border: 1px solid var(--danger); padding: 12px; border-radius: 10px; white-space: pre-wrap; }
@@ -675,19 +688,30 @@ _FM_STYLE = """
   .card h2 { font-size: .95rem; margin: 0 0 2px; font-weight: 600; }
   .sub { color: var(--muted); font-size: 12.5px; margin: 2px 0 10px; line-height: 1.5; }
   .card label { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; margin: 12px 0 5px; }
-  .card input { width: 100%; padding: 9px 12px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--bg); color: var(--fg); font-size: 13.5px; }
+  .card input { width: 100%; padding: 6px 8px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--bg); color: var(--fg); font-size: 11px; outline: none; }
   .card input::placeholder, textarea::placeholder, input::placeholder { color: #b4b4b4; }
-  .card input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .card input:focus, textarea:focus { border-color: #60a5fa; }
   .card label.chk { display: flex; align-items: center; gap: 8px; margin: 12px 0 5px; text-transform: none; letter-spacing: normal; font-size: 13px; font-weight: 500; color: var(--fg); }
-  .card .chk input { width: auto; padding: 0; height: auto; }
-  .envbox { width: 100%; min-height: 180px; font-family: ui-monospace, monospace; font-size: 12px; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); resize: vertical; }
+  .card .chk input { width: 14px; height: 14px; padding: 0; }
+  /* P125 — cases à cocher : règle OWUI reprise telle quelle (14 px, radius
+     .25rem, bleu 600 cochée, coche SVG blanche en :after). Placée APRÈS
+     .card input (même spécificité) pour lui primer dessus. */
+  input[type=checkbox] { appearance: none; -webkit-appearance: none; position: relative; box-sizing: border-box; width: 14px; height: 14px; padding: 0; border: 1px solid var(--border); border-radius: .25rem; background: var(--bg); cursor: pointer; flex: none; }
+  input[type=checkbox]:checked { border-color: #2563eb; background: #2563eb; }
+  input[type=checkbox]:after { content: ""; opacity: 0; pointer-events: none; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M4 8l3 3l5-5"/></svg>') 50%/80% no-repeat; width: 100%; height: 100%; transition: opacity .2s; display: block; position: absolute; top: 0; left: 0; box-sizing: border-box; }
+  input[type=checkbox]:checked:after { opacity: 1; }
+  .envbox { width: 100%; min-height: 180px; font-family: ui-monospace, monospace; font-size: 12px; padding: 6px 8px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--bg); color: var(--fg); resize: vertical; outline: none; }
   .primary { background: var(--btn-primary); color: var(--btn-primary-fg); }
-  .ghost { background: var(--btn2); color: var(--btn2-fg); }
+  /* P125 — secondaire OWUI : fond clair + bordure (comme .btn2) */
+  .ghost { background: var(--btn2); color: var(--btn2-fg); border: 1px solid var(--border); }
   .danger { background: var(--danger); color: #fff; }
   .ghost:hover, .primary:hover, .danger:hover { opacity: .9; }
   img, iframe, embed, video { max-width: 100%; height: auto; }
   .sideov { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 2147483001; }
   .sideov.on { display: block; }
+  /* P124 — bouton d'ouverture de la sidebar (visible sur téléphone seule) */
+  #side-open { display: none; position: fixed; top: 10px; left: 10px; width: 40px; height: 40px; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--border); background: var(--panel); color: var(--fg); border-radius: var(--radius-lg); cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.25); z-index: 2147483000; }
+  #side-open:hover { background: var(--hover); }
   @media (max-width: 820px) {
     .wrap { display: block; }
     .side { position: fixed; top: 0; left: 0; bottom: 0; width: 56px; max-width: none; min-width: 0; z-index: 2147483001; overflow-y: auto; overflow-x: hidden; padding: 10px 6px 14px; border-right: 1px solid var(--border); border-bottom: 0; transition: width .2s ease, box-shadow .2s ease; }
@@ -699,13 +723,26 @@ _FM_STYLE = """
     table { font-size: .82rem; }
     th:nth-child(4), td:nth-child(4), th:nth-child(5), td:nth-child(5) { display: none; }
     td:last-child { white-space: nowrap; }
-    td .btn, td button, td form button { padding: 6px 10px; font-size: .78rem; }
+    td .btn, td button, td form button { padding: 0 8px; font-size: 11px; }
     input[type=search] { min-width: 0; flex: 1 1 140px; }
+  }
+  /* P124 — TÉLÉPHONE (≤600 px) : plus de colonne permanente, la sidebar est
+     un tiroir hors-canvas ouvert par #side-open (le voile #sideov le signale :
+     `.sideov.on ~ .wrap .side` l'affiche). La tablette (601–820 px) garde
+     la colonne d'icônes de 56 px, le desktop (≥821 px) est inchangé. */
+  @media (max-width: 600px) {
+    .side { transform: translateX(-100%); visibility: hidden; transition: transform .2s ease, visibility .2s ease; }
+    .sideov.on ~ .wrap .side { transform: translateX(0); visibility: visible; }
+    .main { padding: 58px 12px 12px 12px; }
+    .ver { left: 10px; }
+    #side-open { display: flex; }
+    #sidebar-toggle-button { display: none; }
+    #sidebar-resizer { display: none; }
   }
   @media (max-width: 480px) {
     th:nth-child(3), td:nth-child(3) { display: none; }
     th, td { padding: 8px 4px; }
-    button, .btn, .nav a { padding: 10px 14px; font-size: .95rem; }
+    button, .btn, .nav a { min-height: 34px; padding: 0 14px; font-size: 12px; }
     .ver { display: none; }
   }
   /* P109 — arbre de navigation, onglets Paramètres, points d'état */
@@ -753,11 +790,79 @@ _FM_ICONS = {
     'tools': '<path d="M10.0503 10.6066L2.97923 17.6777C2.19818 18.4587 2.19818 19.7251 2.97923 20.5061C3.76027 21.2872 5.0266 21.2872 5.80765 20.5061L12.8787 13.4351"></path><path d="M17.1927 13.7994L21.071 17.6777C21.8521 18.4587 21.8521 19.7251 21.071 20.5061C20.29 21.2872 19.0236 21.2872 18.2426 20.5061L12.0341 14.2977"></path><path d="M6.73267 5.90381L4.61135 6.61092L2.49003 3.07539L3.90424 1.66117L7.43978 3.78249L6.73267 5.90381ZM6.73267 5.90381L9.5629 8.73404"></path><path d="M10.0503 10.6066C9.2065 8.45359 9.37147 5.62861 11.111 3.8891C12.8505 2.14958 16.0607 1.76778 17.8285 2.82844L14.7878 5.86911L14.5052 8.98015L17.6162 8.69754L20.6569 5.65686C21.7176 7.42463 21.3358 10.6349 19.5963 12.3744C17.8567 14.1139 15.0318 14.2789 12.8788 13.435"></path>',
     'page-text': '<path d="M4 21.4V2.6C4 2.26863 4.26863 2 4.6 2H16.2515C16.4106 2 16.5632 2.06321 16.6757 2.17574L19.8243 5.32426C19.9368 5.43679 20 5.5894 20 5.74853V21.4C20 21.7314 19.7314 22 19.4 22H4.6C4.26863 22 4 21.7314 4 21.4Z"></path><path d="M8 10L16 10"></path><path d="M8 18L16 18"></path><path d="M8 14L12 14"></path><path d="M16 2V5.4C16 5.73137 16.2686 6 16.6 6H20"></path>',
     'sidebar-expand': '<path d="M19 21L5 21C3.89543 21 3 20.1046 3 19L3 5C3 3.89543 3.89543 3 5 3L19 3C20.1046 3 21 3.89543 21 5L21 19C21 20.1046 20.1046 21 19 21Z"></path><path d="M9.5 21V3"></path><path d="M5.5 10L7.25 12L5.5 14"></path>',
+    'chat-bubble': '<path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 13.8214 2.48697 15.5291 3.33782 17L2.5 21.5L7 20.6622C8.47087 21.513 10.1786 22 12 22Z"></path>',
+    'check': '<path d="M5 13L9 17L19 7"></path>',
+    'clock': '<circle cx="12" cy="12" r="10"></circle><path d="M12 6V12H16.5"></path>',
+    'database-script': '<path d="M22 14V6C22 4.34315 20.6569 3 19 3H9C7.34315 3 6 4.34315 6 6V13"></path><path d="M12 21H6C3.79086 21 2 19.2091 2 17C2 14.7909 3.79086 13 6 13H18C15.7909 13 14 14.7909 14 17C14 19.2091 15.7909 21 18 21C20.2091 21 22 19.2091 22 17V14"></path>',
+    'download': '<path d="M6 20H18"></path><path d="M12 4V16M12 16L15.5 12.5M12 16L8.5 12.5"></path>',
+    'globe': '<circle cx="12" cy="12" r="10"></circle><path d="M2 12H22"></path><path d="M12 2C14.5 5.5 14.5 18.5 12 22"></path><path d="M12 2C9.5 5.5 9.5 18.5 12 22"></path><path d="M4 7H20"></path><path d="M4 17H20"></path>',
+    'grid': '<rect x="3" y="3" width="6" height="6" rx="1"></rect><rect x="15" y="3" width="6" height="6" rx="1"></rect><rect x="3" y="15" width="6" height="6" rx="1"></rect><rect x="15" y="15" width="6" height="6" rx="1"></rect>',
+    'info': '<path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"></path><path d="M12 8H12.01"></path><path d="M11 12H12V16H13"></path>',
+    'lock': '<path d="M16 12H17.4C17.7314 12 18 12.2686 18 12.6V19.4C18 19.7314 17.7314 20 17.4 20H6.6C6.26863 20 6 19.7314 6 19.4V12.6C6 12.2686 6.26863 12 6.6 12H8M16 12V8C16 6.66667 15.2 4 12 4C8.8 4 8 6.66667 8 8V12M16 12H8"></path>',
+    'play': '<path d="M6.90588 4.53682C6.50592 4.2998 6 4.58808 6 5.05299V18.947C6 19.4119 6.50592 19.7002 6.90588 19.4632L18.629 12.5162C19.0211 12.2838 19.0211 11.7162 18.629 11.4838L6.90588 4.53682Z"></path>',
+    'plug': '<path d="M12 22V18"></path><path d="M8 18H16"></path><path d="M8 14V18"></path><path d="M16 14V18"></path><path d="M7 14H17C17 14 20 13 20 9C20 7 18 6 16 6H8C6 6 4 7 4 9C4 13 7 14 7 14Z"></path><path d="M10 6V2"></path><path d="M14 6V2"></path>',
+    'refresh': '<path d="M21.168 8A10.003 10.003 0 0012 2C6.815 2 2.55 5.947 2.05 11"></path><path d="M17 8H21.4C21.7314 8 22 7.73137 22 7.4V3"></path><path d="M2.832 16c1.612 3.604 5.253 6 9.168 6 5.185 0 9.45-3.947 9.95-9"></path><path d="M7 16H2.6C2.26863 16 2 16.2686 2 16.6V21"></path>',
+    'save': '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline>',
+    'spark': '<path d="M3 12C9.26752 12 12 9.36306 12 3C12 9.36306 14.7134 12 21 12C14.7134 12 12 14.7134 12 21C12 14.7134 9.26752 12 3 12Z"></path>',
+    'stop': '<rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor"></rect>',
+    'trash': '<path d="M20 9L18.005 20.3463C17.8369 21.3026 17.0062 22 16.0353 22H7.96474C6.99379 22 6.1631 21.3026 5.99496 20.3463L4 9"></path><path d="M21 6H15.5M3 6H8.5M8.5 6V4C8.5 3.44772 8.94772 3 9.5 3H14.5C15.0523 3 15.5 3.44772 15.5 4V6M8.5 6H15.5"></path>',
 }
 
 
-def _fm_ico(nom: str) -> str:
-    return _FM_SVG + _FM_ICONS[nom] + '</svg>'
+def _fm_ico(nom: str, taille: int = 16) -> str:
+    svg = _FM_SVG
+    if taille != 16:
+        svg = svg.replace('width="16" height="16"', f'width="{taille}" height="{taille}"')
+    return svg + _FM_ICONS[nom] + '</svg>'
+
+
+# P125 — émojis des pages /fm → icônes du sprite Open WebUI.
+# Le remplacement porte sur l'ENTITÉ HTML (jamais sur l'émoji littéral, que le
+# générateur n'écrit pas) et sur les placeholders `@@ICO:nom@@` réservés aux
+# exceptions ciblées (Index des documents → grid, Fichiers journaux → folder,
+# Nettoyer l'index → refresh). `None` = entité purement décorative à supprimer
+# (&#65039; = variation selector emoji, toujours accolée à 🛠 ou ⚠).
+_FM_EMO_ICO = {
+    '&#9654;': 'play',        # ▶ Démarrer / Activer
+    '&#9208;': 'stop',        # ⏹ Arrêter / Désactiver
+    '&#8635;': 'refresh',     # ↺ Redémarrer / Rafraîchir
+    '&#9888;': 'info',        # ⚠ Réinitialisation / index non inspectable
+    '&#9989;': 'check',       # ✅ succès (réglages, index vérifié…)
+    '&#9881;': 'settings',    # ⚙ titres Paramètres
+    '&#128268;': 'plug',      # 🔌 carte Service
+    '&#128269;': 'search',    # 🔍 carte Recherche
+    '&#128190;': 'save',      # 💾 Enregistrer les réglages
+    '&#129302;': 'spark',     # 🤖 cartes Modèles (LLM)
+    '&#128218;': 'database-script',  # 📑 Recherche & RAG
+    '&#128274;': 'lock',      # 🔒 Sécurité & préférences
+    '&#128295;': 'code',      # 🔧 Variables avancées
+    '&#128220;': 'page-text', # 📝 Journaux (h1) — Index des documents → grid
+    '&#128260;': 'clock',     # 📷 Journalisation
+    '&#128196;': 'list',      # 📄 Logs fichier — Fichiers journaux → folder
+    '&#127760;': 'globe',     # 🌐 Logs réseau
+    '&#128229;': 'download',  # 📥 Tout télécharger (zip)
+    '&#128465;': 'trash',     # 🗅 Vider — Nettoyer l'index → refresh
+    '&#128736;': 'tools',     # 🛠 Maintenance
+    '&#128230;': 'package',   # 📦 Données de l'application
+    '&#128172;': 'chat-bubble',  # 💬 FAB retour vers Open WebUI
+    '&#65039;': None,         # variation selector : jamais rendue seule
+}
+_FM_ICO_PH = _re.compile(r'@@ICO:([a-z0-9-]+)@@')
+
+
+def _fm_deco(txt: str) -> str:
+    """P125 — remplace les émojis des pages /fm par les icônes du sprite OWUI.
+
+    Appelé une fois sur le document COMPLET retourné par `_fm_page` : aucune
+    entité n'apparaît dans un attribut, dans le CSS ni dans le JS (contrôlé),
+    donc le remplacement ne peut pas casser le gabarit."""
+    txt = _FM_ICO_PH.sub(lambda m: _fm_ico(m.group(1)), txt)
+    for ent, nom in _FM_EMO_ICO.items():
+        if ent not in txt:
+            continue
+        txt = txt.replace(ent, '' if nom is None else _fm_ico(nom))
+    return txt
+
 
 def _fm_side(folder: str = "all", src: str = "both", tab: str = "owui") -> str:
     """P109/P110/P121 — sidebar PERMANENTE : arbre Fichiers + arbre Paramètres
@@ -856,12 +961,19 @@ def _fm_page(inner: str, title: str = "Fichiers", folder: str = "all", src: str 
         'el.addEventListener("click",function(e){if(moved){e.preventDefault();e.stopPropagation();moved=0;}});'
         '})();</script>'
     )
-    return (
+    # P125 — les émojis des pages deviennent les icônes du sprite OWUI : le
+    # remplacement est fait UNE fois sur le document complet (contrôlé : aucune
+    # entité dans un attribut, le CSS ou le JS).
+    return _fm_deco(
         '<!doctype html><html lang="fr"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         f'<title>{_html.escape(title)}</title>{theme_js}<style>{_FM_STYLE}</style></head>'
         '<body>'
         '<div class="sideov" id="sideov"></div>'
+        # P124 — bouton d'ouverture de la sidebar : seul moyen d'y accéder sur
+        # téléphone (la colonne disparaît ≤600 px). Même icône que le repli.
+        '<button id="side-open" title="Ouvrir le menu" aria-label="Ouvrir le menu">'
+        + _fm_ico('sidebar-expand', 20) + '</button>'
         '<div class="wrap"><aside class="side">'
         '<div class="side-head"><button id="sidebar-toggle-button" '
         'title="Réduire / agrandir la sidebar" aria-label="Réduire la sidebar">'
@@ -901,6 +1013,8 @@ def _fm_page(inner: str, title: str = "Fichiers", folder: str = "all", src: str 
         'if(stb){stb.addEventListener("click",fmSide);}'
         'var sv=document.getElementById("sideov");'
         'if(sv){sv.addEventListener("click",fmSide);}'
+        'var so=document.getElementById("side-open");'
+        'if(so){so.addEventListener("click",fmSide);}'
         '(function(){var h=null;try{h=localStorage.getItem("sidebar");}catch(e){}'
         'var mobile=window.innerWidth<=820;'
         'var icons=mobile?true:(h==="icons");'
@@ -1375,7 +1489,7 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 + "<button class='ghost' onclick=\\"fmPost('/fm/logs/toggle','net_on')\\">&#9654; Activer</button>"
                 + "<button class='ghost' onclick=\\"fmPost('/fm/logs/toggle','net_off')\\">&#9208; Désactiver</button>"
                 + "</div></div></div></div>"
-                + "<div class='card'><h2>&#128196; Fichiers journaux</h2>"
+                + "<div class='card'><h2>@@ICO:folder@@ Fichiers journaux</h2>"
                 "<div class='bar'>"
                 "<a class='btn' href='/fm?folder=logs&log=" + _quote(sel) + "'>&#8635; Rafraîchir</a>"
                 "<a class='btn' href='/fm/logs/download?all=1'>&#128229; Tout télécharger (zip)</a>"
@@ -1410,10 +1524,10 @@ async def fm_browser(request: Request, user=Depends(get_verified_user)):
                 f"<p class='sub'>Données : <code>{_html.escape(str(_DD))}</code></p>"
                 f"<p class='sub'>Base de données : {_fm_size(taille_db)} &mdash; Fichiers : {total} &mdash; "
                 f"<a class='btn' href='/fm/raw?name=webui.db'>Télécharger une sauvegarde de la base</a></p>"
-                + "</div><div class=\\"card\\"><h2>&#128220; Index des documents</h2>"
+                + "</div><div class=\\"card\\"><h2>@@ICO:grid@@ Index des documents</h2>"
                 + "<p class='sub'>Nettoie les entrées de l'index dont le fichier a disparu.</p>"
                 "<form method='post' action='/fm/fix-index'>"
-                "<button class='ghost'>&#128465; Nettoyer l'index des documents disparus</button></form>"
+                "<button class='ghost'>@@ICO:refresh@@ Nettoyer l'index des documents disparus</button></form>"
                 + "</div><div class=\\"card\\"><h2>&#9888;&#65039; Réinitialisation</h2>"
                 "<form method='post' action='/fm/reset'>"
                 "<button class='danger'>&#9888; Tout effacer et réinitialiser</button></form>"

@@ -92,3 +92,12 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       journaux, harnais live/désactivation)
 - [x] execute_code : reprise « Client session disconnected » branchée (P95) +
       paramètre timeout fonctionnel — testé (3ᵉ essai réussi après 2 déconnexions)
+- [x] Sidebar `/fm` responsive (P124) : tiroir hors-canvas ≤600 px + bouton
+      `#side-open`, tablette (601-820 px) en colonne d'icônes, desktop inchangé
+      — testé (sonde Playwright 3 paliers, ouverture/fermeture au voile,
+      aucun débordement)
+- [x] Icônes et style des pages `/fm` calqués sur Open WebUI (P125) : 23 entités
+      d'émojis → icônes SVG du sprite OWUI (`_fm_deco`), 3 exceptions
+      `@@ICO:nom@@`, style boutons/fields/checkbox OWUI, `word-break`, palier
+      ≤480 px — testé (sonde 4 pages × 2 thèmes : 0 émoji dans le DOM,
+      style conforme, control P125 réactif sur 8 sabotages)

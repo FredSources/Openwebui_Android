@@ -2755,3 +2755,87 @@ voulue (run 43187165219) — **annulée** (`gh run cancel`) et balise retirée d
 remote (`git push --delete refs/tags/v0.0.50`) avant toute release ; la liste
 des releases est inchangée (v0.0.50 absente). À l'avenir : pousser le tag
 nommé (`git push origin v0.0.75`), pas `--tags`.
+
+## 2026-11-12 — v0.0.76 : sidebar responsive (P124) + icônes/style OWUI des pages /fm (P125)
+
+P124 — responsive de la sidebar /fm (règle utilisateur demandée) :
+
+- téléphone **≤600 px** : plus de colonne permanente — la sidebar devient un
+  tiroir hors-canvas (`transform: translateX(-100%)` + `visibility: hidden`),
+  ouvert par le nouveau bouton `#side-open` (icône `sidebar-expand` du sprite
+  OWUI, haut à gauche, `display:flex` uniquement ≤600 px) ;
+- le voile `.sideov.on` pilote l'affichage par le sélecteur
+  `.sideov.on ~ .wrap .side` (**`~` et pas `+`** : le bouton `#side-open` est
+  inséré entre `.sideov` et `.wrap` dans le gabarit) ; fermeture au clic
+  sur le voile (hors tiroir) ;
+- toggle de repli et poignée de redimensionnement masqués ≤600 px
+  (inutiles dans un tiroir) ; `.main{padding:58px 12px 12px 12px}`,
+  `.ver{left:10px}` ;
+- tablette **601–820 px** inchangée (colonne d'icônes 56 px, padding 68 px,
+  pas de `#side-open`) ; desktop **≥821 px** inchangé (245 px + resizer).
+
+P125 — icônes et style des pages /fm calqués sur Open WebUI (seul le
+contenu change) :
+
+- extraction des icônes du sprite OWUI (`wN8N8j40.js` : `e.name==="…"` →
+  variable → `FN=k('…')`), **17 icônes** extraites puis validées visuellement
+  (planche `/tmp/opencode/icons_preview.png`), 16 ajoutées à `_FM_ICONS`
+  (29 en tout, `code` déjà présent) ;
+- table `_FM_EMO_ICO` : les **23 entités d'émojis** des pages (`&#9654;` ▶,
+  `&#9208;` ⏹, `&#8635;` ↺, `&#9888;` ⚠, `&#9989;` ✅, `&#9881;` ⚙, 🔌 🔍 💾
+  🤖 📑 🔒 🔧 📝 📷 📄 🌐 📥 🗅 🛠 📦 💬) → icônes (`play, stop, refresh,
+  info, check, settings, plug, search, save, spark, database-script, lock,
+  code, page-text, clock, list, globe, download, trash, tools, package,
+  chat-bubble`) ; le sélecteur de variation `&#65039;` (toujours accolé à
+  🛠/⚠) est **supprimé** ;
+- décorateur `_fm_deco()` : appliqué **une fois sur le document complet**
+  retourné par `_fm_page` (contrôle préalable : 43 entités, **0 dans un
+  attribut**, 0 dans le CSS, 0 dans le JS → le remplacement ne peut pas
+  casser le gabarit) ; substitution `@@VAR@@` faite AVANT `_fm_page`, donc
+  sans conflit avec les placeholders `@@ICO:` ;
+- **3 exceptions** ciblées par placeholder `@@ICO:nom@@` : Fichiers journaux
+  → `folder`, Index des documents → `grid`, Nettoyer l'index → `refresh`
+  (la table générique donnerait `list`/`trash`/`trash`) ;
+- **style OWUI** relevé dans `0.D7xLj0AB.css` et appliqué à `_FM_STYLE` :
+  boutons `h-7 px-2.5 text-xs font-normal rounded-lg` → 28 px, padding
+  0 10 px, 12 px, graisse 400, radius .5rem, `inline-flex` (icône + libellé
+  alignés, `vertical-align: middle` pour les boutons dans le texte) ;
+  primaire `bg-gray-900`/dark `gray-100` (déjà en place), secondaire
+  **blanc + bordure** (`.ghost`, `.btn2` → `--btn2:#ffffff`/dark `#1f1f1f`
+  + `border:1px solid var(--border)`) ; champs `px-2 py-1.5 text-[0.6875rem]`
+  → 6×8 px, 11 px, `outline:none`, focus **blue-400** (`#60a5fa`) ;
+  `textarea` idem ; cases à cocher = **règle OWUI reprise telle quelle**
+  (14 px, `appearance:none`, radius .25rem, bleu 600 cochée, coche SVG
+  blanche en `:after`, placée APRÈS `.card input` pour lui primer dessus) ;
+  `html{word-break:break-word}` ; palier **≤480 px** : boutons à 34 px
+  de haut (cible tactile).
+
+`check_patches.py` (contrôle **ajouté**, aucun contrôle affaibli —
+justification : nouveau patch, un module régénéré sans décorateur ou un
+CSS écrasé ne doit plus passer) : nouvelle fonction `check_p125_fm()` —
+`_fm_deco` défini et appelé dans `_fm_page` (prepare_src ET module généré),
+table `_FM_EMO_ICO` complète (23 entrées), **toutes les entités du module
+couvertes** par le décorateur, placeholders `@@ICO:folder/grid/refresh`
+présents et sans orphelin, motifs de style OWUI exigés (coche checkbox,
+word-break, 28 px, 11 px, secondaire bordé). Contrôle **réactif vérifié** :
+8 sabotages détectés (décorateur retiré, clé de couverture retirée, entité
+neuve non couverte, CSS 28 px cassé, checkbox cassée, word-break disparu,
+secondaire débordé, placeholder orphelin) + arbre réel vert.
+
+Validation :
+
+- `py_compile` prepare_src + android_fm : **OK** ; `check_patches.py` : **OK** ;
+- sonde `p125_probe.py` (harnais 8090, **arrêté après test, 0 survivant**) :
+  4 pages (accueil, réglages, journaux, maintenance) × 2 thèmes — **0 entité
+  d'icône dans le DOM**, **0 émoji littéral**, icônes SVG rendues dans les
+  titres et boutons, boutons 28 px/8 px radius/12 px/400, champs 11 px sans
+  contour + focus blue-400, cases 14 px avec coche, `html word-break:
+  break-word`, secondaire blanc bordé, aucun débordement horizontal ;
+- sonde `p124_probe.py` rejouée (non-régression) : tél fermé `side_x=-56`
+  hidden / `#side-open:flex` / pad 12 px ; tél ouvert `x=0 w=245` visible +
+  voile + libellés ; refermé ; tablette colonne 56 px pad 68 px sans
+  `#side-open` ; desktop 245 px + resizer pad 20 px — **tous verts** ;
+- validation visuelle des captures (`p125_*.png`) : rendu conforme OWUI
+  en clair **et** sombre (labels des cartes, boutons, champs, icônes).
+
+`versionName` 0.0.76.

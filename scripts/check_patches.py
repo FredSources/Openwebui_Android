@@ -154,6 +154,74 @@ def check_frontend() -> None:
         err("frontend : encore dans open_webui/ (P15 non appliqué)")
 
 
+def check_p125_fm() -> None:
+    """P125 — icônes du sprite OWUI + style OWUI des pages /fm.
+
+    Contrôle les deux pièces du patch sur les DEUX sources (prepare_src.py et
+    le module généré android_fm.py) : le décorateur _fm_deco (émojis → SVG,
+    3 placeholders @@ICO:nom@@) et le style OWUI (boutons 28 px, champs 11 px,
+    cases 14 px avec coche, word-break, secondaire bordé). Un retour en
+    arrière — module régénéré sans décorateur, CSS écrasé — échoue ici.
+    """
+    prep = (PROJ / "scripts" / "prepare_src.py").read_text(
+        encoding="utf-8", errors="ignore")
+    gen = SRC / "open_webui" / "android_fm.py"
+    if not gen.exists():
+        err("P125 : android_fm.py absent (prepare_src non lancé)")
+        return
+    txt = gen.read_text(encoding="utf-8", errors="ignore")
+    # 1) le décorateur doit exister et être appelé sur le document complet
+    if "def _fm_deco(" not in prep or "return _fm_deco(" not in prep:
+        err("P125 : décorateur _fm_deco absent ou non appelé dans _fm_page "
+            "(prepare_src.py)")
+    if "def _fm_deco(" not in txt or "return _fm_deco(" not in txt:
+        err("P125 : décorateur _fm_deco absent du module généré android_fm.py")
+    # 2) la table émoji → icône, complète (23 entités au minimum)
+    i = prep.find("_FM_EMO_ICO = {")
+    if i < 0:
+        err("P125 : table _FM_EMO_ICO absente de prepare_src.py")
+    else:
+        cles = prep[i:prep.find("\n}", i)]
+        n = len(re.findall(r"'&#\d+;':", cles))
+        if n < 23:
+            err(f"P125 : _FM_EMO_ICO incomplet ({n} entrées, 23 attendues)")
+        couvertes = set(re.findall(r"'(&#\d+;)':", cles))
+        utilisees = set("&#" + e + ";" for e in re.findall(r"&#(\d+);", txt))
+        reste = sorted(utilisees - couvertes)
+        if reste:
+            err(f"P125 : entité(s) non couverte(s) par le décorateur : {reste}")
+    # 3) les 3 placeholders ciblés + aucun placeholder orphelin
+    #    (on ignore les commentaires et la ligne du re.compile — le motif
+    #     littéral @@ICO:nom@@ y serait un faux positif)
+    k = prep.find("_FM_ICONS = {")
+    ic = re.findall(r"^    '([a-z0-9-]+)':", prep[k:prep.find("\n}", k)], re.M)
+    for ph in ("folder", "grid", "refresh"):
+        if f"@@ICO:{ph}@@" not in txt:
+            err(f"P125 : placeholder @@ICO:{ph}@@ absent de android_fm.py")
+    vrais = []
+    for ligne in txt.splitlines():
+        s = ligne.strip()
+        if s.startswith("#") or "re.compile(" in s:
+            continue
+        vrais += re.findall(r"@@ICO:([a-z0-9-]+)@@", ligne)
+    orphelins = sorted(set(vrais) - set(ic))
+    if orphelins:
+        err(f"P125 : placeholder(s) @@ICO:@@ sans icône correspondante : {orphelins}")
+    # 4) le style OWUI dans _FM_STYLE
+    j = prep.find("_FM_STYLE = ")
+    style = prep[j:prep.find("_FM_SVG = ", j)] if j >= 0 else ""
+    for motif, lib in (
+        ("input[type=checkbox]:after", "coche des cases à cocher"),
+        ("html { word-break: break-word; }", "word-break OWUI"),
+        ("min-height: 28px", "hauteur des boutons OWUI"),
+        ("font-size: 11px", "taille des champs OWUI"),
+        (".ghost { background: var(--btn2); color: var(--btn2-fg); "
+         "border: 1px solid var(--border); }", "secondaire bordé OWUI"),
+    ):
+        if motif not in style:
+            err(f"P125 : style OWUI manquant dans _FM_STYLE — {lib}")
+
+
 def check_build_gradle() -> None:
     g = (PROJ / "app" / "build.gradle").read_text(encoding="utf-8", errors="ignore")
     lignes = [l for l in g.splitlines() if "ignoreAssetsPattern =" in l]
@@ -374,6 +442,7 @@ def main() -> int:
     check_shims()
     check_searxng()
     check_frontend()
+    check_p125_fm()
     check_pyodide_paquets()
     check_p41_harvest()
     check_p54_ciblage()

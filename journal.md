@@ -2691,3 +2691,11 @@ Contrôle (sonde, harnais 8090) :
 | Mobile 412 px | masqué (`display:none`) | 56 | ✓ |
 
 `versionName` 0.0.74.
+
+## 2026-11-12 — v0.0.74 PUBLIÉE : pied de page dégagé en mode icônes
+
+Run 43140337496 (tag `v0.0.74`) **success** — assets
+`OpenWebUI_Android-0.0.74-{debug,release}.apk`, release publiée à
+02:21:35Z. Note : deux échecs transitoires de `gh` en cours de surveillance
+(EOF sur l'API GitHub) — le build n'a pas été en cause, relancé à l'identique
+avec succès.

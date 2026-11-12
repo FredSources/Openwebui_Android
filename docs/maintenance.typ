@@ -460,6 +460,10 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P121],
   [`android_fm.py`],
   [rétraction de la sidebar en *icônes seules* + icônes Open WebUI : suppression du bouton ☰ et de `body.sidehide`, état `body.sideicons` (56 px, libellés `.sl` masqués, resizer masqué, groupes forcés ouverts, infobulles `title`), 13 icônes SVG extraites du sprite `wN8N8j40.js` d'Open WebUI (`folder`, `list`, `pdf-logo`, `image`, `code`, `markdown-logo`, `package`, `settings`, `brain`, `search`, `tools`, `page-text`, `sidebar-expand`), structure `.si`/`.sl`, mobile en colonne d'icônes permanente avec plein en overlay + voile, persistance `localStorage.sidebar` — journal v0.0.73],
+
+  [P122],
+  [`android_fm.py`],
+  [pied de page `.ver` (« OpenWebUI Android x.y.z ») dégagé de la colonne en mode icônes : `body.sideicons .ver` passe de `left:10px` à `left:66px` (56 + 10 de marge) avec transition `.18s` alignée sur la sidebar — mobile inchangé — journal v0.0.74],
 )
 
 == Performances de démarrage

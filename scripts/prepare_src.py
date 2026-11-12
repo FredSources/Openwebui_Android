@@ -631,6 +631,7 @@ _FM_STYLE = """
   body.sideicons .side details a { padding-left: 4px; }
   body.sideicons .side-head { justify-content: center; padding: 2px 0 10px; }
   body.sideicons #sidebar-resizer { display: none; }
+  body.sideicons .ver { left: 66px; }
   .side .si { display: inline-flex; align-items: center; flex: none; }
   .side .si svg { display: block; }
   .side-head { display: flex; align-items: center; gap: 6px; padding: 2px 4px 10px; }
@@ -663,7 +664,7 @@ _FM_STYLE = """
   .nav a:hover { background: var(--hover); text-decoration: none; }
   .empty { color: var(--muted); padding: 30px 0; }
   .err { background: rgba(220, 38, 38, .1); border: 1px solid var(--danger); padding: 12px; border-radius: 10px; white-space: pre-wrap; }
-  .ver { position: fixed; left: 10px; bottom: 6px; color: var(--muted); font-size: 10px; opacity: .7; }
+  .ver { position: fixed; left: 10px; bottom: 6px; color: var(--muted); font-size: 10px; opacity: .7; transition: left .18s ease; }
   .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; }
   .srv { font-size: 13.5px; margin: 0 0 6px; }
   .logbox { background: var(--side); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: 12px/1.5 ui-monospace, "SF Mono", Consolas, monospace; white-space: pre-wrap; word-break: break-word; max-height: 60vh; overflow-y: auto; }

@@ -2663,3 +2663,31 @@ Revalidations supplémentaires : thème sombre en mode icônes (desktop 56 px +
 fond `#171717` mesuré, mobile colonne 56 px sans débordement), chevauchement
 FAB/onglets corrigé (`tab_y=62 > fab_bottom=52`), harnais 8090 arrêté après
 les tests (0 processus survivant).
+
+## 2026-11-12 — v0.0.74 : P122 — pied de page dégagé de la colonne en mode icônes
+
+Demande : « openwebui android version depasse dans fm quand la side barre est
+retracte ».
+
+Diagnostic : le pied de page `.ver` (« OpenWebUI Android 0.0.73 ») est
+`position:fixed; left:10px` — en mode icônes la colonne ne fait que 56 px, le
+texte (~130 px) débordait donc sur le contenu principal (et chevauchait la
+bordure de la colonne).
+
+Correctif (P122) :
+
+- `body.sideicons .ver { left: 66px; }` — le texte démarre à droite de la
+  colonne (56 + 10 de marge) ;
+- transition `left .18s ease` sur `.ver`, alignée sur celle de la sidebar
+  (dépliement sans saut) ;
+- mobile : inchangé (règle média déjà à `66px`, affichage masqué ≤480 px).
+
+Contrôle (sonde, harnais 8090) :
+
+| État | `.ver` x | Colonne droite | Conforme |
+|---|---|---|---|
+| Plein (245 px) | 10 | 245 | ✓ (sur la sidebar, comme depuis P120) |
+| Icônes (56 px) | **66** | 56 | ✓ hors colonne |
+| Mobile 412 px | masqué (`display:none`) | 56 | ✓ |
+
+`versionName` 0.0.74.

@@ -2839,3 +2839,13 @@ Validation :
   en clair **et** sombre (labels des cartes, boutons, champs, icônes).
 
 `versionName` 0.0.76.
+
+## 2026-11-12 — v0.0.76 PUBLIÉE : sidebar responsive + icônes/style OWUI
+
+Run 43303454033 (tag `v0.0.76`) **success** — release publiée à 20:49:25Z
+avec les 2 APK (`OpenWebUI_Android-0.0.76-{debug,release}.apk`). Push du
+tag nommé (`git push origin master v0.0.76`), aucun `--tags`.
+
+Captures de validation rangées dans le projet sous `home/tmp/`
+(16 fichiers : `p125_*` 4 pages × 2 thèmes + secondaire, `p124_*` responsive
++ planche, `icons_preview` — données de test neutres, aucun secret).

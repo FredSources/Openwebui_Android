@@ -137,8 +137,19 @@ def check_frontend() -> None:
         err("frontend : pyodide absent (execute_code)")
     if not (front / "index.html").exists():
         err("frontend : index.html absent")
-    elif "/fm" not in (front / "index.html").read_text(encoding="utf-8", errors="ignore"):
-        err("frontend : bouton /fm absent de index.html")
+    else:
+        idx = (front / "index.html").read_text(encoding="utf-8", errors="ignore")
+        if "/fm" not in idx:
+            err("frontend : bouton /fm absent de index.html")
+        # P123 : l'icône du FAB doit être le SVG « fichier + roue crante »,
+        # plus l'émoji 📎 (&#128206;) — un retour en arrière du patch
+        # (ou un index.html régénéré sans patch_files_button) doit échouer ici.
+        if 'id="fab-spa"' not in idx:
+            err("frontend : FAB #fab-spa absent de index.html")
+        if "&#128206;" in idx or "📎" in idx:
+            err("frontend : émoji 📎 encore présent dans index.html (P123)")
+        if 'id="fab-spa"' in idx and 'stroke-width="1.5"' not in idx:
+            err("frontend : icône SVG du FAB absente de index.html (P123)")
     if (SRC / "open_webui" / "frontend").exists():
         err("frontend : encore dans open_webui/ (P15 non appliqué)")
 

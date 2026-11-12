@@ -2106,6 +2106,36 @@ def patch_files_manager() -> None:
     write_android_fm()
 
 
+# P123 — icône du bouton flottant /fm : « fichier + roue crante » (fichiers ET
+# paramètres de l'application), dessinée au trait Open WebUI (viewBox 24,
+# stroke 1.5, currentColor). Le sprite amont (chunks/wN8N8j40.js) ne contient
+# ni `paperclip` ni `gear` parmi ses 123 noms — l'icône est donc dessinée, et
+# l'émoji 📎 (&#128206;) est retiré. Disque de fond #3b82f6 (couleur du FAB)
+# pour détourer la roue du document.
+_FAB_SVG = (
+    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="1.5" stroke-linecap="round" '
+    'stroke-linejoin="round" aria-hidden="true" style="overflow:visible">'
+    '<path d="M4.4 2.4 H13.1 C13.43 2.4 13.7 2.67 13.7 3 V6.6 '
+    'L17.3 10.2 H17.7 C18.03 10.2 18.3 10.47 18.3 10.8 V18.4 '
+    'C18.3 18.73 18.03 19 17.7 19 H4.4 C4.07 19 3.8 18.73 3.8 18.4 '
+    'V3 C3.8 2.67 4.07 2.4 4.4 2.4 Z"/>'
+    '<path d="M13.7 2.6 V6.6 C13.7 6.93 13.97 7.2 14.3 7.2 H18.3"/>'
+    '<path d="M6.6 11.6 H14.2"/><path d="M6.6 14.4 H14.2"/>'
+    '<path d="M6.6 16.6 H11"/>'
+    '<circle cx="18.1" cy="18.1" r="6.1" fill="#3b82f6" stroke="none"/>'
+    '<path d="M21.53 17.18L22.89 17.08L22.89 19.12L21.53 19.02'
+    'L21.17 19.88L22.21 20.77L20.77 22.21L19.88 21.17L19.02 21.53'
+    'L19.12 22.89L17.08 22.89L17.18 21.53L16.33 21.17L15.43 22.21'
+    'L13.99 20.77L15.03 19.88L14.67 19.02L13.31 19.12L13.31 17.08'
+    'L14.67 17.18L15.03 16.33L13.99 15.43L15.43 13.99L16.32 15.03'
+    'L17.18 14.67L17.08 13.31L19.12 13.31L19.02 14.67L19.88 15.03'
+    'L20.77 13.99L22.21 15.43L21.17 16.32Z"/>'
+    '<circle cx="18.1" cy="18.1" r="1.65"/>'
+    '</svg>'
+)
+
+
 def patch_files_button() -> None:
     """P26b — bouton flottant « Fichiers » dans index.html (le menu du Workspace
     n'a aucune entrée Fichiers ; le bouton rend /fm découvrable partout).
@@ -2113,7 +2143,9 @@ def patch_files_button() -> None:
     depuis le pont natif — « TypeError: Failed to fetch »).
     P35 : shim window.Notification → pont natif AndroidNotify (l'API web
     Notification n'existe pas dans une WebView Android : le réglage
-    « Notifications » d'Open WebUI ne pouvait pas s'activer)."""
+    « Notifications » d'Open WebUI ne pouvait pas s'activer).
+    P123 : l'émoji 📎 devient l'icône dessinée « fichier + roue crante »
+    (fichiers ET paramètres de l'application), titre adapté."""
     notif_shim = (
         '<script>(function(){if(window.__notifShim){return;}window.__notifShim=1;'
         'var b=(typeof AndroidNotify!=="undefined")?AndroidNotify:null;'
@@ -2136,12 +2168,12 @@ def patch_files_button() -> None:
         'URL.createObjectURL=function(b){try{window.__dlBlob=b;}catch(e){}return o(b);};'
         '})();</script>\n'
         + notif_shim +
-        '<a href="/fm" id="fab-spa" title="Fichiers : PDF générés et téléversements — glisser pour déplacer" '
+        '<a href="/fm" id="fab-spa" title="Fichiers et paramètres de l\'application — glisser pour déplacer" '
         'style="position:fixed;top:10px;right:12px;z-index:2147483000;'
         'width:42px;height:42px;border-radius:50%;background:#3b82f6;color:#fff;'
         'display:flex;align-items:center;justify-content:center;font-size:20px;'
         'text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:grab;touch-action:none">'
-        '&#128206;</a>'
+        + _FAB_SVG + '</a>'
         '<script>(function(){var el=document.getElementById("fab-spa");if(!el)return;'
         'try{var s=JSON.parse(localStorage.getItem("fabPos")||"null");'
         'if(s){el.style.left=s.l+"px";el.style.top=s.t+"px";el.style.right="auto";el.style.bottom="auto";}}catch(e){}'

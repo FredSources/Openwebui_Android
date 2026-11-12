@@ -464,6 +464,10 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P122],
   [`android_fm.py`],
   [pied de page `.ver` (« OpenWebUI Android x.y.z ») dégagé de la colonne en mode icônes : `body.sideicons .ver` passe de `left:10px` à `left:66px` (56 + 10 de marge) avec transition `.18s` alignée sur la sidebar — mobile inchangé — journal v0.0.74],
+
+  [P123],
+  [`prepare_src.py` + `index.html`],
+  [icône du bouton flottant `/fm` : le trombone 📎 devient un SVG dessiné *fichier + roue crante* (document à pli et lignes, engrenage 8 dents sur disque `#3b82f6`, viewBox 24, trait 1.5, 22 px dans le disque de 42 px), titre « Fichiers et paramètres de l'application » — le sprite amont ne fournit ni `paperclip` ni `gear` (123 noms relevés) ; contrôle `check_patches.py` : plus d'émoji `&#128206;`, SVG exigé — journal v0.0.75],
 )
 
 == Performances de démarrage

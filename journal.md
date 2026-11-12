@@ -2699,3 +2699,46 @@ Run 43140337496 (tag `v0.0.74`) **success** — assets
 02:21:35Z. Note : deux échecs transitoires de `gh` en cours de surveillance
 (EOF sur l'API GitHub) — le build n'a pas été en cause, relancé à l'identique
 avec succès.
+
+## 2026-11-12 — v0.0.75 : P123 — icône « fichier + roue crante » du bouton flottant /fm
+
+Demande : remplacer l'icône trombone 📎 du bouton flottant vers `/fm` par
+« une icône trombone avec roue crante ou quelque chose de similaire afin de
+montrer que c'est fichier et paramètre de l'application ».
+
+Diagnostic :
+
+- cible unique : `&#128206;` (📎) = `#fab-spa`, injecté par
+  `patch_files_button()` (`prepare_src.py`), un seul `</body>` et un seul
+  `fab-spa` dans `index.html` ;
+- le sprite d'Open WebUI (`immutable/chunks/wN8N8j40.js`) ne contient **ni
+  `paperclip` ni `gear`** (123 noms relevés) : l'icône est **dessinée**, au
+  trait d'Open WebUI (viewBox 24, `stroke-width` 1.5, `currentColor`).
+
+Correctif (P123) :
+
+- constante `_FAB_SVG` dans `prepare_src.py` : document à pli + 3 lignes,
+  engrenage **8 dents** en bas à droite (rayons 4.9 / 3.55, trou 1.65),
+  disque de fond `#3b82f6` (couleur du FAB) pour détourer la roue du
+  document — 22 px dans le disque de 42 px ;
+- `title` du bouton : « Fichiers et paramètres de l'application — glisser
+  pour déplacer » (l'ancien parlait seulement des PDF/téléversements) ;
+- `check_patches.py` (contrôle renforcé, justifié : nouveau patch, un
+  retour d'émoji ou un `index.html` régénéré sans patch ne doit plus passer) :
+  `#fab-spa` exigé, `&#128206;`/📎 interdit, `<svg stroke-width="1.5">` exigé.
+
+Validation :
+
+- constante Python **identique octet à octet** au SVG de l'prototype validé
+  visuellement (comparaison avec `/tmp/opencode/fab_iconB.py`) ;
+- `prepare_src.py` régénéré (117 opérations, 2 min 17) — régénération
+  déterministe : mêmes 3 fichiers `src-assets` modifiés qu'avant (P106/P70)
+  + l'icône ;
+- `py_compile` + `check_patches.py` : **OK** ;
+- sonde Playwright (serveur statique 8090, arrêté après test, 0 survivant) :
+  FAB 42×42, SVG 22×22 **contenu dans le disque**, `title`/`href=/fm`
+  conformes, aucun émoji, aucun débordement horizontal — thème clair **et**
+  sombre (captures `fab_light.png` / `fab_dark.png`, lisibilité confirmée à
+  taille réelle).
+
+`versionName` 0.0.75.

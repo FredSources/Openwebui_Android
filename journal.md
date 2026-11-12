@@ -2849,3 +2849,9 @@ tag nommé (`git push origin master v0.0.76`), aucun `--tags`.
 Captures de validation rangées dans le projet sous `home/tmp/`
 (16 fichiers : `p125_*` 4 pages × 2 thèmes + secondaire, `p124_*` responsive
 + planche, `icons_preview` — données de test neutres, aucun secret).
+
+Correction (2026-11-12) : les captures de validation ne sont pas dans le
+projet — elles sont rangées sous `~/tmp` (`/data/data/com.termux/files/home/tmp`),
+emplacement voulu par l'utilisateur (demande explicite, en dehors de la règle
+d'isolation). Le sous-dossier `home/tmp/` provisoirement créé dans le projet
+a été retiré.

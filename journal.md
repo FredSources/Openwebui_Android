@@ -2742,3 +2742,16 @@ Validation :
   taille réelle).
 
 `versionName` 0.0.75.
+
+## 2026-11-12 — v0.0.75 PUBLIÉE : icône « fichier + roue crante » du FAB /fm
+
+Run 43187163673 (tag `v0.0.75`) **success** — build 5 min 04 s, assets
+`OpenWebUI_Android-0.0.75-{debug,release}.apk`, release publiée à
+09:01:38Z.
+
+Note d'incident maîtrisé : le `git push --tags` a aussi publié une ancienne
+balise locale `v0.0.50` jamais poussée, ce qui a déclenché une build non
+voulue (run 43187165219) — **annulée** (`gh run cancel`) et balise retirée du
+remote (`git push --delete refs/tags/v0.0.50`) avant toute release ; la liste
+des releases est inchangée (v0.0.50 absente). À l'avenir : pousser le tag
+nommé (`git push origin v0.0.75`), pas `--tags`.

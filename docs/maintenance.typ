@@ -476,6 +476,10 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P125],
   [`prepare_src.py` (→ `android_fm.py`)],
   [icônes et style des pages `/fm` calqués sur Open WebUI : les 23 entités d'émojis (▶ ⏹ ↺ ⚠ ✅ ⚙ 🔌 🔍 💾 🤖 📑 🔒 🔧 📝 📷 📄 🌐 📥 🗅 🛠 📦 💬 + sélecteur de variation supprimé) deviennent les icônes SVG du sprite OWUI par le décorateur `_fm_deco` appliqué une fois sur le document complet (43 entités, 0 dans un attribut/CSS/JS vérifié), 16 icônes ajoutées à `_FM_ICONS` (29 en tout), 3 exceptions par placeholder `@@ICO:nom@@` (Fichiers journaux `folder`, Index des documents `grid`, Nettoyer l'index `refresh`) ; style OWUI : boutons 28 px / 12 px / graisse 400 / `rounded-lg` en `inline-flex`, secondaire blanc + bordure, champs 6×8 px 11 px sans contour + focus blue-400, cases à cocher 14 px avec coche SVG blanche (`appearance:none`, bleu 600 cochée), `html{word-break:break-word}`, palier ≤480 px à 34 px de haut ; contrôle `check_patches.py` étendu (`check_p125_fm`, 8 sabotages testés) — journal v0.0.76],
+
+  [P126],
+  [`utils/tools.py` (révocation P18 + amendement P28)],
+  [toggles des outils web/code à nouveau respectés : *P18 révoqué* (gate amont des outils web restauré tel quel — `is_builtin_tool_enabled('web_search')`, `web.search.enable`, `get_model_capability('web_search')`, `features.get('web_search')` = icône du composeur, permission) et *P28 amendé* (`compile_typst` conditionné par `ENABLE_TOOLS and is_builtin_tool_enabled('tools')` — toggle « Outils » du modèle, indépendant de `workspace.tools`). Audit complet du code généré vs amont (`middleware.py` et gates `execute_code` déjà conformes, frontend sans lien avec les toggles) ; sonde `p126_gate_test.py` sur `get_builtin_tools` réel : fuites confirmées avant correction (web + `compile_typst` dans tous les cas), tous scénarios verts après ; `check_patches.py` renforcé (gate « Outils » exigé, gate forcé P18 interdit) — journal v0.0.77],
 )
 
 == Performances de démarrage
@@ -626,11 +630,13 @@ transmis par `MainActivity` à `start_server` — `HOME`, `TMPDIR` et
 Réglages essentiels depuis l'UI : *Admin → Documents* (moteur d'embedding distant
 + clé), *Admin → Audio* (STT « web » pour la dictée), *Admin → Recherche web*
 (moteur `embedded-searxng`). Depuis v15, `android_main` force `web.search.enable`
-à `true` au démarrage (`ENABLE_WEB_SEARCH`) ; depuis v16 (P18), les outils
-`search_web`/`fetch_url` sont exposés *sans condition de modèle ni de toggle*
-— y compris pour les API tierces (DeepSeek…) dont la fiche modèle porte
-`capabilities.web_search: false`, et quand le globe du chat n'est pas actionné.
-Le pipeline de recherche automatique (globe) reste, lui, conditionné au toggle.
+à `true` au démarrage (`ENABLE_WEB_SEARCH`) ; les outils `search_web`/`fetch_url`
+suivent le gate amont d'Open WebUI (catégorie `web_search` du modèle, capacités,
+icône du composeur, permission utilisateur) — *P18 avait supprimé ces filtres
+(v16) et exposait les outils malgré les toggles : révoqué en v0.0.77 (P126)*.
+Pour lancer une recherche web : actionner l'icône globe du composeur, la
+recherche automatique du pipeline (globe) restant elle aussi conditionnée au
+toggle.
 
 = Dépannage rapide
 

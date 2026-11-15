@@ -2855,3 +2855,74 @@ projet — elles sont rangées sous `~/tmp` (`/data/data/com.termux/files/home/t
 emplacement voulu par l'utilisateur (demande explicite, en dehors de la règle
 d'isolation). Le sous-dossier `home/tmp/` provisoirement créé dans le projet
 a été retiré.
+
+## 2026-11-15 — v0.0.77 : toggles des outils web/code respectés (P126)
+
+**Signalement utilisateur** : les outils web et code restaient *visibles et
+actifs même avec le toggle désactivé* (icônes du composeur). Demande : vérifier
+un éventuel effet de bord de nos patchs (« normalement ça fonctionne bien sans
+tes patch »).
+
+**Audit (code généré vs sources vierges du wheel amont)** :
+
+- `utils/tools.py` : 2 écarts de gate — **P18** (outils web exposés sans
+  condition : `is_builtin_tool_enabled`, `get_model_capability` ET
+  `features.get('web_search')` supprimés) et **P28** (`compile_typst` ajouté
+  en fin de fonction, hors de tout gate) ;
+- `utils/middleware.py` : **0 diff** (gates `execute_code` et DETECT_CODE
+  conformes à l'amont) ; `routers/utils.py` : 3 lignes (P14, import black
+  lazy — sans rapport) ; `tools/builtin.py` : nos patchs documentés
+  (fetch_url, journaux, fichiers) — aucun gate touché ;
+- frontend : 5 fichiers modifiés, tous documentés (worker pyodide P38/P103/
+  P49a, `nodes/0` P106/P107, `nodes/2` P10, `index.html` P123) — aucun lien
+  avec la visibilité des toggles.
+
+**Sonde unitaire `p126_gate_test.py`** (appel réel de `get_builtin_tools`
+sur la base SQLite de test, stubs ciblés pour les wheels natifs Android non
+chargeables sur l'hôte) : les fuites sont confirmées **avant** correction —
+`search_web`/`fetch_url` exposés avec l'icône du composeur désactivée, avec
+`builtinTools.web_search` désactivé, avec `capabilities.web_search`
+désactivé, et « tout OFF » ; `compile_typst` exposé dans TOUS les cas ;
+`execute_code` correctement filtré partout (aucune fuite).
+
+**Décisions utilisateur (2026-11-15)** : le toggle concerné est celui des
+**icônes du composeur** ; `compile_typst` doit suivre le toggle **« Outils »**
+du modèle.
+
+**Correctif P126** :
+
+- **P18 révoqué** : le patch est retiré (`prepare_src.py`), le gate amont des
+  outils web est rétabli tel quel — il respecte donc `features.get('web_search')`
+  (icône du composeur), `builtinTools.web_search`, `capabilities.web_search`,
+  `web.search.enable` et la permission utilisateur. Pour activer la recherche
+  web : actionner l'icône (globe) du composeur ;
+- **P28 amendé** : `compile_typst` est conditionné par
+  `if ENABLE_TOOLS and is_builtin_tool_enabled('tools'):` (toggle « Outils »
+  du modèle) et reste indépendant de la permission de CRÉATION d'outils
+  (`workspace.tools`) qui le faisait disparaître à tort (v0.0.11).
+
+**`check_patches.py` (contrôles modifiés, JUSTIFICATION — règle du
+2026-11-08)** : le contrôle P28 évolue parce que le patch P28 évolue — il
+exige désormais le gate « Outils » (avant : il exigeait l'enregistrement
+*inconditionnel*). Le contrôle se **RENFORCE** : (1) `compile_typst` sans gate
+= erreur, (2) gate autre que `is_builtin_tool_enabled('tools')` = erreur,
+(3) le retour du gate forcé P18 = erreur, (4) l'absence du gate amont
+(`is_builtin_tool_enabled('web_search')`, `features.get('web_search')`) =
+erreur. L'entrée CHECKS « P18 gate outils web » (motif du gate forcé) est
+retirée et couverte par ces contrôles de révocation.
+
+**Validation** :
+
+- sonde `p126_gate_test.py` **verte après correction** : icônes du composeur
+  OFF → ni web ni `execute_code` (`compile_typst` reste, gate « Outils » actif
+  par défaut — choix utilisateur) ; toggle « Outils » OFF → `compile_typst`
+  caché ; toggles modèle web/code OFF (builtinTools et capabilities) → ni web
+  ni `execute_code` ; tout OFF → aucun des 4 ; tout ON (référence) → les
+  4 outils présents ;
+- `py_compile` prepare_src + check_patches + android_fm : OK ;
+- `check_patches.py` : OK (116 opérations de préparation, le patch P18 n'est
+  plus appliqué) ;
+- non-régression `/fm` : sondes P124 + P125 rejouées sur le harnais 8090
+  (arrêté après test, 0 survivant).
+
+`versionName` 0.0.77.

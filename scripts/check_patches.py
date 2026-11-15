@@ -3,8 +3,8 @@
 dans l'arbre généré `src/` (+ build.gradle, + frontend).
 
 Chaque contrôle correspond à un patch réel ; un patch « appliqué » par
-prepare_src mais mal placé (P28, ex. compile_typst dans un bloc conditionnel)
-ou cassé (_os2.sub) est ici détecté.
+prepare_src mais mal placé (ex. compile_typst sans son gate « Outils »,
+P28/P126) ou cassé (_os2.sub) est ici détecté.
 
 Usage : python3 scripts/check_patches.py   (appelé en fin de prepare_src + CI)
 """
@@ -24,8 +24,6 @@ CHECKS = [
     ("P3 factory local/none", "open_webui/retrieval/vector/factory.py", "'local'"),
     ("P5 pydub/audioop neutralisé", "open_webui/routers/audio/__init__.py", "pydub"),
     ("P9b moteur embedded-searxng", "open_webui/routers/retrieval.py", "embedded-searxng"),
-    ("P18 gate outils web", "open_webui/utils/tools.py",
-     "if config.get('web.search.enable') and await has_user_permission('web_search')"),
     ("P21 recurrence en thread", "open_webui/utils/recurrence.py",
      "to_thread.run_sync(_next_occurrences"),
     ("P22 journal SearXNG (outil)", "open_webui/tools/builtin.py", "searxng.log"),
@@ -100,16 +98,40 @@ def check_fichiers() -> None:
 
 
 def check_compile_typst_hors_bloc() -> None:
-    """P28 : l'enregistrement doit être inconditionnel (indentation 4 espaces),
-    pas greffé dans le bloc create_tool/workspace.tools."""
+    """P28/P126 : compile_typst doit être conditionné par le toggle « Outils » du
+    modèle (ENABLE_TOOLS + is_builtin_tool_enabled('tools')), et rester
+    indépendant de la permission de CRÉATION d'outils (workspace.tools).
+    Historique : P28 l'avait rendu inconditionnel (v0.0.11, sortie du bloc
+    create_tool) — P126 (v0.0.77) lui redonne un gate car l'outil restait
+    visible et actif même avec le toggle désactivé. Le contrôle se RENFORCE :
+    il exige désormais le gate (avant : il exigeait l'absence de bloc).
+    """
     p = SRC / "open_webui" / "utils" / "tools.py"
-    lignes = p.read_text(encoding="utf-8", errors="ignore").splitlines()
+    text = p.read_text(encoding="utf-8", errors="ignore")
+    lignes = text.splitlines()
     reg = [l for l in lignes if "builtin_functions.append(compile_typst)" in l]
     if not reg:
         err("P28 : compile_typst non enregistré dans utils/tools.py")
         return
-    if not reg[0].startswith("    builtin_functions.append(compile_typst)"):
-        err(f"P28 : compile_typst mal placé (dans un bloc conditionnel ?) — {reg[0][:60]!r}")
+    if reg[0].startswith("    builtin_functions.append(compile_typst)"):
+        err("P28/P126 : compile_typst enregistré SANS gate (inconditionnel) — "
+            "il doit suivre le toggle « Outils »")
+    elif reg[0].startswith("        builtin_functions.append(compile_typst)"):
+        i = lignes.index(reg[0])
+        if "is_builtin_tool_enabled('tools')" not in lignes[i - 1]:
+            err("P28/P126 : compile_typst conditionné par autre chose que le toggle "
+                f"« Outils » — {lignes[i - 1][:60]!r}")
+    else:
+        err(f"P28 : compile_typst mal placé — {reg[0][:60]!r}")
+    # P18 révoqué (P126) : le gate forcé des outils web ne doit pas revenir
+    if "if config.get('web.search.enable') and await has_user_permission('web_search'):" in text:
+        err("P18 : le gate forcé des outils web est revenu (révoqué en P126)")
+    # le gate web amont doit être rétabli (toggles respectés, dont celui
+    # du composeur features.web_search)
+    if "is_builtin_tool_enabled('web_search')" not in text:
+        err("P126 : gate amont des outils web absent (is_builtin_tool_enabled)")
+    if "features.get('web_search')" not in text:
+        err("P126 : toggle du composeur non respecté (features.get('web_search') absent)")
 
 
 def check_shims() -> None:

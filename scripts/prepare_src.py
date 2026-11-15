@@ -208,30 +208,17 @@ WEB_SEARCH_NEW = """            raise Exception('No SEARXNG_QUERY_URL found in e
     elif engine == 'openserp':"""
 
 
-WEB_TOOLS_OLD = """    # Add web search tools if builtin category enabled AND enabled globally AND model has web_search capability
-    if (
-        is_builtin_tool_enabled('web_search')
-        and config.get('web.search.enable')
-        and get_model_capability('web_search')
-        and features.get('web_search')
-        and await has_user_permission('web_search')
-    ):
-        builtin_functions.extend([search_web, fetch_url])"""
-
-WEB_TOOLS_NEW = """    # Add web search tools if builtin category enabled AND enabled globally AND model has web_search capability
-    # P18 : outils internet TOUJOURS exposés quand la recherche web est active.
-    # Les filtres amont (capacités modèle, builtinTools, toggle `features` de la
-    # requête) valent souvent « false » explicite pour les API tierces ou quand le
-    # globe n'est pas actionné — ils ne doivent pas masquer search_web/fetch_url
-    # (moteur embarqué embedded-searxng) : c'est au modèle de décider de les appeler.
-    if config.get('web.search.enable') and await has_user_permission('web_search'):
-        builtin_functions.extend([search_web, fetch_url])"""
-
-
-def patch_web_tools() -> None:
-    """P18 — outils internet (search_web/fetch_url) exposés sans condition de modèle."""
-    replace_once(DST / "utils" / "tools.py", WEB_TOOLS_OLD, WEB_TOOLS_NEW,
-                 "P18 tools.py outils web forcés")
+# P18 — RÉVOQUÉ (v0.0.77, P126) : le gate amont des outils web est restauré.
+# Le patch forçait search_web/fetch_url à être exposés « sans condition de
+# modèle », ce qui IGNORAIT les toggles (builtinTools.web_search, capacités
+# modèle, et surtout le toggle `features.web_search` de l'icône du composeur) :
+# les outils web restaient visibles et actifs même avec le toggle désactivé
+# (signalement utilisateur 2026-11-15). Le gate amont est rétabli tel quel :
+#   is_builtin_tool_enabled('web_search') AND config 'web.search.enable'
+#   AND get_model_capability('web_search') AND features.get('web_search')
+#   AND has_user_permission('web_search')
+# Pour activer la recherche web dans une conversation : actionner l'icône
+# (globe) du composeur ET s'assurer que le modèle autorise la catégorie.
 
 
 def patch_web_search() -> None:
@@ -3992,13 +3979,16 @@ def patch_typst_tool() -> None:
     replace_once(
         DST / "utils" / "tools.py",
         "    # Task management - break down complex work into trackable steps",
-        "    # P28 : compile_typst — outil documentaire, TOUJOURS disponible\n"
-        "    # (auparavant greffé sur le bloc create_tool/workspace.tools : il\n"
-        "    # disparaissait selon les permissions de création d'outils).\n"
-        "    builtin_functions.append(compile_typst)\n"
+        "    # P28 : compile_typst — outil documentaire, indépendant de la permission\n"
+        "    # de CRÉATION d'outils (workspace.tools) qui le faisait disparaître à\n"
+        "    # tort (v0.0.11). P126 : soumis au toggle « Outils » du modèle —\n"
+        "    # l'enregistrement inconditionnel de P28 laissait l'outil visible et\n"
+        "    # actif même avec le toggle désactivé (signalement 2026-11-15).\n"
+        "    if ENABLE_TOOLS and is_builtin_tool_enabled('tools'):\n"
+        "        builtin_functions.append(compile_typst)\n"
         "\n"
         "    # Task management - break down complex work into trackable steps",
-        "P28 registration compile_typst (indépendant)",
+        "P28/P126 registration compile_typst (conditionnée au toggle Outils)",
     )
 
 
@@ -4516,7 +4506,6 @@ def main() -> int:
     patch_storage()
     patch_local_ai()
     patch_stt_default()
-    patch_web_tools()
     patch_web_search()
     patch_frontend_engines()
     copy_searxng()

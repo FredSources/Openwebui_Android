@@ -101,3 +101,8 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       `@@ICO:nom@@`, style boutons/fields/checkbox OWUI, `word-break`, palier
       ≤480 px — testé (sonde 4 pages × 2 thèmes : 0 émoji dans le DOM,
       style conforme, control P125 réactif sur 8 sabotages)
+- [x] Toggles des outils web/code respectés (P126) : P18 révoqué (gate amont
+      restauré, icône du composeur respectée) + P28 amendé (compile_typst conditionné
+      par le toggle « Outils ») — testé (sonde p126_gate_test sur
+      get_builtin_tools réel : 6 scénarios conformes, non-régression /fm
+      P124+P125 verte)

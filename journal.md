@@ -2926,3 +2926,9 @@ retirée et couverte par ces contrôles de révocation.
   (arrêté après test, 0 survivant).
 
 `versionName` 0.0.77.
+
+## 2026-11-15 — v0.0.77 PUBLIÉE : toggles des outils web/code respectés
+
+Run 43772199254 (tag `v0.0.77`) **success** — release publiée à 23:02:12Z
+avec les 2 APK (`OpenWebUI_Android-0.0.77-{debug,release}.apk`). Push du
+tag nommé (`git push origin master v0.0.77`), aucun `--tags`.

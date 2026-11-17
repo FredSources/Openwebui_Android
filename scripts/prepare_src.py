@@ -470,6 +470,39 @@ def patch_ui_moteurs_locaux() -> None:
     )
 
 
+def patch_ui_moteurs_rag() -> None:
+    """P132 — masque dans l'UI les options RAG inutilisables sur Android
+    (mêmes principes que P131, mécanisme « slim » de l'amont) :
+    - moteur d'embedding « Default (SentenceTransformers) » (torch absent —
+      le projet utilise des embeddings DISTANTS, `android_main` force
+      RAG_EMBEDDING_ENGINE=openai par défaut) ;
+    - moteur de rerank « Default (SentenceTransformers) » (CrossEncoder
+      absent — l'option « External » et le scoring cosinus restent) ;
+    - découpage de texte « Token (Transformers) » (tokenisation transformers
+      absente — « Character » et « Tiktoken » restent, le shim tiktoken est
+      embarqué).
+    Trois micro-remplacements, structure Svelte amont intacte."""
+    js = DST / "frontend" / "_app" / "immutable" / "nodes" / "2.DwSK4ZlF.js"
+    replace_once(
+        js,
+        "j.disabled=v()?.features?.slim===!0,d(E,st)",
+        "j.disabled=!0,j.hidden=!0,d(E,st)",
+        "P132 UI : option embedding « SentenceTransformers » masquée",
+    )
+    replace_once(
+        js,
+        "Nt.disabled=v()?.features?.slim===!0,d(Ct,xt)",
+        "Nt.disabled=!0,Nt.hidden=!0,d(Ct,xt)",
+        "P132 UI : option rerank « SentenceTransformers » masquée",
+    )
+    replace_once(
+        js,
+        "ht.disabled=v()?.features?.slim===!0,d(gt,",
+        "ht.disabled=!0,ht.hidden=!0,d(gt,",
+        "P132 UI : option découpage « Token (Transformers) » masquée",
+    )
+
+
 def patch_audio_locale() -> None:
     """P127/P129/P130 — empreinte minimale sur le code amont : ajouts seuls
     (P127), une ligne d'appel changée + fonctions ajoutées (P129/P130), et le
@@ -4808,6 +4841,7 @@ def main() -> int:
     patch_stt_default()
     patch_audio_locale()
     patch_ui_moteurs_locaux()
+    patch_ui_moteurs_rag()
     patch_web_search()
     patch_frontend_engines()
     copy_searxng()

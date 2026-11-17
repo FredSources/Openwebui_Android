@@ -3059,3 +3059,24 @@ affichée (pas de casse de configuration).
 Validé : marqueurs présents dans le chunk régénéré, `check_patches` (contrôle
 P131), test Playwright du comportement `hidden` sur `<option>` (disparaît de
 la liste déroulante, sélection existante conservée).
+
+## 2026-11-17 — P132 : les options RAG mortes sortent de l'UI + release v0.0.78
+
+**P132** (demande « pour le RAG y a-t-il des options non utilisables ? » →
+oui, 3 ; puis « oui » pour les masquer) : même technique que P131 (mécanisme
+« slim » de l'amont, `disabled`+`hidden` sur les `<option>`) —
+« Default (SentenceTransformers) » pour l'embedding et pour le rerank, et
+« Token (Transformers) » pour le découpage. Rationale : torch/
+sentence-transformers ne sont pas embarqués (embeddings distants par
+conception, `RAG_EMBEDDING_ENGINE=openai` forcé par android_main) ; restent
+Ollama/OpenAI/Azure, le rerank « External » ou le scoring cosinus, les
+découpages Character/Tiktoken (shim embarqué), et les extracteurs embarqués
+(pypdf/python-docx/docx2txt/bs4).
+
+Validé : 5 marqueurs P131/P132 présents dans le chunk régénéré,
+`check_patches` (contrôles P132), tests P127/P129/P130 et P128 rejoués verts,
+doc Typst `maintenance.typ` complétée (P127→P132) et recompilée sans
+avertissement.
+
+**Release v0.0.78 lancée sur demande** : vérification complète → commit →
+push → tag `v0.0.78` → build CI GitHub (le push de tag déclenche le workflow).

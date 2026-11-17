@@ -199,6 +199,14 @@ def check_audio_locale() -> None:
             err("P131 : option TTS « Transformers (Local) » toujours visible")
         if "E.disabled=!0,E.hidden=!0" not in ut:
             err("P131 : option STT « Whisper (Local) » toujours visible")
+        # P132 — options RAG mortes masquées (embedding/rerank/découpage)
+        for motif, lib in (
+            ("j.disabled=!0,j.hidden=!0", "embedding « SentenceTransformers »"),
+            ("Nt.disabled=!0,Nt.hidden=!0", "rerank « SentenceTransformers »"),
+            ("ht.disabled=!0,ht.hidden=!0", "découpage « Token (Transformers) »"),
+        ):
+            if motif not in ut:
+                err(f"P132 : option RAG « {lib} » toujours visible")
 
 
 def check_compile_typst_hors_bloc() -> None:

@@ -480,6 +480,30 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P126],
   [`utils/tools.py` (révocation P18 + amendement P28)],
   [toggles des outils web/code à nouveau respectés : *P18 révoqué* (gate amont des outils web restauré tel quel — `is_builtin_tool_enabled('web_search')`, `web.search.enable`, `get_model_capability('web_search')`, `features.get('web_search')` = icône du composeur, permission) et *P28 amendé* (`compile_typst` conditionné par `ENABLE_TOOLS and is_builtin_tool_enabled('tools')` — toggle « Outils » du modèle, indépendant de `workspace.tools`). Audit complet du code généré vs amont (`middleware.py` et gates `execute_code` déjà conformes, frontend sans lien avec les toggles) ; sonde `p126_gate_test.py` sur `get_builtin_tools` réel : fuites confirmées avant correction (web + `compile_typst` dans tous les cas), tous scénarios verts après ; `check_patches.py` renforcé (gate « Outils » exigé, gate forcé P18 interdit) — journal v0.0.77],
+
+  [P127],
+  [`routers/audio/__init__.py` (ajouts seuls)],
+  [transcription de fichiers : messages clairs — branche *web* ajoutée (« la dictée native ne transcrit pas les fichiers joints : configurez un moteur STT distant ») et branche « moteur inconnu » après le dispatch amont intact (sinon `TypeError` → HTTP 500) ; garde-fou STT local absent (503) dans `_transcribe_whisper` — journal v0.0.78],
+
+  [P128],
+  [`AndroidTTS.java` + `tts_polyfill.js` + `MainActivity.java`],
+  [synthèse vocale 100 % locale : pont *speechSynthesis* (API web) → *TextToSpeech* natif Android — shim injecté à chaque page (remplace `window.speechSynthesis` via `Object.defineProperty`, attribut en lecture seule dans Chromium), file d'attente, débit, voix du système, événements start/end/error ; lecture à voix haute et voix des appels hors-ligne, sans clé API (moteur TTS serveur laissé vide) — journal v0.0.78],
+
+  [P129],
+  [`routers/audio/__init__.py` (1 ligne + ajouts)],
+  [découpage/transcodage locaux sans pydub : une ligne d'appel changée (`split_audio` → `_split_audio_local`, le reste du module amont intact) et fonctions ajoutées — WAV via `wave`, MP3 sur frontières de trames ; `transcode_audio_to_mp3` fonctionnel : PCM brut → WAV (joué même servi en `audio/mpeg`, vérifié), autres formats servis tels quels ; vrai encodage MP3 impossible (ffmpeg absent, aucun encodeur MP3 dans MediaCodec) mais jamais nécessaire — journal v0.0.78],
+
+  [P130],
+  [`AndroidAudio.java` + `audio_bridge.py`],
+  [découpage des gros fichiers par les API Android : *MediaExtractor* et *MediaMuxer* sans transcodage (m4a/webm), pont Java→Python (`register_audio_split`, fonction à un argument JSON) enregistré au démarrage du serveur, appelé pour les formats hors wav/mp3 — zéro modification amont — journal v0.0.78],
+
+  [P131],
+  [`nodes/2.DwSK4ZlF.js` (frontend)],
+  [UI audio : les options mortes « Transformers (Local) » (TTS) et « Whisper (Local) » (STT) sont masquées (`disabled`+`hidden`, mécanisme slim de l'amont) — restent « Web API » (= voix Android system / dictée native) et les moteurs distants ; une valeur déjà enregistrée reste affichée — journal v0.0.78],
+
+  [P132],
+  [`nodes/2.DwSK4ZlF.js` (frontend)],
+  [UI RAG : les options mortes « Default (SentenceTransformers) » (embedding et rerank) et « Token (Transformers) » (découpage) sont masquées pareillement — torch/sentence-transformers non embarqués ; restent Ollama/OpenAI/Azure, le rerank *External* ou le scoring cosinus, et les découpages Character/Tiktoken — journal v0.0.78],
 )
 
 == Performances de démarrage

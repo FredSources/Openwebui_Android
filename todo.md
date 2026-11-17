@@ -111,6 +111,9 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       découpage wave/mp3 pur Python (P129), découpage MediaExtractor/MediaMuxer
       par pont Java (P130) — sondes hôtes P127/P129 et Playwright P128 vertes ;
       EN ATTENTE : test appareil de l'APK 0.0.78 avant commit/push
-- [~] P131 : options « Transformers (Local) » et « Whisper (Local) » masquées
+- [x] P131 : options « Transformers (Local) » et « Whisper (Local) » masquées
       dans Réglages → Audio (disabled + hidden) — validé (chunk régénéré +
       test Playwright du masquage <option>) ; en attente du build final
+- [x] P132 : options RAG mortes masquées (embedding/rerank « SentenceTransformers »,
+      découpage « Transformers ») — validé (marqueurs + check_patches + tests)
+- [~] Release v0.0.78 (tag → CI GitHub) : en cours

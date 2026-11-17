@@ -2932,3 +2932,22 @@ retirée et couverte par ces contrôles de révocation.
 Run 43772199254 (tag `v0.0.77`) **success** — release publiée à 23:02:12Z
 avec les 2 APK (`OpenWebUI_Android-0.0.77-{debug,release}.apk`). Push du
 tag nommé (`git push origin master v0.0.77`), aucun `--tags`.
+
+## 2026-11-17 — Compte rendu audio (`docs/audio.typ` + PDF)
+
+Document demandé : état de la chaîne audio (dictée, transcription de
+fichiers, génération de parole TTS, appels vocaux) *avec patch* et
+*sans patch*. Faits relevés dans le code généré, `PATCHES.md`, `journal.md`,
+et vérifiés par test direct de `transcribe()` (harnais hôte, stubs ciblés).
+
+Nouveau fait vérifié (limite) : avec le moteur STT par défaut `web`, la
+transcription d'un fichier audio joint renvoie HTTP 500 (`TypeError`) —
+`transcription_handler()` n'a pas de branche `web` (mode dictée client).
+Le correctif P127 est proposé au document (message d'erreur clair).
+Validé aussi : les petits fichiers (≤ 20 Mo) sont transcrits sans pydub
+(la vérification de format échoue silencieusement, `split_audio` rend le
+fichier tel quel).
+
+Livrable : `docs/audio.typ` + `docs/audio.pdf` (schéma merman du pipeline,
+tableau récapitulatif avec/sans patch, points de vigilance, références
+code). Aucun changement de code — aucun bump de version.

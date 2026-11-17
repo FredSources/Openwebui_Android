@@ -3141,3 +3141,41 @@ finaux, relance, hold, transcription, garde-fou) ; 133 opérations de préparati
 
 **Publication** : commit → suppression de la release `v0.0.78` → tag `v0.0.78`
 repris sur le nouveau commit → CI (régénération des APK) — sur demande.
+
+## 2026-11-17 (suite) — v0.0.78 : reprise du tag et régénération (sur demande)
+
+Demande explicite de l'utilisateur : « corrige, committe, reprends le tag avec
+la 0.0.78 et efface la release 0.0.78, puis régénère ».
+
+- **Doc Typst à jour** : `docs/maintenance.typ` (lignes P133 et P134 ajoutées au
+  tableau des patchs, après P132) et `docs/audio.typ` (dictée : relance
+  `ERROR_CLIENT`, codes mappés, libellés FR, langue non forcée ; nouvelle
+  section « Mode d'interaction vocale — fonctionnel en STT local (P134) »
+  distinguée des appels *temps réel* `audio.realtime` toujours désactivés ;
+  tableau récap et références enrichis ; abstract porté à 0.0.78) — les deux
+  PDF recompilés sans warning (0 tableau Markdown, 0 gras Markdown, 0 `*/`).
+- **Vérifications** : `check_patches.py` vert, `verifier_tag.py`
+  (tag v0.0.78 == versionName 0.0.78), secret-scan (IP/clés) propre.
+- **Commit** `76f9e1d` « P133/P134 : dictée sans erreur « client » + mode vocal
+  utilisable en STT local » (14 fichiers).
+- **Release supprimée** : `gh release delete v0.0.78 --yes` (les 2 APK du run
+  44186005320 sont retirés — ils portaient les versions antérieures à P133).
+- **Tag repris** : `git tag -d v0.0.78` (était sur `f9afd99`) +
+  `git push origin :refs/tags/v0.0.78` + `git tag v0.0.78 76f9e1d` +
+  `git push origin master` puis `git push origin master v0.0.78`
+  (jamais `git push --tags`) — le tag remote pointe désormais sur `76f9e1d`.
+- **CI déclenchée** : run `44196145477` (Build APK, ref v0.0.78) — suivi en
+  arrière-plan, verdict à consigner ci-dessous.
+
+## 2026-11-17 (final) — v0.0.78 RÉGÉNÉRÉE
+
+- Run CI `44196145477` (Build APK, ref `v0.0.78` → `76f9e1d`) : **success**
+  (2026-11-17T23:05:03Z → 23:08:59Z, ~4 min).
+- Release `v0.0.78` republiée avec les 2 APK **regénérés à partir de
+  `76f9e1d`** (donc avec P133 et P134) :
+  - `OpenWebUI_Android-0.0.78-debug.apk` (251 848 305 o)
+  - `OpenWebUI_Android-0.0.78-release.apk` (247 324 000 o)
+- Cycle complet conforme à la demande : correction → commit → effacement de
+  l'ancienne release → reprise du tag `v0.0.78` (local + remote, jamais
+  `git push --tags`) → régénération par la CI.
+- Reste : test sur appareil (dictée, mode vocal, lecture à voix haute).

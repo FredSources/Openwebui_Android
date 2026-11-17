@@ -116,10 +116,16 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       test Playwright du masquage <option>) ; en attente du build final
 - [x] P132 : options RAG mortes masquées (embedding/rerank « SentenceTransformers »,
       découpage « Transformers ») — validé (marqueurs + check_patches + tests)
-- [x] Release v0.0.78 (tag → CI GitHub) : publiée, run 44186005320 success
+- [x] Release v0.0.78 (tag → CI GitHub) : publiée (run 44186005320),
+      release effacée puis RÉGÉNÉRÉE après P133/P134 (tag repris sur 76f9e1d,
+      run 44196145477 success, 2 APK)
 - [x] P133 : dictée — plus d'erreur « client » (relance ERROR_CLIENT, codes
       explicites, message lisible, langue non forcée) + diagnostic TTS — validé
       (p133_speech_test)
 - [x] P134 : mode d'interaction vocale utilisable en STT local (3 refus
       neutralisés, transcription locale, vrai micro) — validé (p134_call_test)
-- [~] Régénération v0.0.78 (release effacée, tag repris → CI) : en cours
+- [x] Régénération v0.0.78 (release effacée, tag repris → CI) : run
+      44196145477 success — 2 APK régénérés depuis 76f9e1d (P133/P134)
+- [ ] Test appareil v0.0.78 : dictée (plus d'erreur « client »), mode vocal
+      (bouton « Voice mode » visible, énoncé transcrit localement), lecture à
+      voix haute (+ toast si aucun moteur TTS)

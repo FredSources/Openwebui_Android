@@ -3091,3 +3091,53 @@ tag nommé (`git push origin master v0.0.78`), aucun `--tags`.
 antérieures à `0.0.70` (`v0.0.7` → `v0.0.59`) ont été **supprimées avec
 leurs APK** ; conservées : `v0.0.70` à `v0.0.78`. Les tags git, eux, sont
 conservés (repères d'historique) — suppression possible sur demande.
+
+## 2026-11-17 — P133 (dictée « client ») + P134 (mode vocal local)
+
+**Retour utilisateur** : « Erreur de reconnaissance vocale : client » à l'appui
+sur le micro, et « je n'ai pas le mode d'interaction vocale d'actif ».
+
+**Diagnostic dictée (P133)** — la chaîne `AndroidSpeech` retombait sur
+`default: "client"` pour tout code non mappé : `ERROR_CLIENT` (5, service qui
+redémarre — fréquent au 1er appel ou à une relance immédiate),
+`ERROR_TOO_MANY_REQUESTS` (10), `ERROR_SERVER_DISCONNECTED` (11),
+`ERROR_LANGUAGE_NOT_SUPPORTED` (12) / `ERROR_LANGUAGE_UNAVAILABLE` (13).
+De plus `buildIntent` imposait `Locale.getDefault().toString()` (« fr_FR »)
+alors que les moteurs attendent un tag BCP-47 — source d'erreur côté client.
+Corrections : relance espacée de 400 ms sur `ERROR_CLIENT` (2 tentatives),
+nouveaux cas dans `mapError`, payload `{error, code}` (code Android brut),
+libellé français affiché par le shim (le toast amont est
+« Speech recognition error: {{error}} »), langue non forcée si le réglage est
+vide. Constantes vérifiées dans `android-sdk/platforms/android-34/android.jar`
+(parseur de pool de constantes — `javap` absent) : toutes existent en API 34.
+Diagnostic TTS associé : `AndroidTTS` affiche un toast explicite quand
+`TextToSpeech` échoue à l'init (aucun moteur TTS installé) — cas qui produisait
+exactement le symptôme « pas de synthèse vocale » sans la moindre trace.
+
+**Diagnostic mode vocal (P134)** — l'amont n'affiche le bouton « Voice mode »
+que si `audio.realtime.enabled` **ou** `audio.stt.engine !== "web"`, puis
+refuse l'ouverture de l'overlay avec « Call feature is not supported when using
+Web STT engine » (2 autres occurrences) : notre build force `AUDIO_STT_ENGINE=web`
+(dictée native) → le mode était inaccessible. La transcription de l'appel passe
+par `rb()` → `/api/v1/audio/transcriptions`, qui renvoie 400 en moteur « web ».
+Corrections (7 micro-remplacements dans `chunks/BeEbX_lw.js`) : les 3 refus
+neutralisés, l'écoute locale ouverte/fermée par la détection de parole amont
+(`__callDictation.start/hold`), transcription lue en local
+(`__callDictation.text()` remplace `rb()`), et **vrai micro** via
+`window.__realMic` → `__origGUM` (le shim de dictée substitue un flux silencieux
+au `getUserMedia`, ce qui aurait cloué la détection de parole de l'appel).
+Nouveau `app/src/main/assets/call_polyfill.js` (garde-fou 30 s : jamais
+d'écoute en boucle qui finirait par transcrire la voix de l'assistant), injecté
+par `MainActivity` — le lecteur d'assets est passé en cache générique
+(`assetJs(nom)`).
+
+**Validation** : `check_patches` vert (nouveau contrôle `check_mode_vocal` +
+`check_js_syntax` étendu au chunk d'appel et aux polyfills d'assets —
+justification : un chunk cassé affiche « 500 » au lancement et aucun contrôle
+Python ne le voit) ; sondes rejouées vertes : `p127_p129_test`,
+`p128_tts_test`, **`p133_speech_test`** (extraction + `node --check` du string
+Java, libellés, `__origGUM`), **`p134_call_test`** (micro réel, résultats
+finaux, relance, hold, transcription, garde-fou) ; 133 opérations de préparation.
+
+**Publication** : commit → suppression de la release `v0.0.78` → tag `v0.0.78`
+repris sur le nouveau commit → CI (régénération des APK) — sur demande.

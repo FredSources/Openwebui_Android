@@ -61,6 +61,10 @@ public class MainActivity extends Activity {
             "}).catch(function(){})}catch(e){}" +
             "if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){" +
             "  var origGUM=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);" +
+            // P134 : le mode vocal a besoin du VRAI micro (le flux silencieux
+            // ci-dessous clouerait sa détection de parole) — accès direct au
+            // getUserMedia d'origine, contournant ce substitut.
+            "  window.__origGUM=origGUM;" +
             "  navigator.mediaDevices.getUserMedia=async function(c){" +
             "    if(!sttWeb||!c||!c.audio)return origGUM(c);" +
             "    try{" +
@@ -72,6 +76,10 @@ public class MainActivity extends Activity {
             "    }catch(e){return origGUM(c)}" +
             "  };" +
             "}" +
+            // P133 — libellés lisibles pour les codes renvoyés par AndroidSpeech
+            // (le toast amont affiche « Speech recognition error: {{error}} »).
+            "var ERR_FR={client:'service de reconnaissance indisponible (réessayez)'," +
+            "language:'langue non prise en charge par le moteur de reconnaissance'};" +
             "window.__androidSpeechEvent=function(id,type,payload){" +
             "  var inst=registry[id];if(!inst)return;" +
             "  if(type==='result'){" +
@@ -82,7 +90,10 @@ public class MainActivity extends Activity {
             "    });" +
             "    if(inst.onresult)try{inst.onresult(ev);}catch(e){}" +
             "  }else if(type==='error'){" +
-            "    if(inst.onerror)try{inst.onerror({error:(payload&&payload.error)||'client'});}catch(e){}" +
+            "    var raw=(payload&&payload.error)||'client';" +
+            "    var msg=ERR_FR[raw]||raw;" +
+            "    if(msg!==raw&&payload&&payload.code>=0)msg+=' (code '+payload.code+')';" +
+            "    if(inst.onerror)try{inst.onerror({error:msg,code:raw});}catch(e){}" +
             "  }else if(type==='start'){" +
             "    if(inst.onstart)try{inst.onstart();}catch(e){}" +
             "  }else if(type==='end'){" +
@@ -178,24 +189,27 @@ public class MainActivity extends Activity {
         mainHandler.post(() -> loadWhenReady(0));
     }
 
-    /** P128 — shim speechSynthesis → AndroidTTS, lu depuis les assets. */
-    private String ttsPolyfillJs;
+    /** P128/P134 — shims JS lus dans les assets, en cache par nom de fichier. */
+    private final java.util.Map<String, String> assetJsCache = new java.util.HashMap<>();
 
-    private String ttsPolyfill() {
-        if (ttsPolyfillJs == null) {
-            StringBuilder sb = new StringBuilder();
-            try (java.io.BufferedReader r = new java.io.BufferedReader(
-                    new java.io.InputStreamReader(getAssets().open("tts_polyfill.js"), "UTF-8"))) {
-                String line;
-                while ((line = r.readLine()) != null) {
-                    sb.append(line).append('\n');
-                }
-            } catch (Exception e) {
-                return "";
-            }
-            ttsPolyfillJs = sb.toString();
+    private String assetJs(String name) {
+        String cached = assetJsCache.get(name);
+        if (cached != null) {
+            return cached;
         }
-        return ttsPolyfillJs;
+        StringBuilder sb = new StringBuilder();
+        try (java.io.BufferedReader r = new java.io.BufferedReader(
+                new java.io.InputStreamReader(getAssets().open(name), "UTF-8"))) {
+            String line;
+            while ((line = r.readLine()) != null) {
+                sb.append(line).append('\n');
+            }
+        } catch (Exception e) {
+            return "";
+        }
+        String js = sb.toString();
+        assetJsCache.put(name, js);
+        return js;
     }
 
     /** Affiche une erreur bloquante sur l'écran de démarrage. */
@@ -698,7 +712,9 @@ public class MainActivity extends Activity {
             public void onPageFinished(WebView v, String url) {
                 v.evaluateJavascript(SPEECH_POLYFILL, null);
                 // P128 — shim speechSynthesis → AndroidTTS (voix locale)
-                v.evaluateJavascript(ttsPolyfill(), null);
+                v.evaluateJavascript(assetJs("tts_polyfill.js"), null);
+                // P134 — mode vocal : micro réel + transcription locale
+                v.evaluateJavascript(assetJs("call_polyfill.js"), null);
                 loadingPanel.setVisibility(View.GONE);
                 webView.setVisibility(View.VISIBLE);
             }

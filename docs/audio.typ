@@ -16,7 +16,7 @@
   authors: "Équipe projet openwebui-android",
   date: datetime.today(),
   date-format: "[day padding:none]/[month padding:none]/[year]",
-  abstract: [Compte rendu de la chaîne audio de l'application *Open WebUI Android* : dictée vocale, transcription de fichiers audio, génération de parole (TTS) et appels vocaux — comportement *avec les patchs du projet* et *sans patch* (code amont Open WebUI). L'inférence audio n'est jamais locale : elle est soit *native* (moteur vocal d'Android pour la dictée), soit *distante* (API STT/TTS), le portage Android excluant les chaînes lourdes (torch, ctranslate2). État au 17 novembre 2026, version 0.0.77.],
+  abstract: [Compte rendu de la chaîne audio de l'application *Open WebUI Android* : dictée vocale, transcription de fichiers audio, génération de parole (TTS) et appels vocaux — comportement *avec les patchs du projet* et *sans patch* (code amont Open WebUI). L'inférence audio n'est jamais locale : elle est soit *native* (moteur vocal d'Android pour la dictée), soit *distante* (API STT/TTS), le portage Android excluant les chaînes lourdes (torch, ctranslate2). État au 17 novembre 2026, version 0.0.78.],
   table-of-contents: outline(title: "Sommaire"),
 )
 
@@ -87,6 +87,16 @@ La dictée est la fonction audio la plus aboutie de l'APK. Chaîne réelle :
   `isFinal` et `[0].transcript`), `onend`, `onerror` (codes standard) ;
 + en cas de `NO_MATCH`/`SPEECH_TIMEOUT`, `AndroidSpeech` *relance
   silencieusement l'écoute* (3 essais maximum) avant de conclure ;
++ en cas d'`ERROR_CLIENT` (service de reconnaissance qui redémarre — fréquent
+  au tout premier appel ou à une relance trop rapide), l'écoute est *relancée
+  après 400 ms* (2 tentatives) au lieu d'afficher l'erreur ; les codes restants
+  sont mappés explicitement (trop de demandes, service coupé, langue non
+  prise en charge) et renvoyés avec le code Android brut (`{error, code}`) —
+  le shim les traduit en libellé lisible (« service de reconnaissance
+  indisponible (réessayez) (code 5) ») ; quand le réglage de langue de la
+  dictée est vide, *aucune langue n'est forcée* (imposer `Locale.toString()`
+  → « fr_FR » faisait échouer les moteurs qui attendent un tag BCP-47) —
+  *P133* ;
 + en mode « web », le shim remplace le flux `getUserMedia` audio par un
   *flux silencieux* : le `MediaRecorder` de l'UI monopolisait le micro au
   détriment du `SpeechRecognizer` natif (symptôme « no speech ») — le blob
@@ -202,12 +212,44 @@ locale est impossible.
 
 = Appels vocaux (temps réel)
 
-Les appels vocaux (Open WebUI « voice call ») reposent sur le fournisseur
-`audio.realtime` (OpenAI Realtime API) : *désactivés par défaut* en amont
-(`AUDIO_REALTIME_ENABLED = false`), ils ne sont ni activés ni testés dans
-l'APK. Ils deviennent envisageables en activant le réglage et en configurant
-une API compatible, mais ne font partie d'aucun scénario validé sur
-appareil — à traiter comme une piste, pas comme une fonction livrée.
+Les appels vocaux *temps réel* (Open WebUI « voice call », fournisseur
+`audio.realtime` — OpenAI Realtime API) reposent sur une API distante :
+*désactivés par défaut* en amont (`AUDIO_REALTIME_ENABLED = false`), ils ne
+sont ni activés ni testés dans l'APK. Ils deviennent envisageables en activant
+le réglage et en configurant une API compatible, mais ne font partie d'aucun
+scénario validé sur appareil — à traiter comme une piste, pas comme une
+fonction livrée.
+
+== Mode d'interaction vocale — fonctionnel en STT local (P134)
+
+À distinguer du temps réel ci-dessus : le *mode d'interaction vocale* du chat
+(bouton « Voice mode », overlay avec détection de parole) transcrit chaque
+énoncé par l'API serveur `/api/v1/audio/transcriptions`. En amont, ce mode est
+*refusé dès que le moteur STT est « web »* (notre défaut, dictée native) :
+le bouton n'apparaît pas et l'overlay affiche « Call feature is not supported
+when using Web STT engine ». Le build l'apporte ainsi :
+
++ les *3 refus amont* (affichage du bouton, lancement, ouverture de l'overlay)
+  sont neutralisés dans le chunk d'appel (`BeEbX_lw.js`, sept
+  micro-remplacements — structure amont intacte) ;
++ la *détection de parole amont* est réutilisée telle quelle : au début de
+  l'énoncé, `window.__callDictation.start()` ouvre une écoute
+  `SpeechRecognition` *locale* (le même `AndroidSpeech.java` que la dictée) ;
+  après 2 s de silence, `hold()` fige l'énoncé et laisse le moteur livrer son
+  résultat final ;
++ la *transcription est rendue en local* (`__callDictation.text()` remplace
+  l'appel `rb()` → `/api/v1/audio/transcriptions`, qui renverrait 400 en
+  moteur « web ») ; les résultats finaux s'accumulent pendant l'énoncé et sont
+  relus à la fin ;
++ le mode vocal demande le *vrai micro* (`window.__realMic` → `__origGUM`) :
+  le shim de dictée substitue un flux silencieux au `getUserMedia` (pour
+  laisser le micro libre au `SpeechRecognizer`), ce qui clouerait la détection
+  de parole de l'appel ;
++ un *garde-fou de 30 s* ferme l'écoute : jamais de reconnaissance en boucle
+  qui finirait par transcrire la voix de l'assistant.
+
+Le polyfill correspondant (`app/src/main/assets/call_polyfill.js`) est injecté
+à chaque page chargée, aux côtés du shim de dictée et du shim TTS.
 
 = Récapitulatif : avec patch / sans patch
 
@@ -241,7 +283,10 @@ appareil — à traiter comme une piste, pas comme une fonction livrée.
   [idem TTS — voix du téléphone (P128), hors-ligne],
   [Appels vocaux],
   [désactivés par défaut],
-  [désactivés par défaut — la voix de synthèse est locale (P128) si activés],
+  [temps réel (`audio.realtime`) : désactivés par défaut ; *mode
+   d'interaction vocale* : utilisable en STT local (P134 — 3 refus amont
+   neutralisés, transcription locale via `SpeechRecognition`, vrai micro) ; la
+   voix de synthèse est locale (P128) ; dictée sans erreur « client » (P133)],
   [Fichiers audio > 20 Mo],
   [découpage par `pydub`],
   [découpage local sans pydub (P129/P130) : WAV/MP3 en pur Python, autres
@@ -273,14 +318,20 @@ appareil — à traiter comme une piste, pas comme une fonction livrée.
    P8 (`AUDIO_STT_ENGINE=web`)],
   [`app/src/main/java/org/openwebui/android/AndroidSpeech.java`],
   [passerelle `SpeechRecognizer` natif, contrat
-   `onresult`/`onend`/`onerror`, relance `NO_MATCH`/`SPEECH_TIMEOUT`],
+   `onresult`/`onend`/`onerror`, relance `NO_MATCH`/`SPEECH_TIMEOUT`, relance
+   `ERROR_CLIENT` + codes mappés + payload `{error, code}` (P133)],
   [`app/src/main/java/org/openwebui/android/AndroidTTS.java`],
   [P128 — pont `TextToSpeech` natif (`speak`/`stop`/`voicesJson`,
-   événements `__androidTtsEvent`)],
+   événements `__androidTtsEvent`), diagnostic « aucun moteur TTS installé »
+   (P133)],
   [`app/src/main/assets/tts_polyfill.js`],
   [P128 — shim `speechSynthesis`/`SpeechSynthesisUtterance` (file d'attente,
    débit, voix, pause/resume) — `Object.defineProperty` obligatoire
    (attribut en lecture seule dans Chromium)],
+  [`app/src/main/assets/call_polyfill.js`],
+  [P134 — polyfill du mode d'interaction vocale : `__callDictation`
+   (start/hold/text, garde-fou 30 s) et `__realMic` (vrai micro au lieu du
+   flux silencieux du shim de dictée)],
   [`app/src/main/java/org/openwebui/android/AndroidAudio.java`],
   [P130 — découpage `MediaExtractor`/`MediaMuxer` sans transcodage
    (sorties m4a/webm)],
@@ -289,7 +340,9 @@ appareil — à traiter comme une piste, pas comme une fonction livrée.
    JSON) enregistré au démarrage du serveur],
   [`app/src/main/java/org/openwebui/android/MainActivity.java`],
   [shim `SPEECH_POLYFILL` (polyfill `SpeechRecognition`, flux silencieux
-   `getUserMedia` en mode web), permissions micro/caméra],
+   `getUserMedia` en mode web, libellés d'erreur lisibles P133,
+   `window.__origGUM`), injection des polyfills `tts_polyfill.js` et
+   `call_polyfill.js`, permissions micro/caméra],
   [`app/src/main/python/android_main.py`],
   [`AUDIO_STT_ENGINE=web` par défaut (bases déjà semées)],
   [`src/open_webui/routers/audio/__init__.py`],

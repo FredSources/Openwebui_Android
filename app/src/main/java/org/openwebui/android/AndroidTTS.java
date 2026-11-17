@@ -36,6 +36,7 @@ public class AndroidTTS {
     private final Handler main = new Handler(Looper.getMainLooper());
     private TextToSpeech tts;
     private boolean ready = false;
+    private boolean warned = false;
 
     public AndroidTTS(WebView webView) {
         this.webView = webView;
@@ -50,6 +51,17 @@ public class AndroidTTS {
             }
             tts = new TextToSpeech(webView.getContext().getApplicationContext(), status -> {
                 ready = (status == TextToSpeech.SUCCESS);
+                if (!ready && !warned) {
+                    // Diagnostic (P133) : sans moteur TTS installé, la WebView
+                    // reste muette sans explication — on dit pourquoi.
+                    warned = true;
+                    main.post(() -> android.widget.Toast.makeText(
+                            webView.getContext(),
+                            "Synthèse vocale indisponible : aucun moteur TTS installé "
+                                    + "sur l'appareil (Réglages → Langue et saisie → "
+                                    + "synthèse vocale).",
+                            android.widget.Toast.LENGTH_LONG).show());
+                }
                 if (ready) {
                     tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                         @Override

@@ -14,7 +14,6 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
-import java.util.Locale;
 
 /**
  * Pont SpeechRecognition (API web) → SpeechRecognizer (moteur natif Android).
@@ -33,6 +32,12 @@ import java.util.Locale;
 public class AndroidSpeech {
 
     private static final int MAX_RETRIES = 2;
+    // P133 — ERROR_CLIENT : le service de reconnaissance s'est déconnecté ou
+    // redémarre (très fréquent au tout premier appel, ou quand on relance
+    // l'écoute trop vite après un arrêt). On retente après une courte pause
+    // au lieu d'afficher « client » à l'utilisateur.
+    private static final int MAX_CLIENT_RETRIES = 2;
+    private static final long CLIENT_RETRY_DELAY_MS = 400;
 
     private final WebView webView;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -41,6 +46,7 @@ public class AndroidSpeech {
     private String currentLang = "";
     private Intent currentIntent = null;
     private int retries = 0;
+    private int clientRetries = 0;
     private boolean resultsSeen = false;
     private boolean stoppedByUser = false;
 
@@ -56,6 +62,7 @@ public class AndroidSpeech {
             currentId = id;
             currentLang = lang != null ? lang : "";
             retries = 0;
+            clientRetries = 0;
             resultsSeen = false;
             stoppedByUser = false;
             startListening();
@@ -124,17 +131,34 @@ public class AndroidSpeech {
                             (error == SpeechRecognizer.ERROR_NO_MATCH
                                     || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
                                     && !resultsSeen && !stoppedByUser && retries < MAX_RETRIES;
-                    if (transientNoSpeech) {
-                        retries++;
+                    // P133 : service déconnecté / relance trop rapide → on
+                    // retente après une courte pause (MAX_CLIENT_RETRIES fois).
+                    boolean transientClient =
+                            error == SpeechRecognizer.ERROR_CLIENT
+                                    && !resultsSeen && !stoppedByUser
+                                    && clientRetries < MAX_CLIENT_RETRIES;
+                    if (transientNoSpeech || transientClient) {
+                        if (transientClient) {
+                            clientRetries++;
+                        } else {
+                            retries++;
+                        }
                         try {
                             recognizer.destroy();
                         } catch (Exception ignored) {
                         }
                         recognizer = null;
-                        startListening();
+                        if (transientClient) {
+                            // une pause est indispensable : relancer
+                            // immédiatement provoque un nouveau ERROR_CLIENT
+                            main.postDelayed(AndroidSpeech.this::startListening,
+                                    CLIENT_RETRY_DELAY_MS);
+                        } else {
+                            startListening();
+                        }
                         return;
                     }
-                    fire(id, "error", obj("error", mapError(error)));
+                    fire(id, "error", err(mapError(error), error));
                     destroyRecognizer();
                     fire(id, "end", new JSONObject());
                 }
@@ -154,7 +178,7 @@ public class AndroidSpeech {
         try {
             recognizer.startListening(currentIntent);
         } catch (Exception e) {
-            fire(id, "error", obj("error", "client"));
+            fire(id, "error", err("client", -1));
             destroyRecognizer();
             fire(id, "end", new JSONObject());
         }
@@ -168,9 +192,11 @@ public class AndroidSpeech {
         if (lang != null && !lang.isEmpty()) {
             intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang);
             intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, lang);
-        } else {
-            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toString());
         }
+        // P133 — sans langue explicite, on ne force rien : le service utilise
+        // la langue de l'appareil. Forcer `Locale.toString()` (« fr_FR »)
+        // provoquait des ERROR_CLIENT / ERROR_LANGUAGE_* sur certains
+        // moteurs de reconnaissance, qui exposent un tag BCP-47 (« fr-FR »).
         return intent;
     }
 
@@ -237,9 +263,30 @@ public class AndroidSpeech {
                 return "network";
             case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
                 return "busy";
+            // P133 — codes explicités (sinon tout retombait sur « client ») :
+            // trop de demandes empilées, service serveur coupé, langue non
+            // prise en charge / indisponible sur l'appareil.
+            case SpeechRecognizer.ERROR_TOO_MANY_REQUESTS:
+                return "busy";
+            case SpeechRecognizer.ERROR_SERVER_DISCONNECTED:
+                return "network";
+            case SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED:
+            case SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE:
+                return "language";
             default:
                 return "client";
         }
+    }
+
+    /** P133 — charge utile d'erreur : code métier + code Android brut. */
+    private static JSONObject err(String mapped, int code) {
+        JSONObject o = new JSONObject();
+        try {
+            o.put("error", mapped);
+            o.put("code", code);
+        } catch (Exception ignored) {
+        }
+        return o;
     }
 
     /** Envoie un événement au shim JS (window.__androidSpeechEvent). */

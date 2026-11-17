@@ -504,6 +504,14 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P132],
   [`nodes/2.DwSK4ZlF.js` (frontend)],
   [UI RAG : les options mortes « Default (SentenceTransformers) » (embedding et rerank) et « Token (Transformers) » (découpage) sont masquées pareillement — torch/sentence-transformers non embarqués ; restent Ollama/OpenAI/Azure, le rerank *External* ou le scoring cosinus, et les découpages Character/Tiktoken — journal v0.0.78],
+
+  [P133],
+  [`AndroidSpeech.java` + `MainActivity.java` + `AndroidTTS.java`],
+  [dictée : l'erreur « client » disparaît — relance automatique sur `ERROR_CLIENT` (service de reconnaissance qui redémarre, 2 tentatives espacées de 400 ms), codes d'erreur explicités (trop de demandes, service coupé, langue non prise en charge — plus rien ne retombe sur « client »), code Android brut dans le payload (`{error, code}`) et libellé lisible en français dans le shim, langue non forcée quand le réglage est vide (imposer `Locale.toString()` → « fr_FR » provoquait des erreurs client) ; diagnostic TTS : toast explicite si aucun moteur TTS n'est installé sur l'appareil — journal v0.0.78],
+
+  [P134],
+  [`chunks/BeEbX_lw.js` (frontend) + `assets/call_polyfill.js` + `MainActivity.java`],
+  [mode d'interaction vocale utilisable en STT local : les 3 refus amont (`stt.engine === "web"` — bouton, lancement, overlay) neutralisés et 4 micro-patchs branchent la transcription sur `window.__callDictation` (SpeechRecognition natif : écoute ouverte au début d'énoncé par la détection de parole amont, figée après 2 s de silence, transcription rendue en local, garde-fou 30 s) ; vrai micro via `window.__realMic` → `__origGUM` (le shim de dictée substitue un flux silencieux qui clouerait la détection) — sept micro-remplacements, structure amont intacte — journal v0.0.78],
 )
 
 == Performances de démarrage

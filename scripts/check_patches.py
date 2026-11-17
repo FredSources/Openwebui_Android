@@ -246,6 +246,67 @@ def check_compile_typst_hors_bloc() -> None:
         err("P126 : toggle du composeur non respecté (features.get('web_search') absent)")
 
 
+def check_mode_vocal() -> None:
+    """P133/P134 — dictée (erreur « client ») et mode d'interaction vocale."""
+    java = PROJ / "app" / "src" / "main" / "java" / "org" / "openwebui" / "android"
+    main_j = (java / "MainActivity.java").read_text(encoding="utf-8", errors="ignore")
+    speech_j = (java / "AndroidSpeech.java").read_text(encoding="utf-8", errors="ignore")
+    tts_j = (java / "AndroidTTS.java").read_text(encoding="utf-8", errors="ignore")
+
+    # P133 — relance sur ERROR_CLIENT (sinon « client » brut affiché au 1er appel)
+    if "MAX_CLIENT_RETRIES" not in speech_j:
+        err("P133 : relance ERROR_CLIENT absente (AndroidSpeech)")
+    if "ERROR_LANGUAGE_NOT_SUPPORTED" not in speech_j:
+        err("P133 : codes de langue non mappés (retomberaient sur « client »)")
+    if 'o.put("code", code)' not in speech_j:
+        err("P133 : code Android brut absent du payload d'erreur")
+    if "ERR_FR" not in main_j:
+        err("P133 : libellé lisible du code « client » absent du shim")
+    if "import java.util.Locale;" in speech_j:
+        err("P133 : import Locale inutilisé revenu (langue forcée rétablie)")
+    # diagnostic TTS : sans moteur installé, la WebView reste muette sans raison
+    if "aucun moteur TTS installé" not in tts_j:
+        err("P133 : diagnostic « aucun moteur TTS » absent (AndroidTTS)")
+
+    # P134 — polyfill du mode vocal + injection
+    poly = PROJ / "app" / "src" / "main" / "assets" / "call_polyfill.js"
+    if not poly.exists():
+        err("P134 : assets/call_polyfill.js absent")
+    else:
+        pt = poly.read_text(encoding="utf-8", errors="ignore")
+        for motif in ("__callDictation", "__realMic", "hold:", "text:"):
+            if motif not in pt:
+                err(f"P134 : call_polyfill.js sans « {motif} »")
+    if 'assetJs("call_polyfill.js")' not in main_j:
+        err("P134 : call_polyfill.js non injecté (MainActivity)")
+    if "window.__origGUM=origGUM" not in main_j:
+        err("P134 : accès au vrai micro (__origGUM) absent du shim de dictée")
+
+    # P134 — 7 micro-patchs dans le chunk d'appel
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    if not chunk.exists():
+        err("P134 : chunk d'appel BeEbX_lw.js absent")
+        return
+    ct = chunk.read_text(encoding="utf-8", errors="ignore")
+    # refus amont : leur PRÉSENCE signifierait un retour en arrière
+    for motif, lib in (
+        ('stt?.engine!=="web"&&(n()', "refus de bouton en STT « web » revenu"),
+        ('engine==="web"){$t.error(f().t("Call feature', "refus d'appel (lo) revenu"),
+        ('else if(s()?.audio?.stt?.engine==="web")', "refus d'overlay revenu"),
+    ):
+        if motif in ct:
+            err(f"P134 : {lib}")
+    # branchements locaux : leur ABSENCE signifierait un retour en arrière
+    for motif, lib in (
+        ("window.__callDictation.start(", "début d'énoncé non branché"),
+        ("window.__callDictation.hold()", "fin d'énoncé non branchée"),
+        ("window.__callDictation.text()", "transcription locale non branchée"),
+        ("window.__realMic||navigator.mediaDevices.getUserMedia", "vrai micro non branché"),
+    ):
+        if motif not in ct:
+            err(f"P134 : {lib}")
+
+
 def check_shims() -> None:
     if not (SRC / "tiktoken.py").exists():
         err("shim tiktoken.py absent")
@@ -471,12 +532,15 @@ def check_js_syntax() -> None:
     cibles = []
     for motif in ("nodes/0.*.js", "workers/pyodide.worker-*.js", "chunks/*.js"):
         cibles += _glob.glob(str(PROJ / "src-assets" / "frontend" / "_app" / "immutable" / motif))
+    # P134 : nos propres shims d'assets doivent aussi être valides
+    cibles += [str(PROJ / "app" / "src" / "main" / "assets" / n)
+               for n in ("call_polyfill.js", "tts_polyfill.js")]
     vus = set()
     for c in sorted(cibles):
         t = open(c, encoding="utf-8", errors="ignore").read()
         # ne contrôler que les fichiers que NOUS patchons
         if not any(m in t for m in ("__prewarm", "__inNames", "files:ge.files||[]", "u.packages||[]",
-                                    "micropip','numpy'")):
+                                    "micropip','numpy'", "__callDictation", "__androidTtsPolyfilled")):
             continue
         if c in vus:
             continue
@@ -578,6 +642,7 @@ def main() -> int:
     check_frontend()
     check_p125_fm()
     check_audio_locale()
+    check_mode_vocal()
     check_pyodide_paquets()
     check_p41_harvest()
     check_p54_ciblage()

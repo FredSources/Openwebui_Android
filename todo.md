@@ -117,3 +117,9 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [x] P132 : options RAG mortes masquées (embedding/rerank « SentenceTransformers »,
       découpage « Transformers ») — validé (marqueurs + check_patches + tests)
 - [x] Release v0.0.78 (tag → CI GitHub) : publiée, run 44186005320 success
+- [x] P133 : dictée — plus d'erreur « client » (relance ERROR_CLIENT, codes
+      explicites, message lisible, langue non forcée) + diagnostic TTS — validé
+      (p133_speech_test)
+- [x] P134 : mode d'interaction vocale utilisable en STT local (3 refus
+      neutralisés, transcription locale, vrai micro) — validé (p134_call_test)
+- [~] Régénération v0.0.78 (release effacée, tag repris → CI) : en cours

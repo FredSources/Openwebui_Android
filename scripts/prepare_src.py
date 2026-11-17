@@ -503,6 +503,90 @@ def patch_ui_moteurs_rag() -> None:
     )
 
 
+def patch_mode_vocal() -> None:
+    """P134 — rend utilisable le mode d'interaction vocale (bouton « Voice
+    mode ») avec le STT local « web ».
+
+    L'amont refuse ce mode dès que `audio.stt.engine === 'web'` (3 refus) et
+    transcrit chaque énoncé par l'API serveur `/api/v1/audio/transcriptions`,
+    qui ne traite pas les fichiers avec ce moteur. Ici :
+    - les 3 refus amont sont neutralisés (bouton affiché + overlay ouvert) ;
+    - la transcription est déportée sur `window.__callDictation`
+      (`assets/call_polyfill.js`, SpeechRecognition natif) : les micro-patchs
+      déclenchent l'écoute au début de l'énoncé (détection de parole amont)
+      et lisent le texte à la fin de l'énoncé ;
+    - le mode vocal demande le VRAI micro (`window.__realMic` → `__origGUM`),
+      sinon le flux silencieux du shim de dictée clouerait sa détection de
+      parole.
+    Sept micro-remplacements dans le chunk d'appel, structure amont intacte."""
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+
+    # 1) bouton « Voice mode » : affiché quel que soit le moteur STT
+    replace_once(
+        js,
+        'o()?.audio?.stt?.engine!=="web"&&(n()?.role==="admin"'
+        '||(n()?.permissions?.chat?.stt??!0))',
+        "!0",
+        "P134 UI : bouton Voice mode affiché en STT « web »",
+    )
+    # 2) refus au lancement d'un appel (fonction lo)
+    replace_once(
+        js,
+        '!e(nr)?.connected&&!e(nr)?.connecting'
+        '&&!o()?.audio?.realtime?.enabled&&o()?.audio?.stt?.engine==="web")'
+        '{$t.error(f().t("Call feature is not supported when using Web STT engine"));return}',
+        "!1){}",
+        "P134 UI : refus d'appel en STT « web » neutralisé (lo)",
+    )
+    # 3) refus à l'ouverture de l'overlay (fonction H4)
+    replace_once(
+        js,
+        'else if(s()?.audio?.stt?.engine==="web")'
+        '{$t.error(i().t("Call feature is not supported when using Web STT engine")),F();return}',
+        "else if(!1){}",
+        "P134 UI : refus d'appel en STT « web » neutralisé (overlay)",
+    )
+    # 4) début d'énoncé (détection de parole) → ouverture de l'écoute locale
+    replace_once(
+        js,
+        "e(P)||(a(P,!0),ae()),Mt=Date.now()",
+        "e(P)||(a(P,!0),ae(),"
+        "window.__callDictation&&window.__callDictation.start(n()?.audio?.stt?.language)),"
+        "Mt=Date.now()",
+        "P134 appel : écoute locale ouverte au début de l'énoncé",
+    )
+    # 5) fin d'énoncé (2 s de silence) → l'écoute se fige, le résultat arrive
+    replace_once(
+        js,
+        "e(P)&&Date.now()-Mt>2e3&&(G=!0,J)",
+        "e(P)&&Date.now()-Mt>2e3&&(G=!0,J)"
+        "&&(window.__callDictation&&window.__callDictation.hold(),!0)",
+        "P134 appel : écoute locale fermée en fin d'énoncé",
+    )
+    # 6) transcription : locale (SpeechRecognition) au lieu de l'API serveur
+    replace_once(
+        js,
+        'const at=V0(Je,"recording.wav"),st=await rb(localStorage.token,at,'
+        "n()?.audio?.stt?.language).catch(et=>($t.error(`${et}`),null));",
+        'const at=V0(Je,"recording.wav"),st=await(window.__callDictation'
+        '&&o().audio?.stt?.engine==="web"?window.__callDictation.text()'
+        ":rb(localStorage.token,at,n()?.audio?.stt?.language))"
+        ".catch(et=>($t.error(`${et}`),null));",
+        "P134 appel : transcription locale au lieu de l'API serveur",
+    )
+    # 7) micro réel pour le mode vocal (le shim de dictée substitue un flux
+    #    silencieux au getUserMedia, ce qui rendrait la détection muette)
+    replace_once(
+        js,
+        "z=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:!0,"
+        "noiseSuppression:!0,autoGainControl:!0}})",
+        "z=await(window.__realMic||navigator.mediaDevices.getUserMedia.bind("
+        "navigator.mediaDevices))({audio:{echoCancellation:!0,"
+        "noiseSuppression:!0,autoGainControl:!0}})",
+        "P134 appel : vrai micro pour la détection de parole",
+    )
+
+
 def patch_audio_locale() -> None:
     """P127/P129/P130 — empreinte minimale sur le code amont : ajouts seuls
     (P127), une ligne d'appel changée + fonctions ajoutées (P129/P130), et le
@@ -4842,6 +4926,7 @@ def main() -> int:
     patch_audio_locale()
     patch_ui_moteurs_locaux()
     patch_ui_moteurs_rag()
+    patch_mode_vocal()
     patch_web_search()
     patch_frontend_engines()
     copy_searxng()

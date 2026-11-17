@@ -3080,3 +3080,14 @@ avertissement.
 
 **Release v0.0.78 lancée sur demande** : vérification complète → commit →
 push → tag `v0.0.78` → build CI GitHub (le push de tag déclenche le workflow).
+
+## 2026-11-17 — v0.0.78 PUBLIÉE : audio local + UI assainie (P127-P132)
+
+Run 44186005320 (tag `v0.0.78`) **success** — release publiée à 22:07:22Z
+avec les 2 APK (`OpenWebUI_Android-0.0.78-{debug,release}.apk`). Push du
+tag nommé (`git push origin master v0.0.78`), aucun `--tags`.
+
+**Purge des releases GitHub** (demande utilisateur) : les 52 releases
+antérieures à `0.0.70` (`v0.0.7` → `v0.0.59`) ont été **supprimées avec
+leurs APK** ; conservées : `v0.0.70` à `v0.0.78`. Les tags git, eux, sont
+conservés (repères d'historique) — suppression possible sur demande.

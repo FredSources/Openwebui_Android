@@ -116,4 +116,4 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       test Playwright du masquage <option>) ; en attente du build final
 - [x] P132 : options RAG mortes masquées (embedding/rerank « SentenceTransformers »,
       découpage « Transformers ») — validé (marqueurs + check_patches + tests)
-- [~] Release v0.0.78 (tag → CI GitHub) : en cours
+- [x] Release v0.0.78 (tag → CI GitHub) : publiée, run 44186005320 success

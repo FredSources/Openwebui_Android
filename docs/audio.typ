@@ -58,13 +58,17 @@ flowchart LR
   R2 --> L[Lecture - réponse vocale]
 ```
 
-Principe directeur du portage : *aucune inférence audio locale*. Les moteurs
-lourds d'Open WebUI amont (`faster-whisper`, `transformers` + `torch` +
-`soundfile`) supposent des bibliothèques C++/Rust inembarquables dans
-l'environnement Android du projet ; ils sont retirés des exigences
-(`requirements-min.txt`) et neutralisés par patch. L'inférence est donc
-*soit native* (moteur vocal d'Android, souvent hors-ligne), *soit distante*
-(API STT/TTS configurée dans *Réglages → Audio*).
+Principe directeur du portage : *aucune inférence audio lourde locale* — les
+moteurs d'Open WebUI amont (`faster-whisper`, `transformers` + `torch` +
+`soundfile`) supposent des bibliothèques C++/Rust inembarquables et sont
+retirés des exigences (`requirements-min.txt`). En revanche, les *services
+audio du système Android* sont mis à profit (P128, P130) : `SpeechRecognizer`
+pour la dictée, `TextToSpeech` pour la voix de synthèse,
+`MediaExtractor`/`MediaMuxer` pour le traitement de fichiers. Le résultat est
+une chaîne *locale* pour la dictée, la parole et le découpage, et *distante*
+uniquement pour la transcription de fichiers (API STT configurée dans
+*Réglages → Audio*) — l'inférence du modèle de langage restant elle-même
+distante par conception.
 
 = Dictée vocale (micro → texte)
 
@@ -129,16 +133,15 @@ Un fichier audio joint à une conversation suit le chemin
 
 == Avec patch — fonctionnel avec un moteur distant
 
-+ `pydub` est rendu *optionnel* (patch P5) : l'import échoue proprement et
-  les traitements locaux lèvent un message explicite (« traitement audio
-  local désactivé ») ;
++ `pydub` n'est plus utilisé dans la chaîne (P129) : le fichier est transmis
+  tel quel aux API (wav, mp3, m4a, mp4, flac, webm, ogg… acceptés) ;
++ les fichiers de plus de 20 Mo sont *découpés localement* (P129/P130) :
+  WAV et MP3 en pur Python (module `wave`, parseur de trames), les autres
+  formats via les API Android (`MediaExtractor`/`MediaMuxer`) ;
 + `faster-whisper` / `transformers` / `soundfile+torch` sont mis en
   try/except (patches P7a-c) : un appel à un moteur local renvoie un
   HTTP 503 explicite invitant à configurer un moteur distant — plus de
   `ModuleNotFoundError` brutal ;
-+ les *petits fichiers* (≤ 20 Mo) sont transcrits normalement : sans
-  pydub, la vérification de format échoue silencieusement (journalisée) et
-  `split_audio` rend le fichier tel quel — validé par test le 2026-11-17 ;
 + les moteurs distants utilisables sont donc `openai`, `deepgram`, `azure`
   et `mistral` (clés et URL dans *Réglages → Audio*).
 
@@ -147,40 +150,48 @@ Un fichier audio joint à une conversation suit le chemin
 Même blocage d'import (`pydub`/`audioop`) et même absence de
 `faster-whisper` : la transcription de fichier, comme la dictée, échoue.
 
-== Point de vigilance identifié et testé (2026-11-17)
+== Point de vigilance identifié et testé (2026-11-17) — corrigé par P127
 
 Avec le moteur par défaut `web`, la transcription d'un *fichier* audio joint
-échoue : `transcription_handler()` ne comporte *aucune branche `web`* (ce
-mode est purement client, il ne concerne que la dictée) et la route renvoie
+échouait : `transcription_handler()` ne comportait *aucune branche `web`* (ce
+mode est purement client, il ne concerne que la dictée) et la route renvoyait
 une `TypeError` (HTTP 500) — vérifié par test direct de `transcribe()`.
-Recommandations :
-
-+ brancher un message d'erreur clair sur ce cas (« la dictée native ne
-  transcrit pas les fichiers joints : configurez un STT distant dans
-  Réglages → Audio ») — correctif P127 proposé ;
-+ pour transcrire des fichiers audio, configurer un moteur STT distant ;
-  à noter que les fichiers de plus de 20 Mo restent hors d'atteinte sans
-  `pydub` (découpage impossible, erreur 400 explicite).
+*Corrigé (P127, v0.0.78)* : la route renvoie désormais un HTTP 400 explicite
+(« la dictée native ne transcrit pas les fichiers joints : configurez un
+moteur STT distant dans Réglages → Audio »), avec le même type de message
+pour un moteur inconnu et pour le STT local absent (503). Pour transcrire
+des fichiers audio, configurer un moteur STT distant.
 
 = Génération de parole (TTS) et lecture à voix haute
 
-== Avec patch — fonctionnel avec un moteur distant
+== Avec patch — fonctionnel avec un moteur distant, et *en local* (P128)
 
 La synthèse vocale passe par `POST /api/v1/audio/speech` (bouton de
-lecture des messages, réponses vocales) :
+lecture des messages, réponses vocales) ou, désormais, par la voix du
+téléphone :
 
++ *synthèse locale (P128, v0.0.78)* : quand aucun moteur TTS serveur n'est
+  configuré, le frontend utilise l'API web `speechSynthesis` — un shim
+  (`tts_polyfill.js`, pont `AndroidTTS.java` sur le `TextToSpeech` natif)
+  prend la main dans la WebView et produit la parole *sur l'appareil*
+  (souvent hors-ligne, aucune clé API). Le shim gère file d'attente,
+  débit, voix du système, événements start/end/error ;
 + *moteurs distants disponibles* : `openai` (API compatible, modèle
   `tts-1`, voix `alloy` par défaut), `openai-realtime` (OpenAI Realtime),
   `elevenlabs`, `azure`, `mistral` — les réponses sont mises en cache dans
   `SPEECH_CACHE_DIR` ;
-+ *moteurs locaux neutralisés* : `transformers`/`soundfile`+`torch`
-  renvoient un HTTP 503 explicite (patches P7b-c) — la génération locale
-  est impossible sur l'appareil par construction ;
++ *moteurs locaux lourds neutralisés* : `transformers`/`soundfile`+`torch`
+  renvoient un HTTP 503 explicite (patches P7b-c) ;
++ *sorties TTS exotiques* (P129) : un moteur distant renvoyant du PCM brut
+  (cas Gemini via proxy OpenAI-compatible) est *enveloppé en WAV* localement
+  (module `wave`, pur Python) et joué par la WebView ; les sorties ogg/flac/
+  webm/m4a sont jouées telles quelles ; le vrai encodage MP3 est impossible
+  sur la plateforme (ffmpeg absent, aucun encodeur MP3 dans `MediaCodec`)
+  mais jamais nécessaire — testé : un WAV est lu même servi en `audio/mpeg` ;
 + l'accès est soumis à la permission `chat.tts` (les administrateurs
   passent toujours) ;
-+ *sans moteur configuré* (`audio.tts.engine` vide), la route renvoie un
-  404 : aucun son n'est produit — il faut donc d'abord configurer un
-  moteur TTS dans *Réglages → Audio*.
++ *sans moteur configuré* (`audio.tts.engine` vide) : c'est la voix locale
+  (P128) qui parle — le réglage par défaut de l'APK.
 
 == Sans patch — non fonctionnel
 
@@ -216,38 +227,41 @@ appareil — à traiter comme une piste, pas comme une fonction livrée.
   [Transcription de fichiers joints],
   [non fonctionnelle : même blocages],
   [fonctionnelle avec un STT distant (`openai`, `deepgram`, `azure`,
-   `mistral`) ; petits fichiers ≤ 20 Mo sans pydub ; *limite* : moteur
-   `web` + fichier = HTTP 500 (P127 proposé)],
+   `mistral`) ; prétraitement 100 % local sans pydub (P129 : WAV/MP3 découpés
+   en pur Python ; P130 : autres formats via MediaExtractor/MediaMuxer) ;
+   moteur `web` + fichier → message clair (P127)],
   [Génération de voix (TTS)],
   [non fonctionnelle : `transformers`/`torch`/`soundfile` absents],
-  [fonctionnelle avec un TTS distant (`openai`, `openai-realtime`,
-   `elevenlabs`, `azure`, `mistral`) ; local → HTTP 503 explicite (P7b-c) ;
-   permission `chat.tts`],
+  [*locale* par défaut (P128 : `TextToSpeech` natif via le shim
+   `speechSynthesis`) ; distante possible (`openai`, `elevenlabs`, `azure`,
+   `mistral`) ; local lourd → HTTP 503 explicite (P7b-c) ; permission
+   `chat.tts`],
   [Lecture à voix haute],
   [idem TTS],
-  [idem TTS ; nécessite un moteur configuré, sinon 404],
+  [idem TTS — voix du téléphone (P128), hors-ligne],
   [Appels vocaux],
   [désactivés par défaut],
-  [désactivés par défaut — non testés sur appareil (piste : API
-   `openai-realtime`)],
+  [désactivés par défaut — la voix de synthèse est locale (P128) si activés],
   [Fichiers audio > 20 Mo],
   [découpage par `pydub`],
-  [non supporté sans `pydub` : erreur 400 explicite],
+  [découpage local sans pydub (P129/P130) : WAV/MP3 en pur Python, autres
+   formats via les API Android ; hors appareil, message clair],
 )
 
 = Points de vigilance et recommandations
 
-+ *Bug confirmé* (2026-11-17, test direct) : transcription d'un fichier
-  audio joint avec le moteur `web` (défaut) → HTTP 500. Correctif P127
-  proposé : message d'erreur explicite guidant vers un STT distant.
-+ *Gros fichiers* : le découpage en morceaux de 20 Mo exige `pydub`,
-  inutilisable sur Python 3.13 — les fichiers plus lourds échouent proprement.
-+ *Configuration minimale pour l'audio complet* : un STT distant (fichiers)
-  et un TTS distant (voix) dans *Réglages → Audio* ; la dictée, elle, ne
-  nécessite aucune configuration.
-+ *Confidentialité* : la dictée reste locale (moteur Android) ; les
-  transcriptions de fichiers et les synthèses vocales envoient de l'audio
-  à l'API configurée (choix de l'utilisateur).
++ *Configuration minimale* : la dictée et la voix de synthèse fonctionnent
+  *sans aucune configuration* (API Android, P128) ; seule la *transcription
+  de fichiers joints* exige un STT distant dans *Réglages → Audio*
+  (message clair sinon, P127).
++ *Fichiers > 20 Mo* : découpés localement (P129/P130) — WAV et MP3 en pur
+  Python, les autres formats via les API Android ; hors appareil (tests
+  hôte), les formats exotiques lèvent un message clair.
++ *Voix du système* : la qualité et la disponibilité hors-ligne dépendent du
+  moteur TTS installé sur le téléphone (paramètres Android → Synthèse
+  vocale).
++ *Confidentialité* : dictée et synthèse vocale = 100 % local ; la
+  transcription de fichiers envoie l'audio à l'API STT choisie.
 
 = Références
 
@@ -260,6 +274,19 @@ appareil — à traiter comme une piste, pas comme une fonction livrée.
   [`app/src/main/java/org/openwebui/android/AndroidSpeech.java`],
   [passerelle `SpeechRecognizer` natif, contrat
    `onresult`/`onend`/`onerror`, relance `NO_MATCH`/`SPEECH_TIMEOUT`],
+  [`app/src/main/java/org/openwebui/android/AndroidTTS.java`],
+  [P128 — pont `TextToSpeech` natif (`speak`/`stop`/`voicesJson`,
+   événements `__androidTtsEvent`)],
+  [`app/src/main/assets/tts_polyfill.js`],
+  [P128 — shim `speechSynthesis`/`SpeechSynthesisUtterance` (file d'attente,
+   débit, voix, pause/resume) — `Object.defineProperty` obligatoire
+   (attribut en lecture seule dans Chromium)],
+  [`app/src/main/java/org/openwebui/android/AndroidAudio.java`],
+  [P130 — découpage `MediaExtractor`/`MediaMuxer` sans transcodage
+   (sorties m4a/webm)],
+  [`app/src/main/python/audio_bridge.py`, `android_main.py`],
+  [P130 — pont Java→Python (`register_audio_split`, fonction à un argument
+   JSON) enregistré au démarrage du serveur],
   [`app/src/main/java/org/openwebui/android/MainActivity.java`],
   [shim `SPEECH_POLYFILL` (polyfill `SpeechRecognition`, flux silencieux
    `getUserMedia` en mode web), permissions micro/caméra],

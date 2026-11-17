@@ -192,6 +192,306 @@ def patch_stt_default() -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# P127 / P129 / P130 — chaîne audio locale (transcription de fichiers)
+# Règle de minimalité (demande utilisateur 2026-11-17) : le code amont est le
+# moins modifié possible. Bilan de l'empreinte :
+#   - P127 : AJOUTS seuls (queue de transcription_handler + garde-fou whisper) ;
+#   - P129/P130 : UNE ligne d'appel changée (découpage local) + fonctions
+#     ajoutées en fin de module ;
+#   - transcode_audio_to_mp3 : bloc terminal remplacé (rend l'audio lisible
+#     en local : PCM → WAV via `wave`, autres formats servis tels quels) ;
+#   - le reste du module (is_audio_conversion_required, convert_audio_to_mp3,
+#     compress_audio, split_audio…) reste INTACT : sans pydub, leurs propres
+#     try/except les rendent inoffensifs (contrôlé par test hôte).
+# ---------------------------------------------------------------------------
+
+# P127 : le dispatch de transcription_handler retournait None pour le moteur
+# « web » (dictée native) et les moteurs inconnus → TypeError → HTTP 500.
+# Ajout pur APPRÈS la chaîne amont (aucune ligne amont modifiée).
+AUDIO_DISPATCH_TAIL_OLD = """    elif await Config.get('audio.stt.engine') == 'mistral':
+        return await _transcribe_mistral(request, file_path, filename, metadata, file_dir, id)"""
+
+AUDIO_DISPATCH_TAIL_NEW = """    elif await Config.get('audio.stt.engine') == 'mistral':
+        return await _transcribe_mistral(request, file_path, filename, metadata, file_dir, id)
+
+    # P127 (ajout — aucune ligne amont modifiée) : la dictée native (moteur
+    # « web ») est un traitement LOCAL du micro : elle ne transcrit pas les
+    # FICHIERS joints. Message clair au lieu d'une TypeError (HTTP 500)
+    # quand cette fonction retournait None.
+    stt_engine = (await Config.get('audio.stt.engine') or '').strip()
+    if stt_engine == 'web':
+        raise HTTPException(
+            status_code=400,
+            detail='La dictée native (moteur « web ») ne transcrit pas les fichiers '
+                   'joints : configurez un moteur STT distant dans Réglages → Audio.',
+        )
+    raise HTTPException(
+        status_code=400,
+        detail=f'Moteur STT inconnu « {stt_engine} » : configurez un moteur dans '
+               'Réglages → Audio.',
+    )"""
+
+# P127 : garde-fou STT local absent (ajout pur dans _transcribe_whisper).
+AUDIO_WHISPER_GUARD_OLD = """    model = request.app.state.faster_whisper_model
+
+    def _run():"""
+
+AUDIO_WHISPER_GUARD_NEW = """    model = request.app.state.faster_whisper_model
+    # P127 (ajout — aucune ligne amont modifiée) : le STT local (faster-whisper)
+    # n'est pas embarqué sur Android : message clair au lieu d'une
+    # AttributeError (HTTP 500) en aval.
+    if model is None:
+        raise HTTPException(
+            status_code=503,
+            detail='STT local (faster-whisper) indisponible sur cet appareil : '
+                   'configurez un moteur STT distant (Réglages → Audio) ou le mode « web ».',
+        )
+
+    def _run():"""
+
+# P129 : transcode_audio_to_mp3 — le bloc terminal (pydub) est remplacé par
+# une version locale fonctionnelle. Vrai encodage MP3 : impossible sur cette
+# plateforme (pydub exporte via ffmpeg, absent ; MediaCodec Android sans
+# encodeur MP3) — mais jamais nécessaire : le PCM devient WAV (module `wave`,
+# pur Python) et les autres formats sont servis tels quels (le navigateur les
+# joue nativement ; testé : le WAV joue même servi en « audio/mpeg »).
+TRANSCODE_OLD = """        audio_segment = AudioSegment.from_raw(
+            io.BytesIO(audio_data),
+            sample_width=2,
+            frame_rate=sample_rate,
+            channels=channels,
+        )
+    else:
+        audio_segment = AudioSegment.from_file(io.BytesIO(audio_data))
+
+    audio_segment.export(str(output_path), format='mp3')
+    log.info('Transcoded %s audio to MP3: %s', mime_type, output_path)
+    return True"""
+
+TRANSCODE_NEW = """        # P129 — pydub/audioop absent (Python 3.13), aucun encodeur MP3 sur
+        # Android : le PCM brut est enveloppé en WAV (module `wave`, pur
+        # Python). La WebView joue le WAV quel que soit le type annoncé
+        # (vérifié sur Chromium : canplay même servi en « audio/mpeg »).
+        import wave as _wave
+        try:
+            with _wave.open(str(output_path), 'wb') as _w:
+                _w.setnchannels(channels)
+                _w.setsampwidth(2)
+                _w.setframerate(sample_rate)
+                _w.writeframes(audio_data)
+            log.info('P129 : PCM enveloppe en WAV (%s Hz, %s canaux) : %s',
+                     sample_rate, channels, output_path)
+            return True
+        except Exception as exc:
+            log.warning('P129 : enveloppage WAV impossible (%s)', exc)
+            return False
+    # Autres formats (ogg, flac, webm, m4a…) : le navigateur les joue
+    # nativement — on sert les octets d'origine (retour False).
+    return False"""
+
+# P129/P130 : la SEULE ligne amont changée — l'appel du découpage.
+SPLIT_CALL_OLD = "            chunk_paths = await asyncio.to_thread(split_audio, file_path, MAX_FILE_SIZE)"
+SPLIT_CALL_NEW = ("            chunk_paths = await asyncio.to_thread(_split_audio_local, file_path, "
+                  "MAX_FILE_SIZE)  # P129/P130 : découpage local sans pydub")
+
+# P129/P130 : fonctions AJOUTÉES (pur Python + pont Android) en fin de module
+# — `transcribe` les résout à l'appel. split_audio() d'origine reste intact.
+SPLIT_LOCAL_ADD = '''
+
+# --- P129/P130 — découpage audio LOCAL (ajouté, amont intact) ---------------
+# pydub/audioop est absent de Python 3.13 : split_audio() d'origine ne peut
+# pas fonctionner. Voici le découpage local appelé par transcribe() :
+#   - WAV (PCM) : module stdlib `wave` ;
+#   - MP3 : frontières de trames MPEG (parseur maison) ;
+#   - autres formats : pont Android P130 (MediaExtractor/MediaMuxer),
+#     enregistré par android_main.register_audio_split() — absent en hôte.
+# Un fichier qui tient dans max_bytes est rendu tel quel (comportement amont).
+
+
+def _split_audio_local(file_path, max_bytes):
+    """P129/P130 — découpage local sans pydub (appelé depuis transcribe)."""
+    file_size = os.path.getsize(file_path)
+    if file_size <= max_bytes:
+        return [file_path]
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext == '.wav':
+        return _split_wav_python(file_path, max_bytes)
+    if ext == '.mp3':
+        return _split_mp3_python(file_path, max_bytes)
+    chunks = _split_via_android_bridge(file_path, max_bytes)  # P130
+    if chunks:
+        return chunks
+    raise Exception(
+        f'Decoupage local impossible pour le format « {ext or "?"} » : le fichier '
+        f'depasse {max_bytes // (1024 * 1024)} Mo. Convertissez-le en WAV ou en MP3.'
+    )
+
+
+def _split_wav_python(file_path: str, max_bytes: int):
+    """P129 — découpage WAV pur Python (module stdlib `wave`)."""
+    import wave
+
+    base, _ = os.path.splitext(file_path)
+    chunks = []
+    with wave.open(file_path, 'rb') as src:
+        params = src.getparams()
+        frame_size = max(params.nchannels * params.sampwidth, 1)
+        bytes_per_sec = max(params.framerate * frame_size, 1)
+        # marge de 10 % pour l'entête WAV (44 o) et l'arrondi des trames
+        target = max(int(max_bytes * 0.9), bytes_per_sec)
+        frames_per_chunk = max(target // frame_size, 1)
+        i = 0
+        while True:
+            data = src.readframes(frames_per_chunk)
+            if not data:
+                break
+            chunk_path = f'{base}_chunk_{i}.wav'
+            with wave.open(chunk_path, 'wb') as dst:
+                dst.setparams(params)
+                dst.writeframes(data)
+            chunks.append(chunk_path)
+            i += 1
+    return chunks or [file_path]
+
+
+_MP3_BITRATES = {  # MPEG-1 Layer III, index 1..14 (kbit/s)
+    3: [32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320],
+    2: [8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],  # MPEG-2
+    0: [8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],  # MPEG-2.5
+}
+_MP3_RATES = {3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000]}
+
+
+def _mp3_frame_len(data: bytes, pos: int):
+    """Longueur de la trame MPEG Layer III en `pos`, ou None si ce n'en est pas une."""
+    if pos + 4 > len(data):
+        return None
+    h = data[pos:pos + 4]
+    if h[0] != 0xFF or (h[1] & 0xE0) != 0xE0:
+        return None
+    version = (h[1] >> 3) & 0x03   # 3 = MPEG-1, 2 = MPEG-2, 0 = MPEG-2.5
+    layer = (h[1] >> 1) & 0x03     # 1 = Layer III
+    br_idx = (h[2] >> 4) & 0x0F
+    sr_idx = (h[2] >> 2) & 0x03
+    padding = (h[2] >> 1) & 0x01
+    if version == 1 or layer != 1 or br_idx in (0, 15) or sr_idx == 3:
+        return None
+    rate = _MP3_RATES[version][sr_idx]
+    bitrate = _MP3_BITRATES[version][br_idx - 1] * 1000
+    coef = 144 if version == 3 else 72
+    length = coef * bitrate // rate + padding
+    return length if length > 4 else None
+
+
+def _split_mp3_python(file_path: str, max_bytes: int):
+    """P129 — découpage MP3 sur frontières de trames (pur Python)."""
+    with open(file_path, 'rb') as f:
+        data = f.read()
+    pos = 0
+    if data[:3] == b'ID3':  # balise ID3v2 à sauter
+        size = ((data[6] & 0x7F) << 21) | ((data[7] & 0x7F) << 14) | ((data[8] & 0x7F) << 7) | (data[9] & 0x7F)
+        pos = min(10 + size, len(data))
+    target = max(int(max_bytes * 0.95), 8192)
+    base, _ = os.path.splitext(file_path)
+    chunks = []
+    i = 0
+    chunk_start = pos
+    cursor = pos
+    while cursor < len(data):
+        flen = _mp3_frame_len(data, cursor)
+        if not flen:
+            cursor += 1  # resynchronisation
+            continue
+        next_pos = cursor + flen
+        if next_pos - chunk_start >= target and cursor > chunk_start:
+            chunk_path = f'{base}_chunk_{i}.mp3'
+            with open(chunk_path, 'wb') as out:
+                out.write(data[chunk_start:cursor])
+            chunks.append(chunk_path)
+            i += 1
+            chunk_start = cursor
+        cursor = next_pos
+    if chunk_start < len(data):
+        chunk_path = f'{base}_chunk_{i}.mp3'
+        with open(chunk_path, 'wb') as out:
+            out.write(data[chunk_start:])
+        chunks.append(chunk_path)
+    return chunks or [file_path]
+
+
+def _split_via_android_bridge(file_path: str, max_bytes: int):
+    """P130 — découpage par le pont Android (MediaExtractor/MediaMuxer),
+    enregistré par `android_main.register_audio_split()` au démarrage.
+    Retourne [] si le pont est absent (hors appareil)."""
+    try:
+        import audio_bridge
+        fn = audio_bridge.get_split()
+        if fn is None:
+            return []
+        import json as _json
+        spec = _json.dumps({'path': file_path, 'max_bytes': int(max_bytes)})
+        try:
+            raw = fn(spec)
+        except TypeError:
+            raw = fn.apply(spec)  # objet Java non converti en callable
+        chunks = _json.loads(str(raw)) if raw else []
+        if isinstance(chunks, list) and chunks and not str(chunks[0]).startswith('ERROR:'):
+            log.info('P130 : %d morceau(x) via le pont Android', len(chunks))
+            return [str(c) for c in chunks]
+        log.error('P130 : pont audio Android en erreur : %s', chunks)
+    except Exception as exc:
+        log.error('P130 : pont audio Android indisponible : %s', exc)
+    return []
+'''
+
+
+def patch_ui_moteurs_locaux() -> None:
+    """P131 — masque dans l'UI les moteurs LOCAUX inutilisables sur Android :
+    TTS « Transformers (Local) » et STT « Whisper (Local) ». L'amont désactive
+    déjà ces options en mode « slim » quand les moteurs lourds manquent
+    (`features.slim`) — ici ils ne sont jamais installés : on rend le
+    masquage définitif (`disabled` + `hidden`), les deux options disparaissent
+    des listes déroulantes. Deux micro-remplacements, structure amont intacte.
+    Le moteur TTS « Web API » (valeur « ») est conservé : c'est la voix
+    Android system (P128) ; le STT « Web API » (`web`) est la dictée native."""
+    js = DST / "frontend" / "_app" / "immutable" / "nodes" / "2.DwSK4ZlF.js"
+    replace_once(
+        js,
+        "st.disabled=(v(),l(()=>v()?.features?.slim===!0)),d(dt,",
+        "st.disabled=!0,st.hidden=!0,d(dt,",
+        "P131 UI : option TTS « Transformers (Local) » masquée",
+    )
+    replace_once(
+        js,
+        "E.disabled=(v(),l(()=>v()?.features?.slim===!0)),d(S,",
+        "E.disabled=!0,E.hidden=!0,d(S,",
+        "P131 UI : option STT « Whisper (Local) » masquée",
+    )
+
+
+def patch_audio_locale() -> None:
+    """P127/P129/P130 — empreinte minimale sur le code amont : ajouts seuls
+    (P127), une ligne d'appel changée + fonctions ajoutées (P129/P130), et le
+    bloc terminal de transcode_audio_to_mp3 rendu fonctionnel en local."""
+    audio = DST / "routers" / "audio" / "__init__.py"
+    replace_once(audio, AUDIO_DISPATCH_TAIL_OLD, AUDIO_DISPATCH_TAIL_NEW,
+                 "P127 transcription_handler : branches web/inconnu (ajout)")
+    replace_once(audio, AUDIO_WHISPER_GUARD_OLD, AUDIO_WHISPER_GUARD_NEW,
+                 "P127 _transcribe_whisper : garde-fou STT local absent (ajout)")
+    replace_once(audio, TRANSCODE_OLD, TRANSCODE_NEW,
+                 "P129 transcode_audio_to_mp3 : PCM → WAV local, autres formats servis tels quels")
+    replace_once(audio, SPLIT_CALL_OLD, SPLIT_CALL_NEW,
+                 "P129/P130 transcribe : découpage local sans pydub")
+    texte = audio.read_text(encoding="utf-8")
+    if "def _split_audio_local" not in texte:
+        with open(audio, "a", encoding="utf-8") as f:
+            f.write(SPLIT_LOCAL_ADD)
+        PATCHES.append(("P129/P130 fonctions de découpage local", "ajoutées"))
+    else:
+        print("  P129/P130 fonctions de découpage local : déjà présentes")
+
+
 WEB_SEARCH_OLD = "            raise Exception('No SEARXNG_QUERY_URL found in environment variables')\n    elif engine == 'openserp':"
 
 WEB_SEARCH_NEW = """            raise Exception('No SEARXNG_QUERY_URL found in environment variables')
@@ -4506,6 +4806,8 @@ def main() -> int:
     patch_storage()
     patch_local_ai()
     patch_stt_default()
+    patch_audio_locale()
+    patch_ui_moteurs_locaux()
     patch_web_search()
     patch_frontend_engines()
     copy_searxng()

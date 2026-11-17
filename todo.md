@@ -106,3 +106,11 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       par le toggle « Outils ») — testé (sonde p126_gate_test sur
       get_builtin_tools réel : 6 scénarios conformes, non-régression /fm
       P124+P125 verte)
+- [~] Audio local complet (P127-P130) : messages clairs transcription (P127),
+      TTS natif Android via shim speechSynthesis (P128), fin de pydub avec
+      découpage wave/mp3 pur Python (P129), découpage MediaExtractor/MediaMuxer
+      par pont Java (P130) — sondes hôtes P127/P129 et Playwright P128 vertes ;
+      EN ATTENTE : test appareil de l'APK 0.0.78 avant commit/push
+- [~] P131 : options « Transformers (Local) » et « Whisper (Local) » masquées
+      dans Réglages → Audio (disabled + hidden) — validé (chunk régénéré +
+      test Playwright du masquage <option>) ; en attente du build final

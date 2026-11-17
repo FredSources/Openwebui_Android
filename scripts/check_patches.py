@@ -97,6 +97,110 @@ def check_fichiers() -> None:
             err(f"{label} : motif introuvable dans {rel} — « {motif[:60]} »")
 
 
+def check_audio_locale() -> None:
+    """P127/P128/P129/P130 — chaîne audio locale (validation continue).
+    Chaque élément est exigé : messages clairs du dispatch STT (P127), pont
+    TextToSpeech natif + shim speechSynthesis (P128), prétraitement sans
+    pydub (P129), découpage Android MediaExtractor/MediaMuxer (P130).
+    """
+    audio = SRC / "open_webui" / "routers" / "audio" / "__init__.py"
+    if not audio.exists():
+        err("P127/P129 : routers/audio/__init__.py absent")
+        return
+    text = audio.read_text(encoding="utf-8", errors="ignore")
+    # P127 — branches web/inconnu explicites + garde-fou STT local absent
+    for motif, lib in (
+        ("ne transcrit pas les fichiers", "message « web » + fichiers joints"),
+        ("Moteur STT inconnu", "message moteur inconnu"),
+        ("STT local (faster-whisper) indisponible", "garde-fou STT local absent"),
+    ):
+        if motif not in text:
+            err(f"P127 : motif absent — {lib}")
+    # P129 — rendu local fonctionnel de transcode_audio_to_mp3 (PCM → WAV)
+    if "PCM enveloppe en WAV" not in text:
+        err("P129 : transcode_audio_to_mp3 sans enveloppage WAV local")
+    # MINIMALITÉ (demande 2026-11-17) : les fonctions amont doivent rester
+    # INTACTES (pydub absent géré par leurs propres try/except) — seul
+    # l'appel de découpage est changé et les fonctions locales sont ajoutées.
+    for motif, lib in (
+        ("def is_audio_conversion_required", "is_audio_conversion_required (amont)"),
+        ("mediainfo(file_path)", "mediainfo (amont, try/except interne)"),
+        ("AudioSegment.from_file(file_path)", "split_audio/compress_audio (amont, intacts)"),
+        ("def split_audio(", "split_audio (amont)"),
+    ):
+        if motif not in text:
+            err(f"minimalité : fonction amont altérée — {lib}")
+    if "_split_audio_local, file_path," not in text:
+        err("P129/P130 : l'appel de découpage local (_split_audio_local) est absent de transcribe")
+    for motif, lib in (
+        ("def _split_audio_local", "découpage local"),
+        ("def _split_wav_python", "découpage WAV pur Python"),
+        ("def _split_mp3_python", "découpage MP3 pur Python"),
+        ("def _split_via_android_bridge", "pont Android de découpage"),
+    ):
+        if motif not in text:
+            err(f"P129 : motif absent — {lib}")
+    bridge = PROJ / "app" / "src" / "main" / "python" / "audio_bridge.py"
+    if not bridge.exists():
+        err("P130 : audio_bridge.py absent (pont Python)")
+    else:
+        bt = bridge.read_text(encoding="utf-8", errors="ignore")
+        if "def register_split" not in bt or "def get_split" not in bt:
+            err("P130 : API audio_bridge incomplète (register_split/get_split)")
+    am = PROJ / "app" / "src" / "main" / "python" / "android_main.py"
+    if not am.exists():
+        err("P130 : android_main.py absent")
+    elif "register_audio_split" not in am.read_text(encoding="utf-8", errors="ignore"):
+        err("P130 : register_audio_split absent de android_main.py")
+    java_dir = PROJ / "app" / "src" / "main" / "java" / "org" / "openwebui" / "android"
+    aud = java_dir / "AndroidAudio.java"
+    if not aud.exists():
+        err("P130 : AndroidAudio.java absent")
+    else:
+        at = aud.read_text(encoding="utf-8", errors="ignore")
+        if "MediaExtractor" not in at or "MediaMuxer" not in at:
+            err("P130 : AndroidAudio.java sans MediaExtractor/MediaMuxer")
+    # P128 — pont TextToSpeech + shim speechSynthesis + câblage MainActivity
+    tts = java_dir / "AndroidTTS.java"
+    if not tts.exists():
+        err("P128 : AndroidTTS.java absent")
+    else:
+        jt = tts.read_text(encoding="utf-8", errors="ignore")
+        if "TextToSpeech" not in jt or "__androidTtsEvent" not in jt:
+            err("P128 : AndroidTTS.java incomplet (TextToSpeech / __androidTtsEvent)")
+    shim = PROJ / "app" / "src" / "main" / "assets" / "tts_polyfill.js"
+    if not shim.exists():
+        err("P128 : tts_polyfill.js absent (shim speechSynthesis)")
+    else:
+        st = shim.read_text(encoding="utf-8", errors="ignore")
+        for motif in ("Object.defineProperty", "window.AndroidTTS", "__androidTtsEvent"):
+            if motif not in st:
+                err(f"P128 : shim tts_polyfill.js sans « {motif} »")
+    main_java = java_dir / "MainActivity.java"
+    if not main_java.exists():
+        err("P128/P130 : MainActivity.java absent")
+    else:
+        mt = main_java.read_text(encoding="utf-8", errors="ignore")
+        if "addJavascriptInterface(new AndroidTTS" not in mt:
+            err("P128 : AndroidTTS non exposé à la WebView (MainActivity)")
+        if "tts_polyfill.js" not in mt:
+            err("P128 : shim speechSynthesis non injecté (MainActivity)")
+        if "register_audio_split" not in mt:
+            err("P130 : pont audio non enregistré (MainActivity)")
+
+
+    # P131 — options des moteurs locaux morts masquées dans l'UI
+    ui = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "nodes" / "2.DwSK4ZlF.js"
+    if not ui.exists():
+        err("P131 : chunk des réglages audio absent (2.*.js)")
+    else:
+        ut = ui.read_text(encoding="utf-8", errors="ignore")
+        if "st.disabled=!0,st.hidden=!0" not in ut:
+            err("P131 : option TTS « Transformers (Local) » toujours visible")
+        if "E.disabled=!0,E.hidden=!0" not in ut:
+            err("P131 : option STT « Whisper (Local) » toujours visible")
+
+
 def check_compile_typst_hors_bloc() -> None:
     """P28/P126 : compile_typst doit être conditionné par le toggle « Outils » du
     modèle (ENABLE_TOOLS + is_builtin_tool_enabled('tools')), et rester
@@ -465,6 +569,7 @@ def main() -> int:
     check_searxng()
     check_frontend()
     check_p125_fm()
+    check_audio_locale()
     check_pyodide_paquets()
     check_p41_harvest()
     check_p54_ciblage()

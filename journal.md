@@ -2951,3 +2951,111 @@ fichier tel quel).
 Livrable : `docs/audio.typ` + `docs/audio.pdf` (schéma merman du pipeline,
 tableau récapitulatif avec/sans patch, points de vigilance, références
 code). Aucun changement de code — aucun bump de version.
+
+## 2026-11-17 — P127-P130 : audio local complet (dictée, voix, fichiers)
+
+Demande : implémenter P127, P128, P129, P130, *valider chaque élément*,
+l'audio devant être complètement fonctionnel en local via les API Android et
+les méthodes citées. **Aucun commit/push GitHub** — l'utilisateur teste l'APK
+avant publication.
+
+**P127 — messages clairs (transcription de fichiers)** : `transcription_handler`
+reçoit les branches `web` (« la dictée native ne transcrit pas les fichiers
+joints : configurez un moteur STT distant ») et « moteur inconnu » → HTTP 400
+au lieu d'une `TypeError` (HTTP 500) quand la fonction retournait `None` ;
+garde-fou équivalent dans `_transcribe_whisper` (STT local absent → 503).
+
+**P128 — synthèse vocale locale (API Android)** : pont `AndroidTTS.java`
+(`TextToSpeech` natif : `speak`/`stop`/`voicesJson`, événements
+`window.__androidTtsEvent`) + shim `app/src/main/assets/tts_polyfill.js`
+remplaçant `window.speechSynthesis`/`SpeechSynthesisUtterance`, injecté par
+`MainActivity.onPageFinished`. Piège découvert par le test : dans Chromium,
+`window.speechSynthesis` est un attribut EN LECTURE SEULE — l'affectation
+échoue silencieusement et l'API native (muette dans la WebView) restait en
+place ; corrigé par `Object.defineProperty`. Résultat : lecture à voix haute
+et voix des appels produites par la voix du téléphone (hors-ligne, sans clé).
+
+**P129 — fin de pydub** (audioop retiré de Python 3.13) : passage en l'état
+sans `mediainfo`, compression/conversion locales supprimées, repli octets
+d'origine pour le transcodage TTS ; `split_audio` en pur Python : WAV (module
+`wave`) et MP3 (frontières de trames MPEG, parseur maison).
+
+**P130 — découpage par les API Android** : `AndroidAudio.java`
+(MediaExtractor/MediaMuxer sans transcodage, sorties m4a/webm) pour les
+fichiers > 20 Mo hors wav/mp3 ; pont Java→Python `register_audio_split`
+(fonction à un argument JSON, `audio_bridge.py`) enregistré par `MainActivity`
+au démarrage ; repli : message clair hors appareil.
+
+**Validation (chaque élément)** :
+
+- P127 + P129 + P130-Python : sonde hôte `p127_p129_test.py` **verte** —
+  branches `web`/inconnu → 400 avec les bons messages, whisper local → 503 ;
+  WAV découpé en morceaux ≤ plafond avec **reconstitution bit-à-bit** du
+  contenu d'origine, MP3 découpé sur frontières de trames (entêtes vérifiés),
+  petit fichier rendu tel quel, format inconnu sans pont → message clair,
+  pont Android simulé → délégation avec les bons arguments ;
+- P128 : sonde Playwright `p128_tts_test.py` **verte** (9 scénarios sur le
+  JS réellement livré) — délégation speak (id/texte/débit/voix), événements
+  start/end/error, file d'attente (ordre strict), cancel → stop + état remis
+  à zéro, pause/resume, inertie du shim sans le pont ;
+- `check_patches.py` : contrôle `check_audio_locale()` **ajouté** (renforce :
+  exige les messages P127, l'absence de pydub dans la chaîne de transcription,
+  les splitteurs wave/mp3, le pont P130 Python+Java, le shim P128 et son
+  câblage MainActivity) — contrôles verts ;
+- Java : compilation validée par le build Gradle (`scripts/build.sh`) ;
+  test appareil requis pour le comportement runtime des ponts.
+
+`versionName` 0.0.78 (arbre local). APK de test : `dist/OpenWebUI_Android-0.0.78-debug.apk`.
+
+## 2026-11-17 — Minimalisation de l'empreinte amont + transcode fonctionnel
+
+Demande : « je veux minimiser les modifications du code d'origine ».
+
+**Révision de l'empreinte** (routers/audio/__init__.py) : 4 remplacements
+devenus inutiles sont **retirés** — le code amont gère déjà pydub absent par
+ses propres try/except (`is_audio_conversion_required` → False, morte
+chemin `convert_audio_to_mp3`, `compress_audio` avalée par son try/except).
+`transcription_handler` n'est plus réécrit : ses branches `web`/« inconnu »
+sont des **ajouts purs** après la chaîne amont intacte. Le découpage ne
+remplace plus le corps de `split_audio` : **une ligne d'appel** changée dans
+`transcribe()` (`_split_audio_local`) + fonctions ajoutées en fin de module.
+
+**Bilan final de l'empreinte amont** : 19 lignes touchées au total, dont
+6 antérieures (P5/P7a-c : try/except d'import) et 13 nouvelles (12 pour
+`transcode_audio_to_mp3` + 1 ligne d'appel de découpage) ; le reste du diff
+sont des **ajouts** (239 lignes) sans rien modifier. Les volets Java/JS
+(P128/P130) : **zéro** modification amont (fichiers neufs + accroches dans
+nos fichiers).
+
+**transcode_audio_to_mp3 rendu fonctionnel** (question utilisateur) : le vrai
+encodage MP3 est impossible ici (pydub exporte via ffmpeg absent ; MediaCodec
+Android ne fournit aucun encodeur MP3 ; encodeur pur Python inutilisable).
+Mais inutile : le PCM brut est **enveloppé en WAV** (module `wave`, pur
+Python) et les autres formats sont servis tels quels — testé : Chromium joue
+un WAV même servi en `audio/mpeg` (`canplay`, durée correcte), et les API STT
+acceptent wav/m4a/flac/webm/ogg directement.
+
+**Validations rejouées après révision** : sonde hôte P127/P129/P130 verte
+(transcode PCM → WAV vérifié trames/taux/canaux), shim P128 (9 scénarios),
+`check_patches.py` avec nouveau contrôle de **minimalité** (les fonctions
+amont doivent rester intactes — toute altération future échoue le contrôle).
+Build APK relancé.
+
+## 2026-11-17 — P131 : les moteurs locaux morts sortent de l'UI
+
+Demande : « enlever les choix transformers et whisper dans l'UI, est-ce que
+c'est simple ? » — oui : l'amont désactive déjà ces options en mode « slim »
+quand les moteurs lourds manquent (`features.slim` sur les `<option>`).
+P131 transforme cette désactivation en masquage définitif
+(`disabled` + `hidden`) par deux micro-remplacements dans le chunk des
+réglages audio (`nodes/2.DwSK4ZlF.js`) — structure Svelte amont intacte.
+
+Résultat dans *Réglages → Audio* : les listes ne proposent plus
+« Transformers (Local) » (TTS) ni « Whisper (Local) » (STT) ; restent
+« Web API » (= voix Android system depuis P128 pour le TTS, dictée native
+pour le STT) et les moteurs distants. Une valeur déjà enregistrée reste
+affichée (pas de casse de configuration).
+
+Validé : marqueurs présents dans le chunk régénéré, `check_patches` (contrôle
+P131), test Playwright du comportement `hidden` sur `<option>` (disparaît de
+la liste déroulante, sélection existante conservée).

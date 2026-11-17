@@ -164,6 +164,11 @@ public class MainActivity extends Activity {
             prepareFrontend();
             writeStatus(45, "Démarrage du serveur Open WebUI…");
             Python py = Python.getInstance();
+            // P130 — pont de découpage audio (MediaExtractor/MediaMuxer) pour
+            // split_audio() : formats non couverts par le découpage pur Python.
+            AndroidAudio audioBridge = new AndroidAudio();
+            py.getModule("android_main").callAttr("register_audio_split",
+                    (java.util.function.Function<String, String>) audioBridge::apply);
             py.getModule("android_main").callAttr("start_server", 8080, dataHome.getAbsolutePath());
         } catch (Exception e) {
             writeStatus(100, "Erreur : " + e);
@@ -171,6 +176,26 @@ public class MainActivity extends Activity {
             return;
         }
         mainHandler.post(() -> loadWhenReady(0));
+    }
+
+    /** P128 — shim speechSynthesis → AndroidTTS, lu depuis les assets. */
+    private String ttsPolyfillJs;
+
+    private String ttsPolyfill() {
+        if (ttsPolyfillJs == null) {
+            StringBuilder sb = new StringBuilder();
+            try (java.io.BufferedReader r = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(getAssets().open("tts_polyfill.js"), "UTF-8"))) {
+                String line;
+                while ((line = r.readLine()) != null) {
+                    sb.append(line).append('\n');
+                }
+            } catch (Exception e) {
+                return "";
+            }
+            ttsPolyfillJs = sb.toString();
+        }
+        return ttsPolyfillJs;
     }
 
     /** Affiche une erreur bloquante sur l'écran de démarrage. */
@@ -653,6 +678,8 @@ public class MainActivity extends Activity {
 
         // moteur vocal natif (dictée STT mode « web »)
         webView.addJavascriptInterface(new AndroidSpeech(webView), "AndroidSpeech");
+        // P128 — synthèse vocale native (lecture à voix haute, appels)
+        webView.addJavascriptInterface(new AndroidTTS(webView), "AndroidTTS");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -670,6 +697,8 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView v, String url) {
                 v.evaluateJavascript(SPEECH_POLYFILL, null);
+                // P128 — shim speechSynthesis → AndroidTTS (voix locale)
+                v.evaluateJavascript(ttsPolyfill(), null);
                 loadingPanel.setVisibility(View.GONE);
                 webView.setVisibility(View.VISIBLE);
             }

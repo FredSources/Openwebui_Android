@@ -449,6 +449,17 @@ def service_status() -> dict:
     }
 
 
+def register_audio_split(fn) -> None:
+    """P130 — MainActivity enregistre la fonction Java de découpage audio
+    (MediaExtractor/MediaMuxer) ; elle est appelée par `split_audio()` pour
+    les formats non couverts par le découpage pur Python (wav/mp3)."""
+    try:
+        import audio_bridge
+        audio_bridge.register_split(fn)
+    except Exception:
+        logging.getLogger(__name__).warning("pont audio Android non enregistre", exc_info=True)
+
+
 def start_server(port: int = APP_PORT, files_dir: str | None = None) -> int:
     """Lance uvicorn dans un thread daemon. Retourne le port. Idempotent."""
     global _started

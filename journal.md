@@ -3467,3 +3467,26 @@ http://127.0.0.1:8080/wasm/ort-wasm-simd-threaded.jsep.mjs`
   recompilés sans warning, contrôle grammatical OK.
 - **Régénération v0.0.78** : chaîne ci-dessous (validation utilisateur
   « regenere 0.0.78 » toujours en cours sur cette même release).
+
+## 2026-11-18 — v0.0.78 RÉGÉNÉRÉE (P140 livré)
+
+Suite du « regenere 0.0.78 » utilisateur, après la rétroaction du jour.
+
+- **Pré-requis** : `check_patches.py` vert (avec `check_wasm_ort`),
+  `TAG=v0.0.78 verifier_tag.py` ✓, sonde `p138_p139_test.py` verte
+  (43 contrôles + 6 non-régressions), 2 PDF recompilés sans warning, arbre
+  propre (`e3aceab`).
+- **Release supprimée** : `gh release delete v0.0.78 --yes` (les 2 APK de
+  `527529d` sont retirés).
+- **Tag repris** : `git tag -d v0.0.78` (était sur `527529d`) →
+  `git push origin :refs/tags/v0.0.78` → `git tag v0.0.78 e3aceab` →
+  `git push origin master v0.0.78` (jamais `git push --tags`) — tag local et
+  remote sur `e3aceab`, `git describe --tags` = `v0.0.78`.
+- **CI** : run `44413777676` (Build APK, ref `v0.0.78`) — **success**
+  (22:40:16Z → 22:45:10Z, ~4 min 54).
+- **Release `v0.0.78` publiée** à 22:44:58Z avec les 2 APK régénérés depuis
+  `e3aceab` (donc **P135 à P140**, `wasm/` ONNX Runtime inclus) :
+  - `OpenWebUI_Android-0.0.78-debug.apk` (258 120 430 o)
+  - `OpenWebUI_Android-0.0.78-release.apk` (252 409 897 o)
+- Lien vérifié (HTTP 200) : `https://github.com/FredSources/Openwebui_Android/releases/tag/v0.0.78`
+- Commit journal ci-dessous poussé sur `master` **sans toucher au tag**.

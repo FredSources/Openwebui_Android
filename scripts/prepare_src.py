@@ -671,6 +671,156 @@ def patch_appel_lecture() -> None:
     )
 
 
+def patch_erreur_tts() -> None:
+    """P138 — messages d'erreur distincts : micro refusé vs init Kokoro en échec.
+
+    (a) Bouton « Mode vocal » du bandeau : un seul `try` enveloppait à la fois
+    `getUserMedia` ET l'initialisation du worker Kokoro — toute erreur Kokoro
+    (modèle injoignable, worker en échec) affichait donc « Accès aux
+    appareils multimédias refusé », message trompeur signalé par
+    l'utilisateur. Découpe en deux `try` : le micro garde son message d'origine
+    (+ `return`, l'appel ne s'ouvre pas sans micro), l'init Kokoro logue
+    `Kokoro TTS: …` (toast + console) et l'appel s'ouvre quand même.
+    (b) File de lecture TTS (`Be`, chunk DRZ) : l'init
+    `he()||(…await he().init())` n'était dans aucun `try` — un échec rejetait
+    la promesse en silence (aucun son, aucun sous-titre, aucune erreur).
+    Interceptée : journal `Kokoro TTS: …`, retour à l'état « ne parle pas »
+    (`p(Me,!1),p(Se,!1)`) puis `return` — la lecture muette devient un
+    message explicite dans les journaux."""
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    replace_once(
+        js,
+        'try{let dr=await navigator.mediaDevices.getUserMedia({audio:!0});'
+        'dr&&dr.getTracks().forEach(os=>os.stop()),dr=null,'
+        'f().audio?.tts?.engine==="browser-kokoro"&&(D()||'
+        "(await Jd.set(new Ip({dtype:f().audio?.tts?.engineConfig?.dtype??"
+        '"fp32"})),await D().init())),jn.set(!0),pi.set(!0)}'
+        'catch{$t.error(c().t("Permission denied when accessing media devices"))}',
+        'try{let dr=await navigator.mediaDevices.getUserMedia({audio:!0});'
+        "dr&&dr.getTracks().forEach(os=>os.stop()),dr=null}"
+        'catch{$t.error(c().t("Permission denied when accessing media devices"));'
+        "return}"
+        'try{f().audio?.tts?.engine==="browser-kokoro"&&(D()||'
+        "(await Jd.set(new Ip({dtype:f().audio?.tts?.engineConfig?.dtype??"
+        '"fp32"})),await D().init()))}'
+        'catch(e1){$t.error(`Kokoro TTS: ${e1}`),console.warn(`Kokoro TTS: ${e1}`)}'
+        "jn.set(!0),pi.set(!0)",
+        "P138a appel : micro refusé / init Kokoro = messages distincts",
+    )
+    js2 = DST / "frontend" / "_app" / "immutable" / "chunks" / "DRZDe0Yd.js"
+    replace_once(
+        js2,
+        'if(v().audio?.tts?.engine==="browser-kokoro"){'
+        "he()||(await Ha.set(new ti({dtype:v().audio?.tts?.engineConfig?.dtype??"
+        '"fp32"})),await he().init());for(const[,Ke]of gt.entries()){',
+        'if(v().audio?.tts?.engine==="browser-kokoro"){'
+        "try{he()||(await Ha.set(new ti({dtype:v().audio?.tts?.engineConfig?.dtype??"
+        '"fp32"})),await he().init())}'
+        "catch(e2){tr.error(`Kokoro TTS: ${e2}`),p(Me,!1),p(Se,!1);return}"
+        "for(const[,Ke]of gt.entries()){",
+        "P138b TTS : init Kokoro interceptée (rejet silencieux impossible)",
+    )
+
+
+def _p139_iife(setter: str, config: str) -> str:
+    """IIFE P139 — normalisation en mémoire des réglages audio TTS.
+
+    Inséré dans les DEUX chargeurs de `$settings` (paramètres : nom du store
+    `$settings` puis du store `$config` du module cible).
+
+    - engine TTS du compte vide (« Default ») → sonde de voix ≤ 2 s
+      (polling 150 ms, priorité `window.AndroidTTS.voicesJson()` puis
+      `speechSynthesis.getVoices()`), résultat cache `window.__owuiSysTTS` ;
+      des voix trouvées → on n'intervient pas (le TTS navigateur suffit).
+    - Aucune voix après la sonde ET moteur admin (`config.audio.tts.engine`)
+      vide → on force `engine:"browser-kokoro"` (le « Default » navigateur est
+      inutilisable sur cet appareil : la demande explicite « si default ne
+      fonctionne pas, le default doit être Kokoro »).
+    - engine déjà `browser-kokoro` → normalisation synchrone : voix invalide
+      (hors `af_/am_/bf_/bm_`, p. ex. « alllay »/vide → `af_heart`), dtype
+      absent → `q8` (sinon `fp32` = ~325 Mo téléchargés), `defaultVoice`
+      aligné sur `config.audio.tts.voice` (la chaîne amont n'utilise
+      `settings.voice` QUE si `defaultVoice === config.voice`, sans quoi
+      Kokoro recevrait « alloy » et lèverait `Voice "alloy" not found`).
+    - Ne touche JAMAIS à un moteur distant réglé (admin ou compte), ne
+      s'applique que si la config admin est chargée, et n'écrit qu'en mémoire
+      (persisté seulement si l'utilisateur enregistre ses réglages)."""
+    return (
+        "(()=>{try{"
+        f"const S={setter},C={config};"
+        "const snap=x=>{let v=null;const u=x.subscribe(y=>{v=y});u();return v};"
+        "const readV=()=>{try{if(window.AndroidTTS&&window.AndroidTTS.voicesJson)"
+        '{const v=JSON.parse(window.AndroidTTS.voicesJson()||"[]");'
+        "if(Array.isArray(v)&&v.length)return v}}catch(e){}"
+        "try{const v=window.speechSynthesis&&window.speechSynthesis.getVoices"
+        "?window.speechSynthesis.getVoices():[];if(v&&v.length)return v}catch(e){}"
+        "return[]};"
+        "const ok=/^(af_|am_|bf_|bm_)/;"
+        "const fix=force=>{try{"
+        "const cf=snap(C),cv=cf&&cf.audio&&cf.audio.tts?cf.audio.tts.voice:void 0,"
+        "cur=snap(S);"
+        'if(!cur||typeof cur!=="object")return;'
+        "const a=Object.assign({},cur.audio||{}),tt=Object.assign({},a.tts||{});let ch=!1;"
+        'if(force&&tt.engine!=="browser-kokoro"){tt.engine="browser-kokoro";ch=!0}'
+        "if(!tt.engineConfig||!tt.engineConfig.dtype){"
+        'tt.engineConfig=Object.assign({},tt.engineConfig,{dtype:"q8"});ch=!0}'
+        "if(!tt.voice||!ok.test(tt.voice)){tt.voice=\"af_heart\";ch=!0}"
+        "if(tt.defaultVoice!==cv){tt.defaultVoice=cv;ch=!0}"
+        "if(ch){a.tts=tt;S.set(Object.assign({},cur,{audio:a}))}"
+        "}catch(e){}};"
+        "const cur=snap(S),eng=cur&&cur.audio&&cur.audio.tts?cur.audio.tts.engine:\"\";"
+        'if(eng==="browser-kokoro"){fix(!1);return}'
+        "if(eng)return;"
+        "if(window.__owuiSysTTS&&window.__owuiSysTTS.length)return;"
+        "const v0=readV();"
+        "if(v0.length){window.__owuiSysTTS=v0;return}"
+        "const t0=Date.now(),tick=()=>{const v=readV();"
+        "if(v.length){window.__owuiSysTTS=v;return}"
+        "if(Date.now()-t0<2e3){setTimeout(tick,150);return}"
+        "window.__owuiSysTTS=[];"
+        "const cf=snap(C),tt=cf&&cf.audio?cf.audio.tts:null;"
+        "if(!tt)return;"
+        'if((tt.engine??"")!=="")return;'
+        "fix(!0)};"
+        "setTimeout(tick,150)"
+        "}catch(e){}})()"
+    )
+
+
+def patch_default_kokoro() -> None:
+    """P139 — « Default » inutilisable → le default devient Kokoro (normalisation).
+
+    Deux chargeurs de `$settings` (store `settings.ui`, audio sous
+    `settings.ui.audio`) reçoivent la même IIFE :
+    - `ne` (node 2, layout (app)) juste après le chargement des réglages
+      serveur — couvre TOUS les routes ;
+    - `de` (node 55, page `/s/[id]`) juste après le `W.set(...)` des
+      réglages — filet de sécurité pour les entrées directes.
+    Stores : node 2 = `jr` (`$settings`) / `Sr` (`$config`) ;
+    node 55 = `W` (`$settings`) / `Te` (`$config`) — tous module-level,
+    accessibles même dans les callbacks différés de la sonde (≤ 2 s)."""
+    n2 = DST / "frontend" / "_app" / "immutable" / "nodes" / "2.DwSK4ZlF.js"
+    replace_once(
+        n2,
+        "ne=async te=>{const K=await ep(localStorage.token);K?.ui&&jr.set(K.ui),"
+        "t0(K?.keybindings)",
+        "ne=async te=>{const K=await ep(localStorage.token);K?.ui&&jr.set(K.ui),"
+        f"{_p139_iife('jr', 'Sr')},"
+        "t0(K?.keybindings)",
+        "P139a layout : default inutilisable → Kokoro + normalisation voix/dtype",
+    )
+    n55 = DST / "frontend" / "_app" / "immutable" / "nodes" / "55.s0_1KP7y.js"
+    replace_once(
+        n55,
+        'try{t=JSON.parse(localStorage.getItem("settings")??"{}")}catch(v){}W.set(t)}'
+        "if(await Oe.set(",
+        'try{t=JSON.parse(localStorage.getItem("settings")??"{}")}catch(v){}W.set(t)}'
+        f"{_p139_iife('W', 'Te')};"
+        "if(await Oe.set(",
+        "P139b /s/[id] : default inutilisable → Kokoro + normalisation voix/dtype",
+    )
+
+
 def patch_audio_locale() -> None:
     """P127/P129/P130 — empreinte minimale sur le code amont : ajouts seuls
     (P127), une ligne d'appel changée + fonctions ajoutées (P129/P130), et le
@@ -5013,6 +5163,8 @@ def main() -> int:
     patch_mode_vocal()
     patch_tts_lecture()
     patch_appel_lecture()
+    patch_erreur_tts()
+    patch_default_kokoro()
     patch_web_search()
     patch_frontend_engines()
     copy_searxng()

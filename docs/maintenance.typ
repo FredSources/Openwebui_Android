@@ -524,6 +524,14 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P137],
   [`chunks/BeEbX_lw.js` (frontend)],
   [mode vocal : chaque réponse est lue à voix haute — la boucle de lecture `nt` se terminait dès la fin d'une réponse (`break` sur `chat:finish`) et `ct` (`chat:start`, dispatché à chaque génération) ne la relançait que si l'identifiant de chat changeait : le deuxième message d'un même chat (et tout message après interruption) était empilé sans lecteur, réponse générée mais aucun son ; marqueur de boucle active `ntSig`, drapeau « réponse finie » effacé à chaque génération, relance de `nt` avec recréation de l'`AbortController` si annulé, état « parle » remis à vrai (sinon le micro capterait l'assistant) — journal v0.0.78],
+
+  [P138],
+  [`chunks/BeEbX_lw.js` + `chunks/DRZDe0Yd.js` (frontend)],
+  [messages d'erreur distincts : micro refusé vs init Kokoro en échec — le bouton « Mode vocal » enveloppait `getUserMedia` et l'init du worker Kokoro dans un même `try` : toute erreur Kokoro affichait « Accès aux appareils multimédias refusé » (signalé par l'utilisateur) ; découpe en deux `try` — le micro garde le message amont + `return`, l'init logue `Kokoro TTS: …` (toast + console) et l'appel s'ouvre quand même ; dans la file de lecture TTS (`Be`), l'init `he()‖(…init())` n'était dans aucun `try` : échec = rejet silencieux (aucun son, aucune erreur) — interceptée : journal + états « ne parle pas » redressés puis `return` — sonde `p138_p139_test.py` (15 contrôles) — journal v0.0.78],
+
+  [P139],
+  [`nodes/2.DwSK4ZlF.js` + `nodes/55.s0_1KP7y.js` (frontend)],
+  [« Default » inutilisable → le default devient Kokoro — même IIFE dans les deux chargeurs de `$settings` (`ne` du layout, toutes les routes ; `de` de `/s/[id]`) : engine du compte vide → sonde de voix ≤ 2 s (polling 150 ms, `AndroidTTS.voicesJson()` puis `speechSynthesis.getVoices()`, cache `window.__owuiSysTTS`) ; aucune voix et moteur admin vide → `engine: "browser-kokoro"`, `dtype: "q8"` si absent (sinon `fp32` ≈ 325 Mo), `voice: "af_heart"`, `defaultVoice` aligné sur `config.audio.tts.voice` (la chaîne amont n'utilise `settings.voice` que si `defaultVoice === config.voice` — sinon « alloy » → `Voice "alloy" not found`, d'où « Erreur après avoir choisi Kokoro ») ; engine déjà Kokoro → normalisation synchrone (voix invalide → `af_heart`, dtype manquant → q8) ; aucun forçage si voix système présentes, TTS serveur réglé ou config non chargée ; en mémoire seulement — sonde `p138_p139_test.py` (12 contrôles) — journal v0.0.78],
 )
 
 == Performances de démarrage

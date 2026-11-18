@@ -316,6 +316,94 @@ l'assistant. Le `break` est conservé : aucune boucle orpheline.
 4 scénarios verts : premier message d'un chat neuf, deuxième message du même
 chat, changement de chat, reprise après interruption.
 
+== Messages d'erreur distincts — micro vs init Kokoro (P138, v0.0.78)
+
+*Symptôme signalé par l'utilisateur* : « Accès aux appareils multimédias
+refusé » s'affichait alors que le micro était autorisé — message trompeur
+cachant une tout autre cause.
+
+*Cause racine (a, `BeEbX_lw.js`)* : le bouton « Mode vocal » du bandeau
+enveloppait dans un *seul et même* `try` la demande `getUserMedia` ET
+l'initialisation du worker Kokoro (`Ip` + `D().init()`) : *toute* exception
+Kokoro (modèle injoignable, worker en échec, `Voice "alloy" not found`)
+tombait donc dans le `catch` unique, qui n'affiche que le libellé amont
+« Permission denied when accessing media devices ». Découpe en deux `try`
+consécutifs :
+
++ le `try` du micro *garde* le message amont exact, suivi d'un `return` —
+  pas d'appel sans micro ;
++ l'init Kokoro a son *propre* `try` : échec → toast
+  `Kokoro TTS: …` + trace `console.warn`, puis `jn.set(!0),pi.set(!0)` —
+  l'appel s'ouvre quand même (dictée locale utilisable, lecture muette
+  assumée et tracée).
+
+*Cause racine (b, `DRZDe0Yd.js`)* : dans la file de lecture TTS, l'init
+`he()||(…await he().init())` n'était dans *aucun* `try` : un échec rejetait
+la promesse en silence — aucun son, aucun sous-titre, aucune erreur nulle
+part. Interceptée : journal `Kokoro TTS: …`, états « ne parle pas »
+redressés (`p(Me,!1),p(Se,!1)`) puis `return` — la lecture muette devient un
+message explicite dans les journaux.
+
+*Validation* : sonde `p138_p139_test.py`, 10 contrôles P138a (4 scénarios :
+nominal, micro refusé, init Kokoro en échec, distinction des deux messages)
+et 5 contrôles P138b.
+
+== « Default » inutilisable → le default devient Kokoro (P139, v0.0.78)
+
+*Demande utilisateur* : « si default ne fonctionne pas, il faudrait que le
+default soit Kokoro.js ». Le réglage « Default » (moteur TTS vide) repose sur
+le `speechSynthesis` de la WebView : *sans moteur TTS installé sur le
+téléphone*, il est muet — alors que le worker Kokoro embarqué, lui, parle
+toujours.
+
+*Mécanisme (IIFE unique insérée dans les deux chargeurs de `$settings`)* :
+`ne` du layout (`nodes/2.DwSK4ZlF.js`, après le chargement des réglages
+serveur — couvre toutes les routes) et `de` de la page `/s/[id]`
+(`nodes/55.s0_1KP7y.js`, entrées directes). La séquence :
+
++ engine du compte *vide* → *sonde de voix* ≤ 2 s (polling 150 ms, priorité à
+  `window.AndroidTTS.voicesJson()` puis `speechSynthesis.getVoices()`,
+  résultat mis en cache `window.__owuiSysTTS`) ;
++ des voix trouvées → *on n'intervient pas* : le TTS navigateur suffit ;
++ *aucune voix* après la sonde *et* moteur admin vide →
+  `engine: "browser-kokoro"`, `engineConfig.dtype: "q8"` si absent (sinon
+  `fp32` ≈ 325 Mo téléchargés), `voice: "af_heart"` et `defaultVoice` aligné
+  sur `config.audio.tts.voice` ;
++ engine *déjà* `browser-kokoro` → normalisation synchrone : voix hors
+  `af_/am_/bf_/bm_` (p. ex. `alloy` ou vide) → `af_heart`, dtype manquant →
+  q8.
+
+*Pourquoi l'alignement `defaultVoice`* : la chaîne amont `je()`/`Ce()`
+n'utilise `settings.voice` *que* si `defaultVoice === config.voice` ; sans
+quoi Kokoro recevrait la voix serveur « alloy » et lèverait
+`Voice "alloy" not found` — l'origine du message « Erreur après avoir choisi
+Kokoro ».
+
+*Garde-fous* : aucun forçage si des voix système existent, si un TTS
+serveur est réglé (admin ou compte) ou si la config admin n'est pas
+chargée ; écriture *en mémoire seulement* (persistée seulement si
+l'utilisateur enregistre ses réglages).
+
+*Validation* : sonde `p138_p139_test.py`, 12 contrôles P139 (6 scénarios ×
+2 chargeurs) — forçage, voix système conservées, TTS admin préservé,
+`alloy` normalisé, config absente = abstention, réglage valide préservé.
+
+== Limitation : phonémisation toujours anglaise des voix Kokoro
+
+Le worker Kokoro embarqué fournit *28 voix* — quatre préfixes :
+`af_` (anglais femme), `am_` (anglais homme), `bf_` (britannique femme),
+`bm_` (britannique homme) — et *phonémise tout texte en anglais* : la
+validation de voix amont (`_validate_voice`) force la langue `en-us`/`en`
+quel que soit le réglage de langue de l'interface. Conséquences :
+
++ un texte français est prononcé avec des règles de prononciation
+  anglaises (accent et mots isolés approximatifs) ;
++ *aucune* voix française n'est disponible côté Kokoro — pour du français
+  naturel, rester sur « Web API » (voix du téléphone, P128) ou un moteur
+  distant ;
++ les voix hors des quatre préfixes (p. ex. `alloy`) sont *rejetées* par le
+  worker — d'où la normalisation automatique en `af_heart` (P139).
+
 = Récapitulatif : avec patch / sans patch
 
 #table(
@@ -342,7 +430,8 @@ chat, changement de chat, reprise après interruption.
   [*locale* par défaut (P128 : `TextToSpeech` natif via le shim
    `speechSynthesis`) ; distante possible (`openai`, `elevenlabs`, `azure`,
    `mistral`) ; local lourd → HTTP 503 explicite (P7b-c) ; permission
-   `chat.tts`],
+   `chat.tts` ; « Default » sans voix système → forcé sur Kokoro (P139,
+   q8 + `af_heart`)],
   [Lecture à voix haute],
   [idem TTS],
   [idem TTS — voix du téléphone (P128), hors-ligne ; synthétiseur initialisé
@@ -354,7 +443,8 @@ chat, changement de chat, reprise après interruption.
    d'interaction vocale* : utilisable en STT local (P134 — 3 refus amont
    neutralisés, transcription locale via `SpeechRecognition`, vrai micro) ;
    chaque réponse lue à voix haute, y compris la deuxième d'un même chat
-   (P137) avec la voix locale (P128 + P135/P136) ; dictée sans erreur
+   (P137) avec la voix locale (P128 + P135/P136) ; messages d'erreur
+   distincts micro refusé / init Kokoro (P138) ; dictée sans erreur
    « client » (P133) ; l'overlay n'affiche aucun texte (comportement amont)],
   [Fichiers audio > 20 Mo],
   [découpage par `pydub`],
@@ -373,7 +463,12 @@ chat, changement de chat, reprise après interruption.
   hôte), les formats exotiques lèvent un message clair.
 + *Voix du système* : la qualité et la disponibilité hors-ligne dépendent du
   moteur TTS installé sur le téléphone (paramètres Android → Synthèse
-  vocale).
+  vocale) ; à défaut de voix système, le « Default » bascule
+  automatiquement sur Kokoro (P139).
++ *Kokoro = anglais seulement* : le worker embarqué n'a que 28 voix
+  anglaises/britanniques et phonétise tout texte en anglais — pour du
+  français naturel, préférer « Web API » (voix du téléphone, P128) ou un
+  moteur distant.
 + *Confidentialité* : dictée et synthèse vocale = 100 % local ; la
   transcription de fichiers envoie l'audio à l'API STT choisie.
 
@@ -386,7 +481,8 @@ chat, changement de chat, reprise après interruption.
   [patchs P5 (`pydub` optionnel), P7a-c (moteurs locaux → 503),
    P8 (`AUDIO_STT_ENGINE=web`), P136 (boucle d'attente des voix bornée dans
    le chunk d'appel), P137 (file de lecture de l'appel relancée à chaque
-   réponse)],
+   réponse), P138 (messages micro refusé / init Kokoro distincts),
+   P139 (« Default » inutilisable → Kokoro, normalisation voix/dtype)],
   [`app/src/main/java/org/openwebui/android/AndroidSpeech.java`],
   [passerelle `SpeechRecognizer` natif, contrat
    `onresult`/`onend`/`onerror`, relance `NO_MATCH`/`SPEECH_TIMEOUT`, relance

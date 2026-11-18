@@ -3362,3 +3362,54 @@ Demande explicite : « une fois terminé, régénère la version 0.0.78 ».
   - `OpenWebUI_Android-0.0.78-release.apk` (247 322 224 o)
 - Lien vérifié (HTTP 200) : `https://github.com/FredSources/Openwebui_Android/releases/tag/v0.0.78`
 - Commit journal ci-dessous poussé sur `master` **sans toucher au tag**.
+
+## 2026-11-18 — P138/P139 : messages d'erreur distincts + « Default » → Kokoro
+
+Deux demandes utilisateur le jour même :
+(1) message exact « Accès aux appareils multimédias refusé » affiché à tort ;
+(2) « de plus si default ne fonctionne pas il faudrait que le default soit
+Kokoro.js ».
+
+- **P138 — messages distincts** (`chunks/BeEbX_lw.js` + `chunks/DRZDe0Yd.js`) :
+  le bouton « Mode vocal » enveloppait `getUserMedia` ET l'init du worker
+  Kokoro dans un *même* `try` — toute erreur Kokoro (modèle injoignable,
+  `Voice "alloy" not found`…) affichait « Accès aux appareils multimédias
+  refusé ». Découpe en deux `try` : le micro garde le message amont exact +
+  `return` (pas d'appel sans micro) ; l'init Kokoro logue
+  `Kokoro TTS: …` (toast + `console.warn`) et l'appel s'ouvre quand même.
+  (b) dans la file de lecture TTS (`Be`), l'init `he()||(…init())` n'était
+  dans aucun `try` : échec = rejet silencieux (aucun son, aucune erreur) —
+  interceptée : journal `Kokoro TTS: …`, états « ne parle pas » redressés
+  (`p(Me,!1),p(Se,!1)`) puis `return`.
+- **P139 — « Default » inutilisable → le default devient Kokoro**
+  (`nodes/2.DwSK4ZlF.js` + `nodes/55.s0_1KP7y.js`) : même IIFE dans les
+  DEUX chargeurs de `$settings` (`ne` du layout après chargement serveur,
+  toutes les routes ; `de` de `/s/[id]`, entrées directes). engine du compte
+  vide → sonde de voix ≤ 2 s (polling 150 ms, `AndroidTTS.voicesJson()` puis
+  `speechSynthesis.getVoices()`, cache `window.__owuiSysTTS`) ; aucune voix
+  ET moteur admin vide → `engine:"browser-kokoro"`, `dtype:"q8"` si absent
+  (sinon fp32 ≈ 325 Mo), `voice:"af_heart"`, `defaultVoice` aligné sur
+  `config.audio.tts.voice` (la chaîne amont `je()`/`Ce()` n'utilise
+  `settings.voice` QUE si `defaultVoice === config.voice` — sinon « alloy »
+  → `Voice "alloy" not found`, d'où « Erreur après avoir choisi Kokoro »).
+  engine déjà kokoro → normalisation synchrone (voix hors af_/am_/bf_/bm_ →
+  af_heart, dtype manquant → q8). Aucun forçage si voix système présentes,
+  TTS serveur réglé ou config non chargée ; en mémoire seulement.
+- **Validation** : sonde `/tmp/opencode/p138_p139_test.py` — **TOUT VERT**
+  (10 contrôles P138a / 4 scénarios, 5 P138b, 14 P139 × 2 fichiers /
+  S1-S6, 6 non-régressions : p127_p129, p128, p133, p134, p136, p137).
+  `prepare_src.py` → 143 opérations ; `check_patches.py` vert
+  (`check_erreur_tts`, `check_default_kokoro`, `check_js_syntax` étendu aux
+  nodes 2/55) ; `node --check` vert sur les 4 fichiers transformés ; cibles
+  `old` uniques dans le pristine.
+- **Docs** : `PATCHES.md` (P138/P139), `docs/maintenance.typ` (tableau),
+  `docs/audio.typ` (sections P138, P139 + limitation « phonémisation
+  toujours anglaise des 28 voix Kokoro ») — 2 PDF recompilés sans warning,
+  contrôle grammatical passé.
+- **Limitation documentée** : le worker Kokoro embarqué = 28 voix
+  (af_/am_/bf_/bm_), phonémisation forcée en anglais
+  (`_validate_voice` → en-us/en) — pour du français : « Web API » (voix du
+  téléphone) ou moteur distant.
+- **EN ATTENTE** : validation utilisateur puis régénération v0.0.78
+  (interdit sans validation explicite). Les logs activés côté appareil
+  doivent montrer P135/P137 ; P138/P139 exigent une reconstruction de l'APK.

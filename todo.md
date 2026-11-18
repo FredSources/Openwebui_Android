@@ -140,8 +140,23 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       relancée par `ct` — marqueur `ntSig` + drapeau `bt` effacé + relance
       à chaque génération — validé (sonde p137 sur le code livré : 4
       scénarios) ; EN ATTENTE : test appareil
+- [x] P138 : messages d'erreur distincts — micro refusé (libellé amont
+      conservé + `return`) vs init Kokoro en échec (`Kokoro TTS: …` toast +
+      console, appel ouvert quand même) ; init de la file de lecture TTS
+      interceptée (fin du rejet silencieux) — validé (sonde p138_p139 :
+      15 contrôles) ; EN ATTENTE : test appareil
+- [x] P139 : « Default » inutilisable → le default devient Kokoro (sonde de
+      voix 2 s, forçage `browser-kokoro` + q8 + af_heart, `defaultVoice`
+      aligné sur `config.voice`, normalisation synchrone si kokoro déjà
+      choisi) dans les deux chargeurs de `$settings` — validé (sonde
+      p138_p139 : 14 contrôles × 2 fichiers) ; EN ATTENTE : test appareil
 - [ ] Test appareil v0.0.78 (APK du 2026-11-18, avec P135/P136/P137) : dictée
       (plus d'erreur « client »), mode vocal (bouton « Voice mode » visible,
       énoncé transcrit localement → message dans le chat *derrière* l'overlay ;
       l'overlay n'affiche que statuts et avatar), **génération audio** à
       voix haute à chaque réponse (P135/P136/P137) + toast si aucun moteur TTS
+- [ ] Test appareil P138/P139 (après régénération validée) : en échec Kokoro
+      le toast doit dire `Kokoro TTS: …` (plus jamais « Accès aux appareils
+      multimédias refusé »), micro refusé = message amont exact ; sans voix
+      système, « Default » doit parler en Kokoro (af_heart, q8) ; journaux
+      activés par l'utilisateur = preuve de la bonne traçabilité

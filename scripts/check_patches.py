@@ -370,6 +370,69 @@ def check_appel_lecture() -> None:
         err("P137 : ct d'origine rétabli (relance conditionnée au changement de chat)")
 
 
+def check_erreur_tts() -> None:
+    """P138 — micro refusé et init Kokoro en échec : deux messages distincts,
+    et l'init TTS jamais laissée en rejet silencieux."""
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    if not chunk.exists():
+        err("P138 : chunk d'appel BeEbX_lw.js absent")
+        return
+    ct = chunk.read_text(encoding="utf-8", errors="ignore")
+    # (a) découpe : le micro garde son message + return, l'init a son propre try
+    if ('dr=null}catch{$t.error(c().t("Permission denied when accessing media '
+        'devices"));return}try{f().audio?.tts?.engine==="browser-kokoro"') not in ct:
+        err("P138a : découpe try micro / try init Kokoro absente")
+    if ("catch(e1){$t.error(`Kokoro TTS: ${e1}`),"
+        "console.warn(`Kokoro TTS: ${e1}`)}jn.set(!0),pi.set(!0)") not in ct:
+        err("P138a : message Kokoro distinct + ouverture de l'appel absent")
+    if "await D().init())),jn.set(!0),pi.set(!0)}catch{$t.error" in ct:
+        err("P138a : try unique amont rétabli (toute erreur = micro refusé)")
+    drz = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "DRZDe0Yd.js"
+    if not drz.exists():
+        err("P138 : chunk TTS DRZDe0Yd.js absent")
+        return
+    d = drz.read_text(encoding="utf-8", errors="ignore")
+    if ("await he().init())}catch(e2){tr.error(`Kokoro TTS: ${e2}`),"
+        "p(Me,!1),p(Se,!1);return}for(") not in d:
+        err("P138b : init Kokoro de la file de lecture non interceptée")
+    if "await he().init());for(const[,Ke]of gt.entries()){" in d:
+        err("P138b : init non protégée amont rétablie (rejet silencieux)")
+
+
+def _check_p139_fichier(path: pathlib.Path, setter: str, config: str, label: str) -> None:
+    if not path.exists():
+        err(f"P139 : {path.name} absent")
+        return
+    t = path.read_text(encoding="utf-8", errors="ignore")
+    for motif, msg in (
+        (f"const S={setter},C={config};", f"stores {label} ({setter}/{config})"),
+        ("window.AndroidTTS.voicesJson()", "sonde de voix AndroidTTS absente"),
+        ("if(eng===\"browser-kokoro\"){fix(!1);return}", "normalisation sync kokoro absente"),
+        ("if((tt.engine??\"\")!==\"\")return;", "garde TTS serveur admin absente"),
+        ("fix(!0)};", "forcing kokoro après sonde vide absent"),
+        ('tt.engineConfig=Object.assign({},tt.engineConfig,{dtype:"q8"});',
+         "dtype q8 par défaut absent"),
+        ("tt.voice=\"af_heart\";", "voix de repli af_heart absente"),
+        ("tt.defaultVoice=cv;", "alignement defaultVoice/config.voice absent"),
+        ("window.__owuiSysTTS", "cache de voix système absent"),
+    ):
+        if motif not in t:
+            err(f"P139 : {label} — {msg}")
+    # rétrogradation : l'IIFE a disparu du chargeur
+    if setter == "jr" and "jr.set(K.ui),t0(K?.keybindings)" in t:
+        err("P139 : IIFE absente du chargeur de réglages (node 2)")
+    if setter == "W" and "W.set(t)}if(await Oe.set(" in t:
+        err("P139 : IIFE absente du chargeur de réglages (node 55)")
+
+
+def check_default_kokoro() -> None:
+    """P139 — les deux chargeurs de `$settings` forcent/normalisent Kokoro
+    quand le « Default » navigateur est inutilisable."""
+    imm = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "nodes"
+    _check_p139_fichier(imm / "2.DwSK4ZlF.js", "jr", "Sr", "layout (app)")
+    _check_p139_fichier(imm / "55.s0_1KP7y.js", "W", "Te", "/s/[id]")
+
+
 def check_shims() -> None:
     if not (SRC / "tiktoken.py").exists():
         err("shim tiktoken.py absent")
@@ -593,7 +656,8 @@ def check_js_syntax() -> None:
     from pathlib import Path
 
     cibles = []
-    for motif in ("nodes/0.*.js", "workers/pyodide.worker-*.js", "chunks/*.js"):
+    for motif in ("nodes/0.*.js", "nodes/2.*.js", "nodes/55.*.js",
+                  "workers/pyodide.worker-*.js", "chunks/*.js"):
         cibles += _glob.glob(str(PROJ / "src-assets" / "frontend" / "_app" / "immutable" / motif))
     # P134 : nos propres shims d'assets doivent aussi être valides
     cibles += [str(PROJ / "app" / "src" / "main" / "assets" / n)
@@ -603,7 +667,8 @@ def check_js_syntax() -> None:
         t = open(c, encoding="utf-8", errors="ignore").read()
         # ne contrôler que les fichiers que NOUS patchons
         if not any(m in t for m in ("__prewarm", "__inNames", "files:ge.files||[]", "u.packages||[]",
-                                    "micropip','numpy'", "__callDictation", "__androidTtsPolyfilled")):
+                                    "micropip','numpy'", "__callDictation", "__androidTtsPolyfilled",
+                                    "Kokoro TTS: ", "__owuiSysTTS")):
             continue
         if c in vus:
             continue
@@ -708,6 +773,8 @@ def main() -> int:
     check_mode_vocal()
     check_tts_lecture()
     check_appel_lecture()
+    check_erreur_tts()
+    check_default_kokoro()
     check_pyodide_paquets()
     check_p41_harvest()
     check_p54_ciblage()

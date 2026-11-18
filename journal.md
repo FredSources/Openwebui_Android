@@ -3436,3 +3436,34 @@ Validation utilisateur : « regenere 0.0.78 ».
   - `OpenWebUI_Android-0.0.78-release.apk` (247 335 492 o)
 - Lien vérifié (HTTP 200) : `https://github.com/FredSources/Openwebui_Android/releases/tag/v0.0.78`
 - Commit journal ci-dessous poussé sur `master` **sans toucher au tag**.
+
+## 2026-11-18 — P140 : Kokoro retrouve son backend (ONNX Runtime Web conservé)
+
+Rétroaction utilisateur sur l'APK régénéré (P138 fonctionne — l'erreur est
+enfin visible, non masquée) :
+`Kokoro TTS: Error: no available backend found. ERR: [webgpu] TypeError:
+Failed to fetch dynamically imported module:
+http://127.0.0.1:8080/wasm/ort-wasm-simd-threaded.jsep.mjs`
+
+- **Cause racine** : P13 (`slim_frontend`) supprimait le dossier
+  `frontend/wasm/` entier (21 Mo) au titre d'un « ONNX Runtime Web = ML
+  navigateur, inutile ici » — mais le worker Kokoro force
+  `wasmPaths="/wasm/"` et importe dynamiquement
+  `ort-wasm-simd-threaded.jsep.mjs` (44 Ko) + `.jsep.wasm` (21,6 Mo).
+  Sans eux, aucun backend (webgpu/wasm) ne peut s'initialiser.
+- **Correctif (P140)** : `slim_frontend` ne supprime plus que les source
+  maps ; `wasm/` est conservé. MIME vérifiés sur la table embarquée
+  Python 3.13 (indépendante de `/etc/mime.types`) : `.mjs → text/javascript`
+  (requis pour l'import dynamique), `.wasm → application/wasm`. Le frontend
+  extrait est servi à la racine (SPAStaticFiles) : `/wasm/…` résolu.
+- **Garde-fou** : `check_wasm_ort` dans `check_patches.py` — présence des 2
+  fichiers dans `src-assets/frontend/wasm/` avec tailles minimales (40 Ko /
+  20 Mo, anti-troncature) + `wasmPaths="/wasm/"` intact dans
+  `kokoro.worker-*.js` (rétrogradation détectée).
+- **Validation** : `prepare_src.py` 143 opérations, `check_patches.py` vert,
+  sonde `p138_p139_test.py` verte (43 contrôles + 6 non-régressions).
+- **Docs** : `PATCHES.md` (ligne P13 annotée + P140), `maintenance.typ`
+  (P140), `audio.typ` (prérequis `/wasm/` dans la section P139) — PDF
+  recompilés sans warning, contrôle grammatical OK.
+- **Régénération v0.0.78** : chaîne ci-dessous (validation utilisateur
+  « regenere 0.0.78 » toujours en cours sur cette même release).

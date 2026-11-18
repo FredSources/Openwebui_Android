@@ -153,6 +153,11 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [x] Régénération v0.0.78 (3ᵉ cycle, validation « regenere 0.0.78 ») :
       tag repris sur `527529d` (P138/P139), run 44410135285 success —
       release publiée avec les 2 APK régénérés (22:21:52Z)
+- [x] P140 : Kokoro « no available backend » — P13 supprimait `wasm/`
+      (ONNX Runtime Web, 21 Mo) alors que le worker Kokoro force
+      `wasmPaths="/wasm/"` → `slim_frontend` ne supprime plus que les source
+      maps, garde-fou `check_wasm_ort` — validé (check_patches + sonde
+      p138_p139) ; EN ATTENTE : test appareil
 - [ ] Test appareil v0.0.78 (APK du 2026-11-18, avec P135/P136/P137) : dictée
       (plus d'erreur « client »), mode vocal (bouton « Voice mode » visible,
       énoncé transcrit localement → message dans le chat *derrière* l'overlay ;

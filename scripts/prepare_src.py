@@ -5004,11 +5004,16 @@ def write_local_vector_db() -> None:
 def slim_frontend() -> None:
     """P13 — allège le frontend embarqué (gain de démarrage + taille APK).
 
-    Supprimé : source maps (debug, ~83 Mo) et wasm (ONNX Runtime Web = ML
-    navigateur, inutile ici). P23 : `pyodide/` est CONSERVÉ (61 Mo) — c'est le
+    Supprimé : source maps (debug, ~83 Mo). P23 : `pyodide/` est CONSERVÉ (61 Mo) — c'est le
     runtime de l'outil execute_code (analyse CSV/Excel/PDF, calculs, graphiques
     dans le navigateur) ; il est restauré contre la règle « pas de calcul
     local » qui ne vise que les embeddings (D15).
+    P140 : `wasm/` (ONNX Runtime Web, 21 Mo) est CONSERVÉ — requis par le
+    worker Kokoro (`kokoro.worker-*.js` force `wasmPaths="/wasm/"`) ;
+    supprimé, `browser-kokoro` lève « no available backend found. ERR:
+    [webgpu] TypeError: Failed to fetch dynamically imported module
+    …/wasm/ort-wasm-simd-threaded.jsep.mjs » (rétroaction utilisateur sur
+    v0.0.78) — P13 le retirait au titre d'un « ML navigateur inutile ».
     """
     import shutil
 
@@ -5019,13 +5024,10 @@ def slim_frontend() -> None:
     for f in front.rglob("*.map"):
         freed += f.stat().st_size
         f.unlink()
-    for name in ("wasm",):
-        d = front / name
-        if d.is_dir():
-            freed += sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
-            shutil.rmtree(d)
-    log(f"  P13 frontend allégé : {freed / 1e6:.0f} Mo retirés (maps, wasm) — pyodide conservé (P23)")
-    PATCHES.append(("frontend allégé (maps/wasm, pyodide conservé)", f"-{freed / 1e6:.0f} Mo"))
+    log(f"  P13 frontend allégé : {freed / 1e6:.0f} Mo retirés (maps) — "
+        "pyodide (P23) + wasm ONNX Runtime (P140) conservés")
+    PATCHES.append(("frontend allégé (maps ; pyodide P23 + wasm ONNX P140 conservés)",
+                    f"-{freed / 1e6:.0f} Mo"))
 
 
 def frontend_out_of_python() -> None:

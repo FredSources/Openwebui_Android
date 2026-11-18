@@ -532,6 +532,10 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P139],
   [`nodes/2.DwSK4ZlF.js` + `nodes/55.s0_1KP7y.js` (frontend)],
   [« Default » inutilisable → le default devient Kokoro — même IIFE dans les deux chargeurs de `$settings` (`ne` du layout, toutes les routes ; `de` de `/s/[id]`) : engine du compte vide → sonde de voix ≤ 2 s (polling 150 ms, `AndroidTTS.voicesJson()` puis `speechSynthesis.getVoices()`, cache `window.__owuiSysTTS`) ; aucune voix et moteur admin vide → `engine: "browser-kokoro"`, `dtype: "q8"` si absent (sinon `fp32` ≈ 325 Mo), `voice: "af_heart"`, `defaultVoice` aligné sur `config.audio.tts.voice` (la chaîne amont n'utilise `settings.voice` que si `defaultVoice === config.voice` — sinon « alloy » → `Voice "alloy" not found`, d'où « Erreur après avoir choisi Kokoro ») ; engine déjà Kokoro → normalisation synchrone (voix invalide → `af_heart`, dtype manquant → q8) ; aucun forçage si voix système présentes, TTS serveur réglé ou config non chargée ; en mémoire seulement — sonde `p138_p139_test.py` (12 contrôles) — journal v0.0.78],
+
+  [P140],
+  [`frontend/wasm/` + `scripts/prepare_src.py` (données)],
+  [ONNX Runtime Web conservé : Kokoro retrouve son backend — P13 supprimait `wasm/` (21 Mo, « ML navigateur inutile ») alors que le worker Kokoro force `wasmPaths: "/wasm/"` et importe dynamiquement `ort-wasm-simd-threaded.jsep.mjs` : sans eux, `browser-kokoro` lève « no available backend found. ERR: [webgpu] TypeError: Failed to fetch dynamically imported module … /wasm/ort-wasm-simd-threaded.jsep.mjs » (rétroaction utilisateur) ; `slim_frontend` ne supprime plus que les source maps ; MIME `.mjs → text/javascript` / `.wasm → application/wasm` vérifiés (table embarquée Python 3.13) ; garde-fou `check_wasm_ort` (présence + tailles + `wasmPaths` du worker) — journal v0.0.78],
 )
 
 == Performances de démarrage

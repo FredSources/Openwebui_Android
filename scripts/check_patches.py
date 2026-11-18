@@ -433,6 +433,31 @@ def check_default_kokoro() -> None:
     _check_p139_fichier(imm / "55.s0_1KP7y.js", "W", "Te", "/s/[id]")
 
 
+def check_wasm_ort() -> None:
+    """P140 — ONNX Runtime Web doit rester servi sous /wasm/ (Kokoro).
+
+    Le worker Kokoro force `wasmPaths="/wasm/"` ; P13 supprimait le dossier
+    entier, ce qui condamnait browser-kokoro à « no available backend found.
+    ERR: [webgpu] TypeError: Failed to fetch dynamically imported module
+    …/wasm/ort-wasm-simd-threaded.jsep.mjs » (rétroaction utilisateur)."""
+    w = PROJ / "src-assets" / "frontend" / "wasm"
+    for name, mini in (("ort-wasm-simd-threaded.jsep.mjs", 40_000),
+                       ("ort-wasm-simd-threaded.jsep.wasm", 20_000_000)):
+        f = w / name
+        if not f.is_file():
+            err(f"P140 : {name} absent de src-assets/frontend/wasm (Kokoro KO)")
+        elif f.stat().st_size < mini:
+            err(f"P140 : {name} tronqué ({f.stat().st_size} o < {mini})")
+    workers = sorted((PROJ / "src-assets" / "frontend" / "_app" / "immutable"
+                      / "workers").glob("kokoro.worker-*.js"))
+    if not workers:
+        err("P140 : worker kokoro.worker-*.js absent")
+    else:
+        t = workers[0].read_text(encoding="utf-8", errors="ignore")
+        if 'wasmPaths="/wasm/"' not in t:
+            err("P140 : wasmPaths du worker Kokoro ne pointe plus vers /wasm/")
+
+
 def check_shims() -> None:
     if not (SRC / "tiktoken.py").exists():
         err("shim tiktoken.py absent")
@@ -775,6 +800,7 @@ def main() -> int:
     check_appel_lecture()
     check_erreur_tts()
     check_default_kokoro()
+    check_wasm_ort()
     check_pyodide_paquets()
     check_p41_harvest()
     check_p54_ciblage()

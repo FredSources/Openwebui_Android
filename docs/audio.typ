@@ -384,6 +384,15 @@ serveur est réglé (admin ou compte) ou si la config admin n'est pas
 chargée ; écriture *en mémoire seulement* (persistée seulement si
 l'utilisateur enregistre ses réglages).
 
+*Prérequis (P140)* : le worker Kokoro charge ONNX Runtime Web depuis
+`/wasm/` (`ort-wasm-simd-threaded.jsep.mjs` + `.jsep.wasm`, 21 Mo, import
+dynamique). Le patch P13 supprimait ce dossier (« ML navigateur inutile ») :
+`browser-kokoro` levait alors « no available backend found. ERR: [webgpu]
+TypeError: Failed to fetch dynamically imported module :…/wasm/ort-wasm-simd-
+threaded.jsep.mjs » — corrigé en conservant `wasm/` dans le build (seules les
+source maps sont retirées) ; les MIME sont conformes (`.mjs` →
+`text/javascript`, `.wasm` → `application/wasm`).
+
 *Validation* : sonde `p138_p139_test.py`, 12 contrôles P139 (6 scénarios ×
 2 chargeurs) — forçage, voix système conservées, TTS admin préservé,
 `alloy` normalisé, config absente = abstention, réglage valide préservé.

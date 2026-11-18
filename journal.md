@@ -3413,3 +3413,26 @@ Kokoro.js ».
 - **EN ATTENTE** : validation utilisateur puis régénération v0.0.78
   (interdit sans validation explicite). Les logs activés côté appareil
   doivent montrer P135/P137 ; P138/P139 exigent une reconstruction de l'APK.
+
+## 2026-11-18 — v0.0.78 RÉGÉNÉRÉE (P138/P139 livrés)
+
+Validation utilisateur : « regenere 0.0.78 ».
+
+- **Pré-requis** : `check_patches.py` vert (`check_erreur_tts`,
+  `check_default_kokoro`), `TAG=v0.0.78 verifier_tag.py` ✓, sonde
+  `p138_p139_test.py` verte (43 contrôles + 6 non-régressions), 2 PDF
+  recompilés sans warning, arbre propre (`527529d`).
+- **Release supprimée** : `gh release delete v0.0.78 --yes` (les 2 APK de
+  `5f47747` sont retirés).
+- **Tag repris** : `git tag -d v0.0.78` (était sur `5f47747`) →
+  `git push origin :refs/tags/v0.0.78` → `git tag v0.0.78 527529d` →
+  `git push origin master v0.0.78` (jamais `git push --tags`) — tag local et
+  remote sur `527529d`, `git describe --tags` = `v0.0.78`.
+- **CI** : run `44410135285` (Build APK, ref `v0.0.78`) — **success**
+  (22:17:30Z → 22:21:58Z, ~4 min 28).
+- **Release `v0.0.78` publiée** à 22:21:52Z avec les 2 APK régénérés depuis
+  `527529d` (donc avec **P135 à P139**) :
+  - `OpenWebUI_Android-0.0.78-debug.apk` (251 856 313 o)
+  - `OpenWebUI_Android-0.0.78-release.apk` (247 335 492 o)
+- Lien vérifié (HTTP 200) : `https://github.com/FredSources/Openwebui_Android/releases/tag/v0.0.78`
+- Commit journal ci-dessous poussé sur `master` **sans toucher au tag**.

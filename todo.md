@@ -150,6 +150,9 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       aligné sur `config.voice`, normalisation synchrone si kokoro déjà
       choisi) dans les deux chargeurs de `$settings` — validé (sonde
       p138_p139 : 14 contrôles × 2 fichiers) ; EN ATTENTE : test appareil
+- [x] Régénération v0.0.78 (3ᵉ cycle, validation « regenere 0.0.78 ») :
+      tag repris sur `527529d` (P138/P139), run 44410135285 success —
+      release publiée avec les 2 APK régénérés (22:21:52Z)
 - [ ] Test appareil v0.0.78 (APK du 2026-11-18, avec P135/P136/P137) : dictée
       (plus d'erreur « client »), mode vocal (bouton « Voice mode » visible,
       énoncé transcrit localement → message dans le chat *derrière* l'overlay ;

@@ -343,6 +343,33 @@ def check_tts_lecture() -> None:
         err("P136 : boucle d'attente des voix rétablie sans borne")
 
 
+def check_appel_lecture() -> None:
+    """P137 — la file de lecture d'un appel doit être relancée à chaque réponse."""
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    if not chunk.exists():
+        err("P137 : chunk d'appel BeEbX_lw.js absent")
+        return
+    ct = chunk.read_text(encoding="utf-8", errors="ignore")
+
+    # marqueur de boucle active : déclaré, effacé à la fin, testé au démarrage
+    if 'let bt={},Wt={},Le="",ue=null,ntSig=null;' not in ct:
+        err("P137 : marqueur de boucle de lecture absent (ntSig)")
+    if "{a(q,!1),ntSig=null;break}" not in ct:
+        err("P137 : fin de boucle sans effacement du marqueur")
+    if "ntSig!==ce.signal&&(ntSig=ce.signal,nt(at,ce.signal)),a(q,!0)}" not in ct:
+        err("P137 : ct ne relance pas la boucle / ne remet pas l'état « parle »")
+    if "S=!0,bt[at]=!1," not in ct:
+        err("P137 : drapeau « réponse finie » jamais effacé (relance immédiate "
+            "puis re-arrêt de la boucle)")
+    if "ce.signal.aborted&&(ce=new AbortController())" not in ct:
+        err("P137 : signal annulé non recréé (interruption → plus de lecture)")
+    # rétrogradation : version amont, la boucle ne se relance jamais
+    if "}else if(bt[Je]&&rt[Je]&&rt[Je].length===0){a(q,!1);break}" in ct:
+        err("P137 : boucle de lecture à nouveau non relançable (version amont)")
+    if "ce=new AbortController,a(q,!0),nt(at,ce.signal))}" in ct:
+        err("P137 : ct d'origine rétabli (relance conditionnée au changement de chat)")
+
+
 def check_shims() -> None:
     if not (SRC / "tiktoken.py").exists():
         err("shim tiktoken.py absent")
@@ -680,6 +707,7 @@ def main() -> int:
     check_audio_locale()
     check_mode_vocal()
     check_tts_lecture()
+    check_appel_lecture()
     check_pyodide_paquets()
     check_p41_harvest()
     check_p54_ciblage()

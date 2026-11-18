@@ -624,6 +624,53 @@ def patch_tts_lecture() -> None:
     )
 
 
+def patch_appel_lecture() -> None:
+    """P137 — appel vocal : la file de lecture est relancée à chaque réponse.
+
+    La boucle `nt` (lecture des réponses de l'appel) se TERMINE dès que la
+    réponse est finie et la file vide (`break` sur le drapeau `chat:finish`),
+    mais `ct` (`chat:start`, dispatché à CHAQUE génération) ne la relance que
+    si l'identifiant de chat change (`Le!==at`) : le deuxième message d'un
+    même chat est donc empilé dans `rt` sans aucun lecteur — *aucun son,
+    aucun sous-titre, alors que la réponse est bien générée*. Trois
+    micro-remplacements dans le chunk d'appel :
+    - déclaration d'un marqueur de boucle active (`ntSig`) ;
+    - à la fin de la boucle, on l'efface (elle doit être relancée) ;
+    - `ct` efface le drapeau « réponse finie » du chat (sinon la boucle
+      relancée se re-termine aussitôt), relance `nt` si aucun tour n'est
+      associé au signal courant, en recréant l'`AbortController` si l'ancien a
+      été annulé (interruption), et repasse l'état « parle » (`q`) à vrai —
+      sans lui, la détection de parole resterait active pendant la lecture et
+      le micro capterait la voix de l'assistant.
+    Structure amont intacte : le `break` est conservé (aucune boucle orpheline)."""
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+
+    replace_once(
+        js,
+        'let bt={},Wt={},Le="",ue=null;',
+        'let bt={},Wt={},Le="",ue=null,ntSig=null;',
+        "P137 appel : marqueur de boucle de lecture active",
+    )
+    replace_once(
+        js,
+        "}else if(bt[Je]&&rt[Je]&&rt[Je].length===0){a(q,!1);break}",
+        "}else if(bt[Je]&&rt[Je]&&rt[Je].length===0)"
+        "{a(q,!1),ntSig=null;break}",
+        "P137 appel : fin de boucle = marqueur effacé (à relancer)",
+    )
+    replace_once(
+        js,
+        "ct=async Je=>{const{id:at}=Je.detail;S=!0,Le!==at&&(`${at}`,ae(!1),"
+        "Le=at,Z=!1,ce=new AbortController,a(q,!0),nt(at,ce.signal))}",
+        "ct=async Je=>{const{id:at}=Je.detail;S=!0,bt[at]=!1,"
+        "Le!==at&&(`${at}`,ae(!1),"
+        "Le=at,Z=!1,ce=new AbortController),"
+        "ce.signal.aborted&&(ce=new AbortController()),"
+        "ntSig!==ce.signal&&(ntSig=ce.signal,nt(at,ce.signal)),a(q,!0)}",
+        "P137 appel : la boucle de lecture est relancée à chaque réponse",
+    )
+
+
 def patch_audio_locale() -> None:
     """P127/P129/P130 — empreinte minimale sur le code amont : ajouts seuls
     (P127), une ligne d'appel changée + fonctions ajoutées (P129/P130), et le
@@ -4965,6 +5012,7 @@ def main() -> int:
     patch_ui_moteurs_rag()
     patch_mode_vocal()
     patch_tts_lecture()
+    patch_appel_lecture()
     patch_web_search()
     patch_frontend_engines()
     copy_searxng()

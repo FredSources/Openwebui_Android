@@ -135,8 +135,13 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [x] Régénération v0.0.78 (2ᵉ cycle, sur demande « crée une version 0.0.78 ») :
       tag repris sur `eb20a20` (P135/P136), run 44257851519 success —
       release publiée avec les 2 APK régénérés
-- [ ] Test appareil v0.0.78 (APK du 2026-11-18, avec P135/P136) : dictée
+- [x] P137 : mode vocal — la 2ᵉ réponse d'un chat (et tout message après
+      interruption) n'était jamais lue : boucle `nt` terminée et non
+      relancée par `ct` — marqueur `ntSig` + drapeau `bt` effacé + relance
+      à chaque génération — validé (sonde p137 sur le code livré : 4
+      scénarios) ; EN ATTENTE : test appareil
+- [ ] Test appareil v0.0.78 (APK du 2026-11-18, avec P135/P136/P137) : dictée
       (plus d'erreur « client »), mode vocal (bouton « Voice mode » visible,
       énoncé transcrit localement → message dans le chat *derrière* l'overlay ;
       l'overlay n'affiche que statuts et avatar), **génération audio** à
-      voix haute (P135/P136) + toast si aucun moteur TTS
+      voix haute à chaque réponse (P135/P136/P137) + toast si aucun moteur TTS

@@ -3274,3 +3274,69 @@ nouveau numéro).
 *derrière* l'overlay : l'overlay lui-même n'affiche que l'avatar, le micro et
 les statuts « Listening… »/« Thinking… », vérifié dans le code amont), et
 surtout **génération audio** (P135/P136).
+
+## 2026-11-18 — P137 : en mode vocal, chaque réponse est enfin lue
+
+Retour utilisateur après l'APK régénéré (P135/P136) : « tout semble marcher,
+mais en mode vocal je n'ai pas de retour audio, et aucun retour écrit ; les
+trois points bougent » — donc la réponse *est générée* (transcription bien
+soumise au `submitPrompt` du composeur) mais jamais lue.
+
+**Diagnostic** : le texte n'apparaît nulle part *par conception amont* —
+l'overlay n'affiche que l'avatar, le niveau du micro et les statuts
+(« Listening… »/« Thinking… ») ; le sous-titre `V` ne porte que l'emoji
+(`showEmojiInCall`). La transcription et la réponse vont donc dans le chat
+*derrière* l'overlay. Restait l'absence de lecture.
+
+**Cause racine (prouvée par sonde, pas supposée)** : sonde nouvelle
+`/tmp/opencode/p137_call_playback_test.py`, qui extrait du chunk la chaîne
+RÉELLE (`ct`/`pt`/`wt`/`nt`/`Ue`/`Y`) et la rejoue avec `speechSynthesis`
+contrôlé. Résultat *avant* correctif :
+- 1ᵉʳ message d'un chat neuf → **lu** ;
+- 2ᵉ message du même chat après `chat:finish` → **jamais lu** ;
+- changement de chat → lu.
+
+La boucle `nt` se *terminait* (`break`) dès que la réponse était finie et la
+file vide, alors que `ct` (`chat:start`, dispatché à **chaque** génération par
+la fonction `cl`) ne la relançait que si l'identifiant de chat *changeait*
+(`Le!==at`) : les segments suivants s'empilaient dans `rt` sans aucun
+lecteur. Comportement amont (nos patchs ne touchaient ni `ct`, ni `pt`,
+ni `wt`, ni `nt`).
+
+**Correctif (P137, `scripts/prepare_src.py::patch_appel_lecture()`, 3
+micro-remplacements, `break` conservé — aucune boucle orpheline)** :
+1. déclaration d'un marqueur de boucle active `ntSig` ;
+2. à la fin du tour, `ntSig=null` (elle devra être relancée) ;
+3. dans `ct` : `bt[at]=!1` (sinon la boucle relancée se re-arrêtait
+   aussitôt — débloqué au 2ᵉ essai de la sonde), relance de `nt` si aucun
+   tour n'est associé au signal courant, recréation de l'`AbortController`
+   si l'ancien a été annulé (interruption), et `a(q,!0)` remis hors de la
+   garde `Le!==at` — sans l'état « parle », la détection de parole resterait
+   active pendant la lecture et le micro capterait la voix de l'assistant.
+
+**Justification du contrôle ajouté à `check_patches.py`
+(`check_appel_lecture()`, branché dans `main()`)** : ce défaut est
+*discret* — l'appel semble fonctionner (micro, transcription, génération) et
+seul le 2ᵉ message révèle le silence ; aucun contrôle existant ne couvre la
+chaîne de lecture de l'appel. Le contrôle vérifie la présence du marqueur, son
+effacement à la fin du tour, la relance + l'effacement du drapeau « réponse
+finie », la recréation du signal annulé, l'état « parle » — et deux motifs de
+*rétrogradation* (la boucle amont non relançable et le `ct` d'origine).
+Portée étendue, rien n'est affaibli.
+
+**Validation** : `prepare_src.py` → 139 opérations, aucun `ERREUR`/`ÉCHEC` ;
+`py_compile` + `check_patches.py` verts ; **sonde P137 verte sur les 4
+scénarios** (chat neuf, 2ᵉ message du même chat, changement de chat,
+reprise après interruption) ; non-régression vertes : `p136_tts_wait_test`,
+`p128_tts_test` (9 scénarios), `p133_speech_test`, `p134_call_test`,
+`p127_p129_test`.
+
+**Doc** : `PATCHES.md` (ligne P137), `docs/maintenance.typ` (ligne P137 au
+tableau des patchs), `docs/audio.typ` (nouvelle section « Réponses de
+l'appel : file de lecture — corrigé (P137) » — dont la note que l'overlay
+n'affiche aucun texte par conception —, tableau récap et références
+enrichis) ; 2 PDF recompilés **sans warning** (0 tableau Markdown, 0 gras
+Markdown, 0 `inline-cite` sans `url`).
+
+**Publication** : commit sur `master` puis régénération de **v0.0.78** (tag
+repris sur le nouveau commit + CI) — sur demande explicite de l'utilisateur.

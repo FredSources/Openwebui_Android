@@ -280,6 +280,42 @@ when using Web STT engine ». Le build l'apporte ainsi :
 Le polyfill correspondant (`app/src/main/assets/call_polyfill.js`) est injecté
 à chaque page chargée, aux côtés du shim de dictée et du shim TTS.
 
+== Réponses de l'appel : file de lecture — corrigé (P137, v0.0.78)
+
+*Ce que l'overlay affiche* : par conception amont, *aucun texte* — seulement
+l'avatar du modèle, le niveau du micro et les statuts (« Listening… »,
+« Thinking… », « Tap to interrupt »). La transcription part dans le *vrai
+`submitPrompt`* du composeur : elle et la réponse apparaissent dans le chat
+*derrière* l'overlay. Le sous-titre central (`V`) ne porte que l'emoji
+(`showEmojiInCall`).
+
+*Chaîne de lecture* : `chat:start` / `chat` / `chat:finish` sont dispatchés sur
+l'`EventTarget` du layout — le même objet transmis au composant d'appel
+(`d7` → `nP` → `H4` → `P4`) — puis `ct` démarre la boucle `nt`, `pt` empile
+les segments dans `rt` et `nt` les lit un à un via `Y`
+(`speechSynthesis` → shim → `AndroidTTS`).
+
+*Symptôme corrigé* : la réponse était bien générée (les trois points tournent)
+mais *rien n'était lu* — ni son, ni sous-titre. Cause : `nt` se *terminait*
+(`break`) dès que la réponse était finie et la file vide, alors que `ct`
+(`chat:start`, dispatché à chaque génération) ne la relançait que si
+l'identifiant de chat *changeait* : le deuxième message d'un même chat — et
+tout message après une interruption — s'empilait dans `rt` sans aucun lecteur.
+
+*Correctif (P137, 3 micro-remplacements)* : marqueur de boucle active
+(`ntSig`), effacé à la fin du tour ; à chaque génération, `ct` efface le
+drapeau « réponse finie » du chat (sinon la boucle relancée se re-arrêtait
+aussitôt), relance `nt` si aucun tour n'est associé au signal courant — en
+recréant l'`AbortController` si l'ancien a été annulé par une interruption —
+et repasse l'état « parle » (`q`) à vrai, sans quoi la détection de parole
+resterait active pendant la lecture et le micro capterait la voix de
+l'assistant. Le `break` est conservé : aucune boucle orpheline.
+
+*Validation* : sonde `p137_call_playback_test.py` qui rejoue le code
+*réellement livré* (`ct`/`pt`/`wt`/`nt`/`Ue`/`Y` extraits du chunk) —
+4 scénarios verts : premier message d'un chat neuf, deuxième message du même
+chat, changement de chat, reprise après interruption.
+
 = Récapitulatif : avec patch / sans patch
 
 #table(
@@ -317,8 +353,9 @@ Le polyfill correspondant (`app/src/main/assets/call_polyfill.js`) est injecté
   [temps réel (`audio.realtime`) : désactivés par défaut ; *mode
    d'interaction vocale* : utilisable en STT local (P134 — 3 refus amont
    neutralisés, transcription locale via `SpeechRecognition`, vrai micro) ;
-   réponse lue à voix haute avec la voix locale (P128 + P135/P136 — verrou
-   d'initialisation levé) ; dictée sans erreur « client » (P133)],
+   chaque réponse lue à voix haute, y compris la deuxième d'un même chat
+   (P137) avec la voix locale (P128 + P135/P136) ; dictée sans erreur
+   « client » (P133) ; l'overlay n'affiche aucun texte (comportement amont)],
   [Fichiers audio > 20 Mo],
   [découpage par `pydub`],
   [découpage local sans pydub (P129/P130) : WAV/MP3 en pur Python, autres
@@ -348,7 +385,8 @@ Le polyfill correspondant (`app/src/main/assets/call_polyfill.js`) est injecté
   [`scripts/prepare_src.py`],
   [patchs P5 (`pydub` optionnel), P7a-c (moteurs locaux → 503),
    P8 (`AUDIO_STT_ENGINE=web`), P136 (boucle d'attente des voix bornée dans
-   le chunk d'appel)],
+   le chunk d'appel), P137 (file de lecture de l'appel relancée à chaque
+   réponse)],
   [`app/src/main/java/org/openwebui/android/AndroidSpeech.java`],
   [passerelle `SpeechRecognizer` natif, contrat
    `onresult`/`onend`/`onerror`, relance `NO_MATCH`/`SPEECH_TIMEOUT`, relance

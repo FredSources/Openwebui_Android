@@ -520,6 +520,10 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P136],
   [`chunks/BeEbX_lw.js` (frontend)],
   [lecture à voix haute : la boucle d'attente des voix est bornée — l'amont interroge `speechSynthesis.getVoices()` en boucle (100 ms) jusqu'à une liste non vide, puis lit : sans voix, la boucle ne se termine jamais et `nt()` (file de lecture de l'appel vocal) reste bloqué sur `await Y(st)`, plus rien n'est lu sans erreur ; trois micro-remplacements dans `Y` : horodatage de l'attente, lecture forcée au-delà de 5 s (voix par défaut du moteur), garde-fous 15 s sur la promesse — garde-fou de la cause racine traitée par P135 — journal v0.0.78],
+
+  [P137],
+  [`chunks/BeEbX_lw.js` (frontend)],
+  [mode vocal : chaque réponse est lue à voix haute — la boucle de lecture `nt` se terminait dès la fin d'une réponse (`break` sur `chat:finish`) et `ct` (`chat:start`, dispatché à chaque génération) ne la relançait que si l'identifiant de chat changeait : le deuxième message d'un même chat (et tout message après interruption) était empilé sans lecteur, réponse générée mais aucun son ; marqueur de boucle active `ntSig`, drapeau « réponse finie » effacé à chaque génération, relance de `nt` avec recréation de l'`AbortController` si annulé, état « parle » remis à vrai (sinon le micro capterait l'assistant) — journal v0.0.78],
 )
 
 == Performances de démarrage

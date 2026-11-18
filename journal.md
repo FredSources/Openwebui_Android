@@ -3340,3 +3340,25 @@ Markdown, 0 `inline-cite` sans `url`).
 
 **Publication** : commit sur `master` puis régénération de **v0.0.78** (tag
 repris sur le nouveau commit + CI) — sur demande explicite de l'utilisateur.
+
+## 2026-11-18 — v0.0.78 RÉGÉNÉRÉE (P137 livré)
+
+Demande explicite : « une fois terminé, régénère la version 0.0.78 ».
+
+- **Pré-requis** : `check_patches.py` vert (nouveau `check_appel_lecture`),
+  `TAG=v0.0.78 verifier_tag.py` ✓, 6 sondes vertes, 2 PDF recompilés sans
+  warning, arbre propre (`5f47747`).
+- **Release supprimée** : `gh release delete v0.0.78 --yes` (les 2 APK de
+  `eb20a20` sont retirés).
+- **Tag repris** : `git tag -d v0.0.78` (était sur `eb20a20`) →
+  `git push origin :refs/tags/v0.0.78` → `git tag v0.0.78 5f47747` →
+  `git push origin master v0.0.78` (jamais `git push --tags`) — tag local et
+  remote sur `5f47747`, `git describe --tags` = `v0.0.78`.
+- **CI** : run `44264202171` (Build APK, ref `v0.0.78`) — **success**
+  (08:06:49Z → 08:11:12Z, ~4 min 23).
+- **Release `v0.0.78` publiée** à 08:11:09Z avec les 2 APK régénérés depuis
+  `5f47747` (donc avec **P135, P136 et P137**) :
+  - `OpenWebUI_Android-0.0.78-debug.apk` (251 849 321 o)
+  - `OpenWebUI_Android-0.0.78-release.apk` (247 322 224 o)
+- Lien vérifié (HTTP 200) : `https://github.com/FredSources/Openwebui_Android/releases/tag/v0.0.78`
+- Commit journal ci-dessous poussé sur `master` **sans toucher au tag**.

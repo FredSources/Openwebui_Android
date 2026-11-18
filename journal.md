@@ -3242,3 +3242,35 @@ marqueurs, la compilation aura lieu au prochain build APK.
 aucune suppression de release, aucune régénération CI sans validation explicite
 (règle utilisateur). Piste restée ouverte (non écrite) : **P137**, sérialisation
 de la dictée.
+
+## 2026-11-18 — v0.0.78 RÉGÉNÉRÉE (validation utilisateur) : P135/P136 livrés
+
+Demande explicite de l'utilisateur : « crée une version 0.0.78 » — validation
+donnée pour le cycle complet de régénération (la version reste v0.0.78, aucun
+nouveau numéro).
+
+- **Pré-requis** : `check_patches.py` vert + `TAG=v0.0.78 verifier_tag.py` ✓
+  (versionName 0.0.78 == tag) + arbre de travail propre (`eb20a20`).
+- **Release précédente déjà absente** : `gh release delete v0.0.78 --yes` a
+  répondu « release not found » (et `gh release view` idem) — rien à effacer ;
+  à noter que `gh release list` ne montrait que v0.0.77 et antérieures. La
+  release créée par la CI porte `created_at` 2026-11-18T00:07:35Z (brouillon
+  probable créé entre-temps) et `published_at` 07:23:15Z.
+- **Tag repris** : `git tag -d v0.0.78` (était sur `76f9e1d`) →
+  `git push origin :refs/tags/v0.0.78` → `git tag v0.0.78 eb20a20` →
+  `git push origin master` puis `git push origin master v0.0.78`
+  (jamais `git push --tags`) — tag local **et** remote sur `eb20a20`,
+  `git describe --tags` = `v0.0.78`.
+- **CI** : run `44257851519` (Build APK, ref `v0.0.78`, push sur `eb20a20`) —
+  **success** (07:18:30Z → 07:23:20Z, ~4 min 50).
+- **Release `v0.0.78` publiée** avec les 2 APK **régénérés depuis `eb20a20`
+  (donc avec P135 et P136)** :
+  - `OpenWebUI_Android-0.0.78-debug.apk` (251 856 413 o)
+  - `OpenWebUI_Android-0.0.78-release.apk` (247 319 128 o)
+  (tailles différentes des APK de `76f9e1d` : 251 848 305 / 247 324 000 —
+  preuve que les binaires ont bien été reconstruits.)
+
+**Reste** : test appareil — dictée, mode vocal (transcription soumise au chat
+*derrière* l'overlay : l'overlay lui-même n'affiche que l'avatar, le micro et
+les statuts « Listening… »/« Thinking… », vérifié dans le code amont), et
+surtout **génération audio** (P135/P136).

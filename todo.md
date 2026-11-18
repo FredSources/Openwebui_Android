@@ -132,6 +132,11 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       EN ATTENTE : test appareil de l'APK (Java non compilable localement)
 - [x] Régénération v0.0.78 (release effacée, tag repris → CI) : run
       44196145477 success — 2 APK régénérés depuis 76f9e1d (P133/P134)
-- [ ] Test appareil v0.0.78 : dictée (plus d'erreur « client »), mode vocal
-      (bouton « Voice mode » visible, énoncé transcrit localement), lecture à
-      voix haute (+ toast si aucun moteur TTS)
+- [x] Régénération v0.0.78 (2ᵉ cycle, sur demande « crée une version 0.0.78 ») :
+      tag repris sur `eb20a20` (P135/P136), run 44257851519 success —
+      release publiée avec les 2 APK régénérés
+- [ ] Test appareil v0.0.78 (APK du 2026-11-18, avec P135/P136) : dictée
+      (plus d'erreur « client »), mode vocal (bouton « Voice mode » visible,
+      énoncé transcrit localement → message dans le chat *derrière* l'overlay ;
+      l'overlay n'affiche que statuts et avatar), **génération audio** à
+      voix haute (P135/P136) + toast si aucun moteur TTS

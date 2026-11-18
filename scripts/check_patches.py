@@ -307,6 +307,42 @@ def check_mode_vocal() -> None:
             err(f"P134 : {lib}")
 
 
+def check_tts_lecture() -> None:
+    """P135/P136 — lecture à voix haute : le synthétiseur doit s'initialiser
+    depuis getVoices(), et la boucle d'attente des voix doit être bornée."""
+    java = PROJ / "app" / "src" / "main" / "java" / "org" / "openwebui" / "android"
+    tts_j = (java / "AndroidTTS.java").read_text(encoding="utf-8", errors="ignore")
+
+    # P135 — sans initialisation paresseuse, `tts` reste null tant que speak()
+    # n'a pas été appelé : verrou (getVoices() vide → speak() jamais atteint).
+    if "ensureTts(() -> { });" not in tts_j:
+        err("P135 : voicesJson() n'initialise pas le synthétiseur (verrou)")
+    if "initDone" not in tts_j:
+        err("P135 : état « initialisation terminée » absent (file d'attente cassée)")
+    if "private volatile boolean ready" not in tts_j:
+        err("P135 : `ready` non volatile (visibilité depuis le thread JS)")
+
+    # P136 — garde-fous de la boucle d'attente des voix dans le chunk d'appel
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    if not chunk.exists():
+        err("P136 : chunk d'appel BeEbX_lw.js absent")
+        return
+    ct = chunk.read_text(encoding="utf-8", errors="ignore")
+    for motif, lib in (
+        ("Promise.race([new Promise(st=>{let et=null,gs=Date.now();",
+         "boucle d'attente des voix non horodatée"),
+        ("if(!Mt.length&&Date.now()-gs<5e3)return;",
+         "lecture non forcée au-delà de 5 s sans voix"),
+        ("at.aborted&&ft()}),new Promise(st=>setTimeout(st,15e3))])}",
+         "garde-fous 15 s absent (une lecture sans retour fige la file)"),
+    ):
+        if motif not in ct:
+            err(f"P136 : {lib}")
+    # un retour en arrière signifierait l'ancienne boucle sans borne
+    if "kt=setInterval(()=>{const Mt=speechSynthesis.getVoices();if(!Mt.length)return;" in ct:
+        err("P136 : boucle d'attente des voix rétablie sans borne")
+
+
 def check_shims() -> None:
     if not (SRC / "tiktoken.py").exists():
         err("shim tiktoken.py absent")
@@ -643,6 +679,7 @@ def main() -> int:
     check_p125_fm()
     check_audio_locale()
     check_mode_vocal()
+    check_tts_lecture()
     check_pyodide_paquets()
     check_p41_harvest()
     check_p54_ciblage()

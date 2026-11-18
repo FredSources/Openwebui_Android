@@ -3179,3 +3179,66 @@ la 0.0.78 et efface la release 0.0.78, puis régénère ».
   l'ancienne release → reprise du tag `v0.0.78` (local + remote, jamais
   `git push --tags`) → régénération par la CI.
 - Reste : test sur appareil (dictée, mode vocal, lecture à voix haute).
+
+## 2026-11-18 — P135/P136 : verrou d'initialisation du synthétiseur (aucune génération audio)
+
+Symptôme remonté : le mode d'interaction vocale capte et transcrit l'énoncé,
+mais **aucun son n'est jamais émis** (ni dans l'appel, ni à la lecture d'un
+message), sans erreur ni toast.
+
+**Cause racine (P135, `app/src/main/java/.../AndroidTTS.java`)** : l'initialisation
+du `TextToSpeech` n'était déclenchée que par `speak()`, alors que `speak()` n'est
+atteint qu'après que `getVoices()` renvoie une liste non vide — or `voicesJson()`
+renvoyait `"[]"` tant que le moteur n'avait pas été créé. La boucle d'attente
+amont (100 ms) tournait donc *indéfiniment* : verrou silencieux, aucune voix,
+aucun son. Correctifs : `voicesJson()` déclenche l'initialisation
+(`ensureTts(() -> { })`), les demandes reçues pendant le démarrage sont mises en
+file et purgées à la fin de l'init (`initDone`, distinct de `ready` — sinon un
+`speak()` prématuré lèverait une erreur), `tts`/`ready`/`initDone` deviennent
+`volatile` (lus depuis le thread JavaScript), voix par défaut si la liste reste
+vide après `ready`, javadoc mis à jour.
+
+**Garde-fou amont (P136, `scripts/prepare_src.py::patch_tts_lecture()`)** : la
+boucle d'attente des voix de l'amont (`Y` dans `chunks/BeEbX_lw.js`) n'avait
+aucune borne : sans voix, `nt()` — file de lecture des réponses de l'appel —
+restait bloqué sur `await Y(st)`. Trois micro-remplacements (structure amont
+intacte) : horodatage de l'attente, lecture forcée au-delà de 5 s sans voix
+(voix par défaut du moteur), garde-fous 15 s sur la promesse (`Promise.race` —
+un `speak()` sans retour d'événement ne peut plus figer la file). Branché dans
+`main()` après `patch_mode_vocal()`.
+
+**Justification du contrôle ajouté à `scripts/check_patches.py`
+(`check_tts_lecture()`, branché dans `main()`)** : ces deux patchs sont *silencieux*
+— un retour en arrière ne produit aucun symptôme au lancement, seulement un
+appareil muet ; aucun contrôle existant ne les couvre. Le contrôle vérifie les
+marqueurs Java (`ensureTts(() -> { })`, `initDone`, `ready` volatile) et les trois
+motifs JS, plus l'*absence* de l'ancienne boucle non bornée (rétrogradation). Portée
+étendue, rien n'est affaibli.
+
+**Deux erreurs de parenthésage corrigées** en cours de route (dumps `})}` mal
+décomptés dans le `Promise.race`) — validées par `node --check` sur l'extrait de
+`Y` *et* sur le chunk complet avant de relancer `prepare_src.py` (136 opérations,
+aucun `ERREUR`/`ÉCHEC`).
+
+**Validation** : `py_compile` + `check_patches.py` vert ; sondes rejouées vertes —
+`p128_tts_test` (9 scénarios), `p133_speech_test`, `p134_call_test`,
+`p127_p129_test`, et **nouvelle `p136_tts_wait_test`** (4 scénarios sur la fonction
+`Y` réellement livrée : voix immédiates → lecture immédiate ; jamais de voix →
+lecture forcée ~5 s ; `speak` muet → résolution ~15 s ; voix tardives ~1,2 s ;
+piege `speechSynthesis` en lecture seule contourné par `Object.defineProperty`).
+
+**Doc** : `PATCHES.md` (lignes P135/P136), `docs/maintenance.typ` (lignes
+P135/P136 au tableau des patchs), `docs/audio.typ` (abstract porté au 18/11/2026,
+section « Verrou d'initialisation du synthétiseur — corrigé (P135/P136) »,
+tableau récap et références enrichis) — les deux PDF recompilés sans warning
+(0 tableau Markdown, 0 gras Markdown, 0 `inline-cite` sans `url`).
+
+**Limite** : `AndroidTTS.java` n'a pas pu être compilé localement (aucun `javac`
+sur l'hôte — JDK portable du projet non monté dans cette session, seul le JRE
+21 est présent) ; le fichier est validé par relecture et par les contrôles de
+marqueurs, la compilation aura lieu au prochain build APK.
+
+**Non committé à ce stade** ; la version reste **v0.0.78** — aucun nouveau tag,
+aucune suppression de release, aucune régénération CI sans validation explicite
+(règle utilisateur). Piste restée ouverte (non écrite) : **P137**, sérialisation
+de la dictée.

@@ -587,6 +587,43 @@ def patch_mode_vocal() -> None:
     )
 
 
+def patch_tts_lecture() -> None:
+    """P136 — lecture à voix haute : la boucle d'attente des voix est bornée.
+
+    L'amont appelle `speechSynthesis.getVoices()` en boucle (100 ms) jusqu'à
+    obtenir une liste non vide, puis lit. Si la liste reste vide (synthétiseur
+    absent, moteur encore en initialisation), la boucle ne se termine JAMAIS :
+    `nt()` (file de lecture de l'appel vocal) reste bloqué sur `await Y(st)` et
+    plus rien n'est lu, sans erreur. Trois micro-remplacements dans `Y` :
+    - horodatage de la boucle d'attente ;
+    - au-delà de 5 s sans voix, on lit quand même (voix par défaut du moteur) ;
+    - garde-fous 15 s sur la promesse entière (un `speak()` sans retour
+      d'événement ne peut plus figer la file de lecture).
+    P135 (AndroidTTS.voicesJson → initialisation) traite la cause racine ;
+    ceci est le garde-fou côté amont."""
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+
+    replace_once(
+        js,
+        "const at=ce.signal;return new Promise(st=>{let et=null;",
+        "const at=ce.signal;return Promise.race([new Promise(st=>{let et=null,gs=Date.now();",
+        "P136 lecture : boucle d'attente des voix horodatée",
+    )
+    replace_once(
+        js,
+        "kt=setInterval(()=>{const Mt=speechSynthesis.getVoices();if(!Mt.length)return;",
+        "kt=setInterval(()=>{const Mt=speechSynthesis.getVoices();"
+        "if(!Mt.length&&Date.now()-gs<5e3)return;",
+        "P136 lecture : lecture forcée au-delà de 5 s sans voix",
+    )
+    replace_once(
+        js,
+        "at.aborted&&ft()})}",
+        "at.aborted&&ft()}),new Promise(st=>setTimeout(st,15e3))])}",
+        "P136 lecture : garde-fous 15 s sur la lecture",
+    )
+
+
 def patch_audio_locale() -> None:
     """P127/P129/P130 — empreinte minimale sur le code amont : ajouts seuls
     (P127), une ligne d'appel changée + fonctions ajoutées (P129/P130), et le
@@ -4927,6 +4964,7 @@ def main() -> int:
     patch_ui_moteurs_locaux()
     patch_ui_moteurs_rag()
     patch_mode_vocal()
+    patch_tts_lecture()
     patch_web_search()
     patch_frontend_engines()
     copy_searxng()

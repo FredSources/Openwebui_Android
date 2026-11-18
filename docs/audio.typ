@@ -16,7 +16,7 @@
   authors: "Équipe projet openwebui-android",
   date: datetime.today(),
   date-format: "[day padding:none]/[month padding:none]/[year]",
-  abstract: [Compte rendu de la chaîne audio de l'application *Open WebUI Android* : dictée vocale, transcription de fichiers audio, génération de parole (TTS) et appels vocaux — comportement *avec les patchs du projet* et *sans patch* (code amont Open WebUI). L'inférence audio n'est jamais locale : elle est soit *native* (moteur vocal d'Android pour la dictée), soit *distante* (API STT/TTS), le portage Android excluant les chaînes lourdes (torch, ctranslate2). État au 17 novembre 2026, version 0.0.78.],
+  abstract: [Compte rendu de la chaîne audio de l'application *Open WebUI Android* : dictée vocale, transcription de fichiers audio, génération de parole (TTS) et appels vocaux — comportement *avec les patchs du projet* et *sans patch* (code amont Open WebUI). L'inférence audio n'est jamais locale : elle est soit *native* (moteur vocal d'Android pour la dictée), soit *distante* (API STT/TTS), le portage Android excluant les chaînes lourdes (torch, ctranslate2). État au 18 novembre 2026, version 0.0.78.],
   table-of-contents: outline(title: "Sommaire"),
 )
 
@@ -203,6 +203,35 @@ téléphone :
 + *sans moteur configuré* (`audio.tts.engine` vide) : c'est la voix locale
   (P128) qui parle — le réglage par défaut de l'APK.
 
+== Verrou d'initialisation du synthétiseur — corrigé (P135/P136, v0.0.78)
+
+*Symptôme constaté sur appareil* : le mode d'interaction vocale capte et
+transcrit l'énoncé, la réponse s'affiche en texte, mais *aucun son n'est
+jamais émis* — ni dans l'appel, ni à la lecture d'un message.
+
+*Cause racine (P135, `AndroidTTS.java`)* : l'initialisation du
+`TextToSpeech` n'était déclenchée que par `speak()`, alors que `speak()` n'est
+atteint qu'après que `getVoices()` renvoie une liste non vide — et
+`voicesJson()` renvoyait `"[]"` tant que le moteur n'avait pas été créé. La
+boucle d'attente amont (100 ms) tournait donc *indéfiniment* : verrou
+silencieux, aucune voix, aucun son, sans message d'erreur. Correctifs :
+`voicesJson()` déclenche l'initialisation, les demandes reçues pendant le
+démarrage sont mises en file (`initDone`) au lieu de lever une erreur
+prématurée, `tts`/`ready` sont `volatile` (lus depuis le thread JavaScript),
+et une voix par défaut est fournie si la liste reste vide.
+
+*Garde-fou amont (P136, `BeEbX_lw.js`)* : même avec le moteur correctement
+initialisé, la boucle d'attente des voix de l'amont n'avait *aucune borne* :
+sans voix, `nt()` — la file de lecture des réponses de l'appel — restait
+bloqué sur `await Y(st)` et plus rien n'était lu. Trois micro-remplacements
+dans `Y` : horodatage de l'attente, *lecture forcée au-delà de 5 s* (voix par
+défaut du moteur), garde-fous 15 s sur la promesse (un `speak()` sans retour
+d'événement ne peut plus figer la file).
+
+Le diagnostic P133 (toast « aucun moteur TTS installé sur l'appareil ») n'est
+désormais atteint que si le synthétiseur échoue réellement à s'initialiser :
+il apparaît au premier usage de la parole, plus jamais masqué par le verrou.
+
 == Sans patch — non fonctionnel
 
 Blocage `pydub`/`audioop` à l'import ; la génération locale suppose
@@ -280,13 +309,16 @@ Le polyfill correspondant (`app/src/main/assets/call_polyfill.js`) est injecté
    `chat.tts`],
   [Lecture à voix haute],
   [idem TTS],
-  [idem TTS — voix du téléphone (P128), hors-ligne],
+  [idem TTS — voix du téléphone (P128), hors-ligne ; synthétiseur initialisé
+   depuis `getVoices()` et boucle d'attente des voix bornée (P135/P136) :
+   la lecture démarre au lieu d'attendre indéfiniment],
   [Appels vocaux],
   [désactivés par défaut],
   [temps réel (`audio.realtime`) : désactivés par défaut ; *mode
    d'interaction vocale* : utilisable en STT local (P134 — 3 refus amont
-   neutralisés, transcription locale via `SpeechRecognition`, vrai micro) ; la
-   voix de synthèse est locale (P128) ; dictée sans erreur « client » (P133)],
+   neutralisés, transcription locale via `SpeechRecognition`, vrai micro) ;
+   réponse lue à voix haute avec la voix locale (P128 + P135/P136 — verrou
+   d'initialisation levé) ; dictée sans erreur « client » (P133)],
   [Fichiers audio > 20 Mo],
   [découpage par `pydub`],
   [découpage local sans pydub (P129/P130) : WAV/MP3 en pur Python, autres
@@ -315,7 +347,8 @@ Le polyfill correspondant (`app/src/main/assets/call_polyfill.js`) est injecté
   [*Source*], [*Contenu*],
   [`scripts/prepare_src.py`],
   [patchs P5 (`pydub` optionnel), P7a-c (moteurs locaux → 503),
-   P8 (`AUDIO_STT_ENGINE=web`)],
+   P8 (`AUDIO_STT_ENGINE=web`), P136 (boucle d'attente des voix bornée dans
+   le chunk d'appel)],
   [`app/src/main/java/org/openwebui/android/AndroidSpeech.java`],
   [passerelle `SpeechRecognizer` natif, contrat
    `onresult`/`onend`/`onerror`, relance `NO_MATCH`/`SPEECH_TIMEOUT`, relance
@@ -323,7 +356,8 @@ Le polyfill correspondant (`app/src/main/assets/call_polyfill.js`) est injecté
   [`app/src/main/java/org/openwebui/android/AndroidTTS.java`],
   [P128 — pont `TextToSpeech` natif (`speak`/`stop`/`voicesJson`,
    événements `__androidTtsEvent`), diagnostic « aucun moteur TTS installé »
-   (P133)],
+   (P133) ; P135 — initialisation paresseuse depuis `voicesJson()` (file
+   d'attente `initDone`, champs `volatile`, voix par défaut)],
   [`app/src/main/assets/tts_polyfill.js`],
   [P128 — shim `speechSynthesis`/`SpeechSynthesisUtterance` (file d'attente,
    débit, voix, pause/resume) — `Object.defineProperty` obligatoire

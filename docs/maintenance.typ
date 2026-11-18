@@ -512,6 +512,14 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P134],
   [`chunks/BeEbX_lw.js` (frontend) + `assets/call_polyfill.js` + `MainActivity.java`],
   [mode d'interaction vocale utilisable en STT local : les 3 refus amont (`stt.engine === "web"` — bouton, lancement, overlay) neutralisés et 4 micro-patchs branchent la transcription sur `window.__callDictation` (SpeechRecognition natif : écoute ouverte au début d'énoncé par la détection de parole amont, figée après 2 s de silence, transcription rendue en local, garde-fou 30 s) ; vrai micro via `window.__realMic` → `__origGUM` (le shim de dictée substitue un flux silencieux qui clouerait la détection) — sept micro-remplacements, structure amont intacte — journal v0.0.78],
+
+  [P135],
+  [`AndroidTTS.java`],
+  [lecture à voix haute : le synthétiseur s'initialise depuis `getVoices()` — cause racine du silence (réponses de l'appel vocal *et* lecture des messages) : `voicesJson()` renvoyait `"[]"` tant que `speak()` n'avait pas été appelé, or `speak()` n'est appelé qu'après que `getVoices()` n'est plus vide (attente amont en boucle à 100 ms) : verrou permanent, aucun son, sans erreur ; `voicesJson()` déclenche l'initialisation, les demandes reçues pendant le démarrage sont mises en file (`initDone`) au lieu de lever une erreur prématurée, `tts`/`ready` sont `volatile` (lus depuis le thread JS), voix par défaut si la liste reste vide — zéro modification amont — journal v0.0.78],
+
+  [P136],
+  [`chunks/BeEbX_lw.js` (frontend)],
+  [lecture à voix haute : la boucle d'attente des voix est bornée — l'amont interroge `speechSynthesis.getVoices()` en boucle (100 ms) jusqu'à une liste non vide, puis lit : sans voix, la boucle ne se termine jamais et `nt()` (file de lecture de l'appel vocal) reste bloqué sur `await Y(st)`, plus rien n'est lu sans erreur ; trois micro-remplacements dans `Y` : horodatage de l'attente, lecture forcée au-delà de 5 s (voix par défaut du moteur), garde-fous 15 s sur la promesse — garde-fou de la cause racine traitée par P135 — journal v0.0.78],
 )
 
 == Performances de démarrage

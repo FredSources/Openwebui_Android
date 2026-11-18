@@ -29,25 +29,42 @@ import java.util.Set;
  *   stop()        — arrête la diffusion en cours ;
  *   voicesJson()  — liste des voix du système, JSON
  *     [{voiceURI, name, lang, localService}] («[] » tant que non initialisé).
+ *     P135 : cet appel lance aussi l'initialisation du synthétiseur — sans
+ *     elle, la boucle d'attente des voix de l'amont ne se termine jamais.
  */
 public class AndroidTTS {
 
     private final WebView webView;
     private final Handler main = new Handler(Looper.getMainLooper());
-    private TextToSpeech tts;
-    private boolean ready = false;
+    private volatile TextToSpeech tts;
+    private volatile boolean ready = false;
+    /** Initialisation terminée (réussie OU échouée) — distinct de `ready`. */
+    private volatile boolean initDone = false;
     private boolean warned = false;
+    /** Demandes reçues pendant l'initialisation asynchrone du synthétiseur. */
+    private final java.util.List<Runnable> pending = new java.util.ArrayList<>();
 
     public AndroidTTS(WebView webView) {
         this.webView = webView;
     }
 
-    /** Crée le TextToSpeech au premier appel (initialisation asynchrone). */
+    /**
+     * Crée le TextToSpeech au premier appel (initialisation asynchrone).
+     *
+     * P135 — tant que l'initialisation n'est pas terminée, la demande est
+     * MISE EN FILE au lieu d'être exécutée dans un état non prêt : sinon un
+     * `speak()` lancé pendant le démarrage lève une erreur alors que le
+     * synthétiseur devient disponible 200 ms plus tard.
+     */
     private void ensureTts(final Runnable onReady) {
         main.post(() -> {
-            if (tts != null) {
+            if (tts != null && initDone) {
                 onReady.run();
                 return;
+            }
+            pending.add(onReady);
+            if (tts != null) {
+                return; // initialisation en cours : le rappel du constructeur purgera la file
             }
             tts = new TextToSpeech(webView.getContext().getApplicationContext(), status -> {
                 ready = (status == TextToSpeech.SUCCESS);
@@ -86,7 +103,15 @@ public class AndroidTTS {
                         }
                     });
                 }
-                onReady.run();
+                // P135 — l'initialisation est terminée (succès ou échec) :
+                // on exécute tout ce qui attendait, puis les appels suivants
+                // passeront directement.
+                initDone = true;
+                java.util.List<Runnable> file = new java.util.ArrayList<>(pending);
+                pending.clear();
+                for (Runnable r : file) {
+                    r.run();
+                }
             });
         });
     }
@@ -132,6 +157,12 @@ public class AndroidTTS {
 
     @JavascriptInterface
     public String voicesJson() {
+        // P135 — INITIALISATION PARESSEUSE. Sans cette ligne, `tts` reste null
+        // tant que speak() n'a pas été appelé, or speak() n'est appelé qu'APRÈS
+        // que getVoices() n'est plus vide (la lecture à voix haute, y compris
+        // celle des réponses de l'appel vocal, attend les voix en boucle à
+        // 100 ms) : verrou silencieux, aucune voix jamais, aucun son jamais.
+        ensureTts(() -> { });
         try {
             if (tts == null || !ready) {
                 return "[]";
@@ -147,6 +178,18 @@ public class AndroidTTS {
                     o.put("localService", true);
                     arr.put(o);
                 }
+            }
+            if (arr.length() == 0) {
+                // Moteur prêt mais liste encore vide (chargement asynchrone de
+                // certains synthétiseurs) : une voix par défaut suffit à
+                // débloquer la boucle d'attente — elle ne retiendra `voiceURI`
+                // que si elle la reconnaît.
+                JSONObject o = new JSONObject();
+                o.put("voiceURI", "default");
+                o.put("name", "default");
+                o.put("lang", java.util.Locale.getDefault().toLanguageTag());
+                o.put("localService", true);
+                arr.put(o);
             }
             return arr.toString();
         } catch (Exception e) {

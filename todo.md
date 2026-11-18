@@ -124,6 +124,12 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       (p133_speech_test)
 - [x] P134 : mode d'interaction vocale utilisable en STT local (3 refus
       neutralisés, transcription locale, vrai micro) — validé (p134_call_test)
+- [x] P135/P136 : lecture à voix haute et réponses d'appel JAMAIS lues — verrou
+      d'initialisation du synthétiseur levé (`voicesJson()` initialise +
+      file `initDone`, champs `volatile`, voix par défaut) et boucle d'attente
+      des voix bornée (lecture forcée > 5 s, garde-fous 15 s) — validé
+      (p136_tts_wait_test + non-régression p128/p133/p134/p127_p129) ;
+      EN ATTENTE : test appareil de l'APK (Java non compilable localement)
 - [x] Régénération v0.0.78 (release effacée, tag repris → CI) : run
       44196145477 success — 2 APK régénérés depuis 76f9e1d (P133/P134)
 - [ ] Test appareil v0.0.78 : dictée (plus d'erreur « client »), mode vocal

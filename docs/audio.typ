@@ -316,6 +316,44 @@ l'assistant. Le `break` est conservé : aucune boucle orpheline.
 4 scénarios verts : premier message d'un chat neuf, deuxième message du même
 chat, changement de chat, reprise après interruption.
 
+== Mode vocal : la transcription locale n'arrivait pas — corrigé (P141, v0.0.78)
+
+*Symptôme signalé par l'utilisateur* : en mode vocal, l'énoncé parlé ne
+remontait jamais dans le chat (« aucun texte n'arrive sur le chat ») — la
+dictée et la lecture audio des réponses fonctionnant par ailleurs.
+
+*Cause racine* : un conflit matériel que le shim de dictée documente déjà
+(« le *MediaRecorder* monopolise le micro et le SpeechRecognizer natif
+n'entend rien » — d'où son flux silencieux de substitution). En mode vocal,
+`Ge` démarrait le MediaRecorder sur le *vrai micro* (`__realMic`, P134)
+exactement au moment où `__callDictation.start()` ouvrait la reconnaissance :
+le moteur natif était *sourd*, `text()` renvoyait vide, et aucune soumission
+n'était émise. Deux étouffements cumulés : la garde amont `blob < 100 o`
+(pertinente pour le téléversement serveur) bloquait aussi la transcription
+locale — le blob étant de toute façon ignoré en STT « web ».
+
+*Correctif (P141)* :
+
++ en STT « web », le MediaRecorder enregistre le *flux silencieux*
+  (`window.__callSilent()`, polyfill) : il ne sert qu'à déclencher la chaîne
+  `onstop` → `Qe` → `De` ; la détection de parole (VAD) et le SpeechRecognizer
+  gardent le *vrai micro*. En STT serveur, le vrai micro reste d'usage (le
+  blob est téléversé) ;
++ la garde `blob < 100 o` ne s'applique plus qu'au chemin serveur ;
++ *repli sur les résultats partiels* du moteur : si le résultat final
+  n'arrive jamais (moteur coupé après l'arrêt), le dernier résultat
+  intermédiaire devient la transcription au lieu de rien ;
++ *traçabilité device* : `console.warn("Call STT: local -> N car.")` à chaque
+  énoncé, et un toast `Call STT: transcription vide (micro non entendu ?)`
+  quand la transcription locale ressort vide (avant : silence total,
+  impossible à diagnostiquer).
+
+*Validation* : sonde `p141_call_stt_test.py` — 20 contrôles sur le code
+livré (polyfill : repli partiel, `__callSilent` mis en cache ; `Ge` : flux
+silencieux en local / réel en serveur ; `De` : garde blob réservée au
+serveur, soumission `{_raw:!0}` au vrai `submitPrompt`, toast si vide) +
+7 non-régressions.
+
 == Messages d'erreur distincts — micro vs init Kokoro (P138, v0.0.78)
 
 *Symptôme signalé par l'utilisateur* : « Accès aux appareils multimédias

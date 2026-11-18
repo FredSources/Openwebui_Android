@@ -158,6 +158,13 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       `wasmPaths="/wasm/"` → `slim_frontend` ne supprime plus que les source
       maps, garde-fou `check_wasm_ort` — validé (check_patches + sonde
       p138_p139) ; EN ATTENTE : test appareil
+- [x] P141 : mode vocal — aucun énoncé dans le chat : le MediaRecorder du
+      mode vocal monopolisait le micro (conflit documenté par le shim de
+      dictée) pendant la reconnaissance → MediaRecorder déporté sur un flux
+      silencieux en STT local (VAD + SpeechRecognizer gardent le micro),
+      garde « blob < 100 o » réservée au serveur, repli sur résultats
+      partiels, traces `Call STT:` — validé (sonde p141 : 20 contrôles) ;
+      EN ATTENTE : test appareil
 - [ ] Test appareil v0.0.78 (APK du 2026-11-18, avec P135/P136/P137) : dictée
       (plus d'erreur « client »), mode vocal (bouton « Voice mode » visible,
       énoncé transcrit localement → message dans le chat *derrière* l'overlay ;

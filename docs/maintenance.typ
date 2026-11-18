@@ -536,6 +536,10 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P140],
   [`frontend/wasm/` + `scripts/prepare_src.py` (données)],
   [ONNX Runtime Web conservé : Kokoro retrouve son backend — P13 supprimait `wasm/` (21 Mo, « ML navigateur inutile ») alors que le worker Kokoro force `wasmPaths: "/wasm/"` et importe dynamiquement `ort-wasm-simd-threaded.jsep.mjs` : sans eux, `browser-kokoro` lève « no available backend found. ERR: [webgpu] TypeError: Failed to fetch dynamically imported module … /wasm/ort-wasm-simd-threaded.jsep.mjs » (rétroaction utilisateur) ; `slim_frontend` ne supprime plus que les source maps ; MIME `.mjs → text/javascript` / `.wasm → application/wasm` vérifiés (table embarquée Python 3.13) ; garde-fou `check_wasm_ort` (présence + tailles + `wasmPaths` du worker) — journal v0.0.78],
+
+  [P141],
+  [`chunks/BeEbX_lw.js` + `assets/call_polyfill.js` (frontend)],
+  [mode vocal : le SpeechRecognizer entend enfin le micro — le shim de dictée documente le conflit matériel (« le MediaRecorder monopolise le micro et le SpeechRecognizer natif n'entend rien ») ; or `Ge` démarrait le MediaRecorder sur le vrai micro exactement quand `__callDictation.start()` ouvrait la reconnaissance : le natif était sourd, `text()` vide, aucun énoncé dans le chat (rétroaction utilisateur) ; en STT « web » le MediaRecorder enregistre le flux silencieux (`__callSilent`, polyfill) — la détection de parole garde le vrai micro ; garde « blob < 100 o » réservée au chemin serveur ; repli sur les résultats partiels ; traces `Call STT:` + toast si transcription vide — sonde `p141_call_stt_test.py` (20 contrôles) — journal v0.0.78],
 )
 
 == Performances de démarrage

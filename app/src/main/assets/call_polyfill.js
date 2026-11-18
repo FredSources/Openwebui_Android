@@ -14,14 +14,23 @@
 //                                    d'énoncé (détection de parole de l'appel) ;
 //   __callDictation.hold()        → fige l'énoncé (le moteur natif renvoie son
 //                                    résultat final) ;
-//   __callDictation.text()        → Promise<{text}> : transcription locale.
+//   __callDictation.text()        → Promise<{text}> : transcription locale ;
+//   __callSilent()                → flux audio SILENCIEUX (P141) : le
+//                                    MediaRecorder du mode vocal enregistre
+//                                    dessus — sinon il monopolise le micro et
+//                                    le SpeechRecognizer n'entend rien.
 (function () {
   if (window.__callDictation) return;
 
   var rec = null;
   var active = false;
   var text = '';
+  var partial = '';
   var safety = null;
+
+  function trace(msg) {
+    try { console.warn('[call-dict] ' + msg); } catch (e) {}
+  }
 
   function spawn(lang, attempt) {
     if (!active) return;
@@ -34,10 +43,17 @@
     r.onresult = function (ev) {
       for (var i = ev.resultIndex || 0; i < ev.results.length; i++) {
         var res = ev.results[i];
-        if (!res.isFinal) continue;
         var t = ((res[0] && res[0].transcript) || '').replace(/^\s+|\s+$/g, '');
         if (!t) continue;
+        if (!res.isFinal) {
+          // P141 : les résultats partiels servent de repli — si le résultat
+          // final n'arrive jamais (moteur coupé après stop), on ne repart pas
+          // les mains vides.
+          partial = t;
+          continue;
+        }
         text = text ? text.replace(/\s+$/, '') + ' ' + t : t;
+        partial = '';
       }
     };
     // le moteur s'arrête seul sur les silences : tant que l'énoncé est ouvert,
@@ -45,7 +61,9 @@
     r.onend = function () {
       if (active) setTimeout(function () { spawn(lang, attempt + 1); }, 250);
     };
-    r.onerror = function () { /* la relance se fait via onend */ };
+    r.onerror = function (ev) {
+      trace('erreur moteur : ' + ((ev && (ev.error || ev.message)) || 'inconnue'));
+    };
     rec = r;
     try { r.start(); } catch (e) { /* onend relancera */ }
   }
@@ -55,6 +73,8 @@
       if (active) return;
       active = true;
       text = '';
+      partial = '';
+      trace('écoute ouverte');
       spawn(String(lang || ''), 0);
       if (safety) clearTimeout(safety);
       // garde-fou : jamais de reconnaissance qui tourne en boucle (sinon elle
@@ -74,14 +94,16 @@
     },
 
     // Arrête l'écoute puis rend la transcription (le moteur natif a besoin
-    // d'un instant pour livrer son résultat final : on attend max 3 s).
+    // d'un instant pour livrer son résultat final : on attend max 5 s).
     text: function () {
       this.hold();
       return new Promise(function (resolve) {
-        var deadline = Date.now() + 3000;
+        var deadline = Date.now() + 5000;
         (function poll() {
-          if (text || Date.now() >= deadline) {
-            resolve({ text: text });
+          var t = text || partial;
+          if (t || Date.now() >= deadline) {
+            trace('transcription : ' + (t ? t.length + ' car.' : 'vide'));
+            resolve({ text: t });
             return;
           }
           setTimeout(poll, 100);
@@ -92,6 +114,21 @@
     isLocal: function () {
       return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
     }
+  };
+
+  // P141 — flux silencieux partagé : le MediaRecorder du mode vocal (qui ne
+  // sert qu'à déclencher le traitement de fin d'énoncé) enregistre dessus en
+  // STT local, le micro réel restant libre pour le SpeechRecognizer.
+  window.__callSilent = function () {
+    if (!window.__callSilentStream) {
+      try {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        window.__callSilentStream = new AC().createMediaStreamDestination().stream;
+      } catch (e) {
+        return null;
+      }
+    }
+    return window.__callSilentStream;
   };
 
   // Micro réel pour l'appel : le shim de dictée remplace le getUserMedia par

@@ -3490,3 +3490,37 @@ Suite du « regenere 0.0.78 » utilisateur, après la rétroaction du jour.
   - `OpenWebUI_Android-0.0.78-release.apk` (252 409 897 o)
 - Lien vérifié (HTTP 200) : `https://github.com/FredSources/Openwebui_Android/releases/tag/v0.0.78`
 - Commit journal ci-dessous poussé sur `master` **sans toucher au tag**.
+
+## 2026-11-18 — P141 : mode vocal, la transcription locale n'arrivait jamais
+
+Résumé utilisateur : « la dictée fonctionne, la lecture automatique de
+réponse en audio fonctionne. le mode vocal ne fonctionne pas » — en mode
+vocal, « aucun texte n'arrive sur le chat ».
+
+- **Cause racine (conflit matériel)** : le shim de dictée documente déjà le
+  conflit : « le MediaRecorder monopolise le micro et le SpeechRecognizer
+  natif n'entend rien (no-speech) » — d'où son flux silencieux de
+  substitution. Or `Ge` (mode vocal) démarrait le MediaRecorder sur le VRAI
+  micro (`__realMic`, P134) exactement quand `__callDictation.start()`
+  ouvrait la reconnaissance : le natif était sourd → `text()` vide → aucune
+  soumission → rien dans le chat. Étouffement cumulé : la garde amont
+  `blob < 100 o` bloquait aussi la transcription locale (le blob est ignoré
+  en STT « web »).
+- **Correctif (P141)** :
+  (a) `Ge` : en STT « web », le MediaRecorder enregistre le flux SILENCIEUX
+  (`window.__callSilent()`, polyfill) — il ne sert qu'à déclencher
+  `onstop → Qe → De` ; la détection de parole (VAD) et le SpeechRecognizer
+  gardent le vrai micro. En STT serveur, le vrai micro reste (blob téléversé).
+  (b) `De` : garde `blob < 100 o` réservée au chemin serveur.
+  (c) polyfill : repli sur les résultats partiels si le final n'arrive pas,
+  fenêtre d'attente `text()` 3 s → 5 s.
+  (d) traçabilité device : `console.warn("Call STT: local -> N car.")` +
+  toast `Call STT: transcription vide (micro non entendu ?)` si vide.
+- **Validation** : sonde `/tmp/opencode/p141_call_stt_test.py` — **TOUT VERT**
+  (4 polyfill, 4 Ge, 12 De, 7 non-régressions : p127_p129, p128, p133,
+  p134, p136, p137, p138_p139). `prepare_src.py` 145 opérations,
+  `check_patches.py` vert (`check_appel_stt_local`).
+- **Docs** : `PATCHES.md` (P141), `maintenance.typ` (P141), `audio.typ`
+  (section P141) — PDF recompilés sans warning, contrôle grammatical OK.
+- **Régénération v0.0.78** : chaîne ci-dessous (itération active sur cette
+  release, validation utilisateur « regenere 0.0.78 »).

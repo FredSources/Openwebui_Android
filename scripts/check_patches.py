@@ -307,6 +307,45 @@ def check_mode_vocal() -> None:
             err(f"P134 : {lib}")
 
 
+def check_appel_stt_local() -> None:
+    """P141 — mode vocal : le SpeechRecognizer doit entendre le micro.
+
+    Le MediaRecorder du mode vocal monopolisait le micro (conflit documenté
+    par le shim de dictée) et la garde `blob < 100 o` étouffait la
+    transcription locale : aucun énoncé n'arrivait dans le chat."""
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    if not chunk.exists():
+        err("P141 : chunk d'appel BeEbX_lw.js absent")
+        return
+    ct = chunk.read_text(encoding="utf-8", errors="ignore")
+    if ("J=new MediaRecorder(window.__callDictation"
+            '&&o().audio?.stt?.engine==="web"&&window.__callSilent') not in ct:
+        err("P141a : MediaRecorder non déporté sur le flux silencieux (STT local)")
+    if "J=new MediaRecorder(z),J.onstart" in ct:
+        err("P141a : MediaRecorder sur le vrai micro revenu (le natif sera sourd)")
+    if "if((!Je||Je.size<100)&&!_w)return;" not in ct:
+        err("P141b : garde blob non réservée au chemin serveur")
+    if 'if(!Je||Je.size<100)return;await jt();' in ct:
+        err("P141b : garde blob amont rétablie (transcription locale étouffée)")
+    if 'console.warn(`Call STT: ' not in ct:
+        err("P141b : trace de transcription absente")
+    if "transcription vide (micro non entendu ?)" not in ct:
+        err("P141b : toast de transcription vide absent")
+    poly = PROJ / "app" / "src" / "main" / "assets" / "call_polyfill.js"
+    if not poly.exists():
+        err("P141 : assets/call_polyfill.js absent")
+        return
+    pt = poly.read_text(encoding="utf-8", errors="ignore")
+    for motif, lib in (
+        ("window.__callSilent", "flux silencieux __callSilent absent"),
+        ("partial = t;", "repli sur résultats partiels absent"),
+        ("text || partial", "text() sans repli partiel"),
+        ("[call-dict]", "traces du polyfill absentes"),
+    ):
+        if motif not in pt:
+            err(f"P141 : call_polyfill.js — {lib}")
+
+
 def check_tts_lecture() -> None:
     """P135/P136 — lecture à voix haute : le synthétiseur doit s'initialiser
     depuis getVoices(), et la boucle d'attente des voix doit être bornée."""
@@ -801,6 +840,7 @@ def main() -> int:
     check_erreur_tts()
     check_default_kokoro()
     check_wasm_ort()
+    check_appel_stt_local()
     check_pyodide_paquets()
     check_p41_harvest()
     check_p54_ciblage()

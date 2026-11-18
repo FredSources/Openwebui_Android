@@ -671,6 +671,62 @@ def patch_appel_lecture() -> None:
     )
 
 
+def patch_appel_stt_local() -> None:
+    """P141 — mode vocal : le SpeechRecognizer doit entendre le micro.
+
+    Le shim de dictée documente le conflit matériel : « le MediaRecorder
+    monopolise le micro et le SpeechRecognizer natif n'entend rien
+    (no-speech) » — d'où son flux silencieux de substitution. Or en mode
+    vocal, `Ge` démarrait le MediaRecorder sur le VRAI micro (`__realMic`)
+    exactement quand `__callDictation.start()` ouvrait le SpeechRecognizer :
+    le natif était sourd, `text()` renvoyait vide, aucun énoncé n'arrivait
+    dans le chat (rétroaction utilisateur : « aucun texte n'arrive sur le
+    chat »). Corrections :
+
+    (a) `Ge` : en STT « web », le MediaRecorder enregistre le flux
+    SILENCIEUX (`window.__callSilent()`, polyfill) — il ne sert qu'à
+    déclencher `onstop` → `Qe` → `De` ; la détection de parole (VAD), elle,
+    garde le vrai micro. En STT serveur (le blob est téléversé), le réel
+    reste d'usage.
+    (b) `De` : la garde amont `blob < 100 o` (pertinente pour le téléversement
+    serveur) étouffait aussi la transcription locale — le blob est ignoré en
+    STT « web ». La garde ne s'applique plus qu'au chemin serveur ; trace
+    `console.warn("Call STT: …")` et toast explicite si la transcription
+    locale est vide (sinon : silence total, impossible à diagnostiquer)."""
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    replace_once(
+        js,
+        "J=new MediaRecorder(z),J.onstart=()=>{ee=[]}",
+        "J=new MediaRecorder(window.__callDictation"
+        '&&o().audio?.stt?.engine==="web"&&window.__callSilent'
+        "?window.__callSilent():z),J.onstart=()=>{ee=[]}",
+        "P141a appel : MediaRecorder sur flux silencieux en STT local "
+        "(le natif retrouve le micro)",
+    )
+    replace_once(
+        js,
+        'De=async Je=>{if(!Je||Je.size<100)return;await jt();'
+        'const at=V0(Je,"recording.wav"),st=await(window.__callDictation'
+        '&&o().audio?.stt?.engine==="web"?window.__callDictation.text()'
+        ":rb(localStorage.token,at,n()?.audio?.stt?.language))"
+        ".catch(et=>($t.error(`${et}`),null));"
+        'if(st&&(st.text,st.text!=="")){const et=await x()(st.text,{_raw:!0})}}',
+        'De=async Je=>{const _w=window.__callDictation'
+        '&&o().audio?.stt?.engine==="web";'
+        "if((!Je||Je.size<100)&&!_w)return;await jt();"
+        'const at=Je&&Je.size>=100?V0(Je,"recording.wav"):null,'
+        "st=await(_w?window.__callDictation.text()"
+        ":rb(localStorage.token,at,n()?.audio?.stt?.language))"
+        ".catch(et=>($t.error(`${et}`),null));"
+        'console.warn(`Call STT: ${_w?"local":"serveur"} -> '
+        '${st&&st.text?st.text.length+" car.":"vide"}`);'
+        'if(st&&(st.text,st.text!=="")){const et=await x()(st.text,{_raw:!0})}'
+        'else _w&&$t.error("Call STT: transcription vide (micro non entendu ?)")}',
+        "P141b appel : transcription locale affranchie de la garde blob "
+        "+ trace et toast si vide",
+    )
+
+
 def patch_erreur_tts() -> None:
     """P138 — messages d'erreur distincts : micro refusé vs init Kokoro en échec.
 
@@ -5165,6 +5221,7 @@ def main() -> int:
     patch_mode_vocal()
     patch_tts_lecture()
     patch_appel_lecture()
+    patch_appel_stt_local()
     patch_erreur_tts()
     patch_default_kokoro()
     patch_web_search()

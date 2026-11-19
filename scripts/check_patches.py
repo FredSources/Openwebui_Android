@@ -468,6 +468,9 @@ def check_appel_silence_grace_tiling() -> None:
         for motif, lib in (
             ("STREAM_NOTIFICATION", "canal notification non ciblé"),
             ("ADJUST_MUTE", "mute du canal absent"),
+            ("isStreamMute(", "test d'état muet absent (orthographe API : "
+                              "isStreamMute, SANS « d » final — "
+                              "isStreamMuted n'existe pas → échec CI)"),
             ("unmuteNotifNow", "restauration du canal absente"),
             ("scheduleUnmute", "dé-mute différé (fin de cycle) absent"),
             ("muteNotif()", "mute avant startListening() absent"),

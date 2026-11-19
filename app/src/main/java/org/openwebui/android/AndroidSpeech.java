@@ -77,7 +77,7 @@ public class AndroidSpeech {
         try {
             AudioManager am = (AudioManager) webView.getContext()
                     .getSystemService(Context.AUDIO_SERVICE);
-            if (am != null && !am.isStreamMuted(AudioManager.STREAM_NOTIFICATION)) {
+            if (am != null && !am.isStreamMute(AudioManager.STREAM_NOTIFICATION)) {
                 am.adjustStreamVolume(AudioManager.STREAM_NOTIFICATION,
                         AudioManager.ADJUST_MUTE, 0);
                 notifMuted = true;

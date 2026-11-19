@@ -3709,3 +3709,20 @@ traités ensemble (2026-11-19T13:17Z).
   device ; P145-P147 en attente test appareil), maintenance.typ (+3
   entrées), audio.typ (+section « Retours appareil P145-P147 ») — PDFs
   recompilés (avertissement `**` Markdown corrigé).
+
+## 2026-11-19 — P145 : correctif CI (isStreamMuted → isStreamMute)
+
+- **CI** : run `44532336357` **échec** à l'étape « Build APK » —
+  `AndroidSpeech.java:80: error: cannot find symbol / method
+  isStreamMuted(int)` : la méthode `AudioManager.isStreamMuted` **n'existe
+  pas** dans l'API publique 34 (vérifié : `unzip -p android.jar
+  android/media/AudioManager.class | strings` ne montre que `isStreamMute`).
+- **Correctif** : orthographe réelle `isStreamMute(int)` (API 23+, minSdk 24
+  — conforme) ; aucun autre symbole P145 incriminable (Handler
+  `post`/`postDelayed`/`removeCallbacks`, `ADJUST_MUTE`/`ADJUST_UNMUTE`,
+  `Context.AUDIO_SERVICE` — tous présents de l'API 1).
+- **Contrôle renforcé** (justifié : piège CI avéré) : `check_patches.py`
+  P145 exige désormais `isStreamMute(` avec libellé rappelant que
+  `isStreamMuted` casse la compilation — une régression d'orthographe ne
+  pourra plus passer en local.
+- `check_patches.py` vert ; relance de la régénération ci-dessous.

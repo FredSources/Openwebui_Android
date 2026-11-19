@@ -3604,3 +3604,17 @@ n'écoute, et la fermeture le coupe.
 - **Accès diagnostic** : serveur de l'appareil sur `localhost:8080`
   (réseau partagé Termux), `/fm/logs/tail` avec le token admin — les
   prochains tests sont lisibles en direct depuis l'hôte.
+
+## 2026-11-19 — v0.0.78 RÉGÉNÉRÉE (P143 livré)
+
+- **CI** : run `44476750726` (Build APK, ref `v0.0.78` → `5daa530`) —
+  **success** ; release publiée à 07:09:33Z :
+  `OpenWebUI_Android-0.0.78-debug.apk` (258 115 130 o),
+  `OpenWebUI_Android-0.0.78-release.apk` (252 414 013 o).
+- **Validation** : sonde p143 (10 contrôles) + p142 (11 contrôles + 8 non-
+  régressions) vertes avant build ; `check_patches.py` vert.
+- **Attendu au test appareil** : mode vocal transcrit les énoncés dans le
+  chat ; en cas d'échec, le toast porte code erreur + latence
+  (`no-speech #7 (prêt à …)`) et les traces `[call-dict]` / `Call STT:` sont
+  lisibles dans `/fm` → Journaux et via `/fm/logs/tail`.
+- Commit journal ci-dessous poussé sur `master` **sans toucher au tag**.

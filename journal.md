@@ -3726,3 +3726,19 @@ traités ensemble (2026-11-19T13:17Z).
   `isStreamMuted` casse la compilation — une régression d'orthographe ne
   pourra plus passer en local.
 - `check_patches.py` vert ; relance de la régénération ci-dessous.
+
+## 2026-11-19 — v0.0.78 RÉGÉNÉRÉE (P145/P146/P147 livrés)
+
+- **CI** : run `44533293871` (Build APK, ref `v0.0.78` → `be206b2`) —
+  **success** (4m15s) ; tag local/remote `v0.0.78` forcé sur `be206b2`
+  (release supprimée puis recréée, 2 APK : debug + release).
+- **Retours attendus au test appareil** : (1) plus de bip de tiling au
+  début/fin de dictée (P145 — mute du canal notification) ; (2) la
+  conversation ne repart plus toute seule après la réponse (P146 — grâce
+  post-TTS 2,5 s) ; (3) plus de message « aucun son entendu » sur un
+  silence normal (P147 — trace console à la place).
+- **Diagnostic à distance** : traces `[call-dict]`, `Call STT: silence
+  normal…`, `résultat ignoré (grâce post-TTS)` dans `/fm/logs/tail`.
+- **Audit de minimisation** en cours (demande utilisateur) : 56+ fonctions
+  `patch_*` ; la chaîne vocale P134→P147 reste la zone la plus patchée du
+  chunk `BeEbX_lw.js`.

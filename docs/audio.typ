@@ -369,6 +369,16 @@ transcription vide porte désormais la dernière erreur du moteur
 devient explicite. Sonde `p142_call_vad_test.py` (11 contrôles) +
 8 non-régressions.
 
+*Suite (P143)* : le test appareil a confirmé le démarrage froid comme cause
+(`moteur : no-speech` alors que le micro était libre) : le SpeechRecognizer
+lie son service en 1-2 s et n'écoutait pas encore quand l'énoncé était
+écoulé. Le `warm()` du polyfill lie le service dès l'ouverture de l'appel ;
+la grâce d'activité est portée à 2,5 s et le prêt du moteur l'entretient ;
+le toast embarque code d'erreur brut et latence de démarrage. Par ailleurs
+la *console JS est captée* dans `data/logs/exec.log` (`onConsoleMessage`) :
+les traces `[call-dict]`, `Call STT:`, `Kokoro TTS:` se consultent dans
+`/fm` → Journaux et à distance. Sonde `p143_call_warm_test.py` (10 contrôles).
+
 == Messages d'erreur distincts — micro vs init Kokoro (P138, v0.0.78)
 
 *Symptôme signalé par l'utilisateur* : « Accès aux appareils multimédias

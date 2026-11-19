@@ -29,6 +29,9 @@
   var safety = null;
   var lastActivityAt = 0;
   var lastError = '';
+  var startedAt = 0;
+  var readyAt = 0;
+  var warmRec = null;
 
   function trace(msg) {
     try { console.warn('[call-dict] ' + msg); } catch (e) {}
@@ -36,10 +39,12 @@
 
   // P142 — « la parole continue » : pendant l'énoncé, le micro réel est
   // libéré pour le SpeechRecognizer (le VAD WebAudio devient muet). C'est
-  // l'activité du recognizer (résultats partiels/finaux) qui entretient la
-  // détection : sans activité pendant 800 ms, le chunk conclut 2 s plus tard.
+  // l'activité du recognizer (résultats partiels/finaux, prêt du moteur)
+  // qui entretient la détection. P143 : grâce portée à 2,5 s — un moteur
+  // au démarrage froid (liaison du service, 1-2 s) ne doit pas être coupé
+  // avant d'avoir pu entendre (« no-speech » injustifié).
   window.__callVadHit = function () {
-    return active && (Date.now() - lastActivityAt < 800);
+    return active && (Date.now() - lastActivityAt < 2500);
   };
 
   function spawn(lang, attempt) {
@@ -72,8 +77,16 @@
     r.onend = function () {
       if (active) setTimeout(function () { spawn(lang, attempt + 1); }, 250);
     };
+    // P143 — « start » = le moteur est prêt (onReadyForSpeech) : horodaté
+    // pour mesurer la latence de démarrage, et pris pour de l'activité.
+    r.onstart = function () {
+      readyAt = Date.now();
+      lastActivityAt = Date.now();
+      trace('moteur prêt (' + (readyAt - startedAt) + ' ms)');
+    };
     r.onerror = function (ev) {
-      lastError = String((ev && (ev.error || ev.message)) || 'inconnue');
+      lastError = String((ev && (ev.error || ev.message)) || 'inconnue')
+        + (ev && typeof ev.code === 'number' && ev.code >= 0 ? ' #' + ev.code : '');
       trace('erreur moteur : ' + lastError);
     };
     rec = r;
@@ -83,10 +96,19 @@
   window.__callDictation = {
     start: function (lang) {
       if (active) return;
+      // P143 — un préchauffage en cours ne doit jamais gêner la vraie
+      // écoute (ni être annulé après coup par son minuteur).
+      if (warmRec) {
+        var w = warmRec;
+        warmRec = null;
+        try { w.abort(); } catch (e) {}
+      }
       active = true;
       text = '';
       partial = '';
       lastError = '';
+      startedAt = Date.now();
+      readyAt = 0;
       lastActivityAt = Date.now();
       trace('écoute ouverte');
       spawn(String(lang || ''), 0);
@@ -116,9 +138,14 @@
         (function poll() {
           var t = text || partial;
           if (t || Date.now() >= deadline) {
-            trace('transcription : ' + (t ? t.length + ' car.' : 'vide'
-              + (lastError ? ' (moteur : ' + lastError + ')' : '')));
-            resolve({ text: t, error: t ? '' : lastError });
+            // P143 — diagnostic device : code d'erreur brut + latence de
+            // démarrage du moteur (distingue « micro tenu » / « moteur
+            // froid » / « moteur en échec »).
+            var info = t ? '' : (lastError || 'aucun résultat')
+              + (readyAt ? ' (prêt à ' + (readyAt - startedAt) + ' ms)'
+                         : ' (jamais prêt)');
+            trace('transcription : ' + (t ? t.length + ' car.' : 'vide — ' + info));
+            resolve({ text: t, error: info });
             return;
           }
           setTimeout(poll, 100);
@@ -128,6 +155,27 @@
 
     isLocal: function () {
       return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    },
+
+    // P143 — préchauffage : lie le service de reconnaissance AVANT le
+    // premier énoncé (démarrage froid ~1-2 s : sans ça, l'énoncé est écoulé
+    // avant que le moteur n'écoute → « no-speech »). La session est annulée
+    // aussitôt ; seul le lien de service compte.
+    warm: function () {
+      if (active || warmRec) return;
+      var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) return;
+      trace('préchauffage du moteur');
+      var r = new SR();
+      warmRec = r;
+      r.onend = function () { if (warmRec === r) warmRec = null; };
+      r.onerror = function () { /* le préchauffage échoue silencieusement */ };
+      try { r.start(); } catch (e) { warmRec = null; }
+      setTimeout(function () {
+        if (warmRec !== r) return;
+        warmRec = null;
+        try { r.abort(); } catch (e) {}
+      }, 400);
     }
   };
 

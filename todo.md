@@ -171,7 +171,12 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       stoppées, `z` réinitialisé), « parole continue » pilotée par l'activité
       du recognizer (`__callVadHit`, < 800 ms), toast avec la dernière erreur
       moteur (`moteur : no-speech`) — validé (sonde p142 : 11 contrôles) ;
-      EN ATTENTE : test appareil
+      test appareil : `moteur : no-speech` = démarrage froid du recognizer
+- [x] P143 : démarrage froid — préchauffage `warm()` à l'ouverture de l'appel,
+      grâce d'activité 2,5 s + prêt du moteur, télémétrie du toast (code
+      erreur + latence), console JS captée dans `data/logs/exec.log`
+      (lisible à distance via `/fm/logs/tail`) — validé (sonde p143 :
+      10 contrôles) ; EN ATTENTE : test appareil
 - [ ] Test appareil v0.0.78 (APK du 2026-11-18, avec P135/P136/P137) : dictée
       (plus d'erreur « client »), mode vocal (bouton « Voice mode » visible,
       énoncé transcrit localement → message dans le chat *derrière* l'overlay ;

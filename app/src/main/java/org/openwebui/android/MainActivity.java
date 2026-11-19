@@ -462,6 +462,28 @@ public class MainActivity extends Activity {
      *  gestionnaires de fichiers, donc consultable et effaçable par l'utilisateur. */
     private java.io.File dataHome;
 
+    /** P143 — append d'une ligne de console JS dans data/logs/exec.log
+     *  (même fichier que les journaux Python : rotation gérée par android_logs). */
+    private void journalConsole(String ligne) {
+        try {
+            java.io.File f = new java.io.File(dataHome, "data/logs/exec.log");
+            java.io.File parent = f.getParentFile();
+            if (parent != null && !parent.exists()) {
+                parent.mkdirs();
+            }
+            if (f.exists() && f.length() > 1_500_000) {
+                return; // android_logs rotate ; on n'empile pas indéfiniment
+            }
+            java.io.FileOutputStream out = new java.io.FileOutputStream(f, true);
+            try {
+                out.write(ligne.getBytes("UTF-8"));
+            } finally {
+                out.close();
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
     private java.io.File resolveDataHome() {
         java.io.File ext = null;
         try {
@@ -721,6 +743,24 @@ public class MainActivity extends Activity {
         });
 
         webView.setWebChromeClient(new WebChromeClient() {
+            // P135/P143 — console JS captée dans data/logs/exec.log : les
+            // traces ([call-dict], Call STT:, Kokoro TTS:) n'existaient que
+            // dans logcat (inaccessible depuis l'appareil). Consultables dans
+            // /fm → Journaux, et lisibles à distance via /fm/logs/tail.
+            @Override
+            public boolean onConsoleMessage(android.webkit.ConsoleMessage cm) {
+                try {
+                    String ts = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",
+                            java.util.Locale.US).format(new java.util.Date());
+                    String ligne = "[" + ts + "] console." + cm.messageLevel().name()
+                            .toLowerCase(java.util.Locale.US) + ": " + cm.message()
+                            + " (" + cm.sourceId() + ":" + cm.lineNumber() + ")\n";
+                    journalConsole(ligne);
+                } catch (Exception ignored) {
+                }
+                return true;
+            }
+
             // micro / caméra (dictée, vision) : on n'accorde QUE les ressources de
             // capture prévues, et seulement si l'app détient la permission système
             // correspondante (recommandation Android). Sinon : prompt système puis

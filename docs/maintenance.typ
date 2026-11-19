@@ -544,6 +544,10 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P142],
   [`chunks/BeEbX_lw.js` + `assets/call_polyfill.js` (frontend)],
   [mode vocal : micro libéré à l'ouverture de l'énoncé — l'analyseur WebAudio du VAD tenait lui aussi le micro réel (client AudioRecord actif) et maintenait le SpeechRecognizer natif en silence (comme le MediaRecorder avant P141) ; démultiplexage temporel : à l'ouverture de l'énoncé, pistes du micro stoppées et `z` réinitialisé (`Ge()` reprend un micro frais à la fermeture), le recognizer étant démarré avant la libération ; « la parole continue » est désormais détectée par l'activité du recognizer (`__callVadHit()` : résultat reçu depuis moins de 800 ms) ; le toast de transcription vide porte la dernière erreur moteur (`moteur : no-speech`) — sonde `p142_call_vad_test.py` (11 contrôles) — journal v0.0.78],
+
+  [P143],
+  [`chunks/BeEbX_lw.js` + `assets/call_polyfill.js` + `MainActivity.java`],
+  [mode vocal : préchauffage du recognizer + console JS journalisée — `moteur : no-speech` persistait malgré la libération du micro : le SpeechRecognizer au démarrage froid (liaison du service, 1-2 s) n'écoutait pas encore quand l'énoncé était écoulé ; `__callDictation.warm()` lie le service dès l'ouverture de l'appel, grâce d'activité portée à 2,5 s (le prêt du moteur entretient l'activité), télémétrie du toast (code d'erreur brut + latence de démarrage) ; console JS captée dans `data/logs/exec.log` (`onConsoleMessage`) : traces `[call-dict]` / `Call STT:` consultables dans `/fm` → Journaux et à distance via `/fm/logs/tail` — sonde `p143_call_warm_test.py` (10 contrôles) — journal v0.0.78],
 )
 
 == Performances de démarrage

@@ -3571,3 +3571,36 @@ fermeture, `Qe`, `De`, toast) mais le SpeechRecognizer n'a rien entendu.
 - **Docs** : `PATCHES.md` (P142), `maintenance.typ` (P142), `audio.typ`
   (suite P142) — PDF recompilés sans warning.
 - **Régénération v0.0.78** : chaîne ci-dessous.
+
+## 2026-11-19 — P143 : préchauffage du recognizer + console JS journalisée
+
+Test appareil P142 : `Call STT: transcription vide (moteur : no-speech)` —
+le micro est bien libéré mais le recognizer n'a rien entendu : démarrage
+froid (liaison du service, 1-2 s) — l'énoncé est écoulé avant que le moteur
+n'écoute, et la fermeture le coupe.
+
+- **(a) Préchauffage** : `__callDictation.warm()` appelé dès l'ouverture de
+  l'appel (chunk) — session créée puis annulée (400 ms) : seul le lien de
+  service compte ; `start()` annule un préchauffage en cours et le minuteur
+  du warm ne cible jamais la session réelle.
+- **(b) Grâce d'activité** portée à 2,5 s ; le prêt du moteur (`onstart`)
+  entretient l'activité (mesure de la latence de démarrage).
+- **(c) Télémétrie device** : le toast de transcription vide embarque code
+  d'erreur brut + latence : `Call STT: transcription vide (moteur :
+  no-speech #7 (prêt à 812 ms))` — distingue « micro tenu » / « moteur
+  froid » / « moteur en échec » ; suffixe `(jamais prêt)` si le moteur n'a
+  jamais démarré.
+- **(d) Console JS captée dans data/logs/exec.log** (`onConsoleMessage` +
+  `journalConsole`, même fichier que les journaux Python) : traces
+  `[call-dict]`, `Call STT:`, `Kokoro TTS:` consultables dans `/fm` →
+  Journaux **et lisibles à distance** via `/fm/logs/tail` (diagnostic
+  direct depuis l'hôte, sans logcat — verrouillé par Android).
+- **Validation** : sonde `/tmp/opencode/p143_call_warm_test.py` — TOUT VERT
+  (7 polyfill, 3 diagnostic). `prepare_src.py` 149 opérations,
+  `check_patches.py` vert (`check_appel_diag`). Java non compilable
+  localement : validation par les marqueurs + test appareil.
+- **Docs** : `PATCHES.md` (P143), `maintenance.typ` (P143), `audio.typ`
+  (suite P143) — PDF recompilés.
+- **Accès diagnostic** : serveur de l'appareil sur `localhost:8080`
+  (réseau partagé Termux), `/fm/logs/tail` avec le token admin — les
+  prochains tests sont lisibles en direct depuis l'hôte.

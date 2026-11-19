@@ -778,6 +778,31 @@ def patch_appel_vad_local() -> None:
     )
 
 
+def patch_appel_warm() -> None:
+    """P143 — mode vocal : préchauffage du recognizer + console JS journalisée.
+
+    Suite du test appareil P142 : `moteur : no-speech` alors que le micro est
+    libéré — le SpeechRecognizer au démarrage froid (liaison du service,
+    1-2 s) n'écoute pas encore quand l'énoncé est déjà écoulé, et notre
+    fermeture le coupe avant qu'il n'ait pu entendre. Le préchauffage
+    (`__callDictation.warm()`, polyfill) lie le service dès l'ouverture de
+    l'appel ; la grâce d'activité est portée à 2,5 s et le toast de
+    transcription vide embarque code d'erreur brut + latence de démarrage.
+
+    Par ailleurs la console JS est captée dans data/logs/exec.log côté Java
+    (`onConsoleMessage`, MainActivity) : les traces [call-dict] / Call STT:
+    deviennent consultables dans /fm -> Journaux, lisibles à distance."""
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    replace_once(
+        js,
+        'return Ge(),E().addEventListener("chat:start",ct)',
+        "return Ge(),window.__callDictation&&window.__callDictation.warm"
+        "&&window.__callDictation.warm(),"
+        'E().addEventListener("chat:start",ct)',
+        "P143 appel : préchauffage du recognizer à l'ouverture de l'appel",
+    )
+
+
 def patch_erreur_tts() -> None:
     """P138 — messages d'erreur distincts : micro refusé vs init Kokoro en échec.
 
@@ -5274,6 +5299,7 @@ def main() -> int:
     patch_appel_lecture()
     patch_appel_stt_local()
     patch_appel_vad_local()
+    patch_appel_warm()
     patch_erreur_tts()
     patch_default_kokoro()
     patch_web_search()

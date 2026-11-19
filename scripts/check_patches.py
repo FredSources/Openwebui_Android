@@ -370,10 +370,46 @@ def check_appel_vad() -> None:
     for motif, lib in (
         ("window.__callVadHit", "signal d'activité du recognizer absent"),
         ("lastActivityAt = Date.now();", "horodatage d'activité absent"),
-        ("error: t ? '' : lastError", "champ error absent de text()"),
+        ("error: info", "champ error absent de text()"),
     ):
         if motif not in pt:
             err(f"P142 : call_polyfill.js — {lib}")
+
+
+def check_appel_diag() -> None:
+    """P143 — préchauffage du recognizer + console JS journalisée."""
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    if not chunk.exists():
+        err("P143 : chunk d'appel BeEbX_lw.js absent")
+        return
+    ct = chunk.read_text(encoding="utf-8", errors="ignore")
+    if "window.__callDictation.warm&&window.__callDictation.warm()," not in ct:
+        err("P143 : préchauffage du recognizer absent de l'ouverture d'appel")
+    if 'return Ge(),E().addEventListener("chat:start",ct)' in ct:
+        err("P143 : préchauffage amont rétabli (démarrage froid)")
+    poly = PROJ / "app" / "src" / "main" / "assets" / "call_polyfill.js"
+    if not poly.exists():
+        err("P143 : assets/call_polyfill.js absent")
+        return
+    pt = poly.read_text(encoding="utf-8", errors="ignore")
+    for motif, lib in (
+        ("warm: function ()", "méthode warm() absente"),
+        ("préchauffage du moteur", "trace de préchauffage absente"),
+        ("Date.now() - lastActivityAt < 2500", "grâce d'activité non portée à 2,5 s"),
+        ("(prêt à ", "latence de démarrage non journalisée"),
+        ("r.onstart = function ()", "prêt du moteur non horodaté"),
+    ):
+        if motif not in pt:
+            err(f"P143 : call_polyfill.js — {lib}")
+    main_j = PROJ / "app" / "src" / "main" / "java" / "org" / "openwebui" / "android" / "MainActivity.java"
+    if not main_j.exists():
+        err("P143 : MainActivity.java absent")
+        return
+    mt = main_j.read_text(encoding="utf-8", errors="ignore")
+    if "onConsoleMessage" not in mt:
+        err("P143 : console JS non captée (onConsoleMessage absent)")
+    if "data/logs/exec.log" not in mt:
+        err("P143 : console JS non journalisée dans data/logs/exec.log")
 
 
 def check_tts_lecture() -> None:
@@ -872,6 +908,7 @@ def main() -> int:
     check_wasm_ort()
     check_appel_stt_local()
     check_appel_vad()
+    check_appel_diag()
     check_pyodide_paquets()
     check_p41_harvest()
     check_p54_ciblage()

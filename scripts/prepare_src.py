@@ -518,7 +518,9 @@ def patch_mode_vocal() -> None:
     - le mode vocal demande le VRAI micro (`window.__realMic` → `__origGUM`),
       sinon le flux silencieux du shim de dictée clouerait sa détection de
       parole.
-    Sept micro-remplacements dans le chunk d'appel, structure amont intacte."""
+    Cinq micro-remplacements dans le chunk d'appel (deux autres,
+    transcription locale et vrai micro, ont été fusionnés dans P141b et
+    P144b lors de l'audit de minimisation), structure amont intacte."""
     js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
 
     # 1) bouton « Voice mode » : affiché quel que soit le moteur STT
@@ -564,27 +566,14 @@ def patch_mode_vocal() -> None:
         "P134 appel : écoute locale fermée en fin d'énoncé",
     )
     # 6) transcription : locale (SpeechRecognition) au lieu de l'API serveur
-    replace_once(
-        js,
-        'const at=V0(Je,"recording.wav"),st=await rb(localStorage.token,at,'
-        "n()?.audio?.stt?.language).catch(et=>($t.error(`${et}`),null));",
-        'const at=V0(Je,"recording.wav"),st=await(window.__callDictation'
-        '&&o().audio?.stt?.engine==="web"?window.__callDictation.text()'
-        ":rb(localStorage.token,at,n()?.audio?.stt?.language))"
-        ".catch(et=>($t.error(`${et}`),null));",
-        "P134 appel : transcription locale au lieu de l'API serveur",
-    )
+    #    — [FUSION P141b] ce remplacement est désormais porté par
+    #    `patch_appel_stt_local` (entrée amont brute), qui régénère la même
+    #    sortie avec la garde blob affranchie ; le séparer ne servait qu'à
+    #    réécrire la ligne deux fois.
     # 7) micro réel pour le mode vocal (le shim de dictée substitue un flux
     #    silencieux au getUserMedia, ce qui rendrait la détection muette)
-    replace_once(
-        js,
-        "z=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:!0,"
-        "noiseSuppression:!0,autoGainControl:!0}})",
-        "z=await(window.__realMic||navigator.mediaDevices.getUserMedia.bind("
-        "navigator.mediaDevices))({audio:{echoCancellation:!0,"
-        "noiseSuppression:!0,autoGainControl:!0}})",
-        "P134 appel : vrai micro pour la détection de parole",
-    )
+    #    — [FUSION P144b] porté par `patch_appel_ecoute_permanente` (entrée
+    #    amont brute), qui ajoute le choix du flux silencieux par-dessus.
 
 
 def patch_tts_lecture() -> None:
@@ -705,11 +694,11 @@ def patch_appel_stt_local() -> None:
     )
     replace_once(
         js,
+        # entrée = code amont BRUT (P134#6 a été fusionné ici : cette
+        # fonction régénère la même sortie, avec la garde affranchie)
         'De=async Je=>{if(!Je||Je.size<100)return;await jt();'
-        'const at=V0(Je,"recording.wav"),st=await(window.__callDictation'
-        '&&o().audio?.stt?.engine==="web"?window.__callDictation.text()'
-        ":rb(localStorage.token,at,n()?.audio?.stt?.language))"
-        ".catch(et=>($t.error(`${et}`),null));"
+        'const at=V0(Je,"recording.wav"),st=await rb(localStorage.token,at,'
+        "n()?.audio?.stt?.language).catch(et=>($t.error(`${et}`),null));"
         'if(st&&(st.text,st.text!=="")){const et=await x()(st.text,{_raw:!0})}}',
         'De=async Je=>{const _w=window.__callDictation'
         '&&o().audio?.stt?.engine==="web";'
@@ -737,13 +726,15 @@ def patch_appel_vad_local() -> None:
     imposé au recognizer natif que le MediaRecorder avant P141.
 
     Démultiplexage temporel du micro :
-    (a) à l'ouverture de l'énoncé, le micro réel est LIBÉRÉ (pistes stoppées,
-    `z=null` — `Ge()` en reprendra un frais à la fermeture) : le
-    SpeechRecognizer est alors seul sur le micro ;
+    (a) [RETRAIT P144c — audit] la libération de micro d'origine (pistes
+    stoppées à l'ouverture de l'énoncé) est retirée : avec l'écoute
+    permanente (P144), le flux silencieux doit rester VIVANT (l'arrêter
+    déclencherait l'arrêt anticipé du MediaRecorder → `Qe` en plein énoncé) ;
+    le micro réel est d'emblée réservé au recognizer (P144b) ;
     (b) la détection de « la parole continue » passe à l'activité du
     recognizer lui-même (`window.__callVadHit()` : résultat partiel/final
-    reçu depuis < 800 ms) — le VAD WebAudio, muet une fois le micro libéré,
-    ne peut plus entretenir `Mt` ;
+    reçu depuis < 800 ms) — le VAD WebAudio, branché sur le flux
+    silencieux (P144b), ne peut plus entretenir `Mt` ;
     (c) le toast de transcription vide porte désormais la dernière erreur du
     moteur (`Call STT: transcription vide (moteur : no-speech)`) — avant :
     impossible de distinguer « micro tenu » de « moteur en échec »."""
@@ -756,17 +747,10 @@ def patch_appel_vad_local() -> None:
         "P142a appel : la parole continue est pilotée par l'activité "
         "du recognizer (VAD muet pendant l'énoncé)",
     )
-    replace_once(
-        js,
-        "e(P)||(a(P,!0),ae(),window.__callDictation&&"
-        "window.__callDictation.start(n()?.audio?.stt?.language))",
-        "e(P)||(a(P,!0),ae(),window.__callDictation&&"
-        "window.__callDictation.start(n()?.audio?.stt?.language),"
-        '(window.__callDictation&&o().audio?.stt?.engine==="web")&&'
-        "(z.getAudioTracks().forEach(zt=>zt.stop()),z=null))",
-        "P142b appel : micro réel libéré à l'ouverture de l'énoncé "
-        "(le recognizer entend enfin)",
-    )
+    # [FUSION — audit] P142b (libération du micro à l'ouverture) est retiré :
+    # son insertion puis son retrait par P144c s'annulaient (net : rien) ; le
+    # micro réel est d'emblée réservé au recognizer par P144b, le flux
+    # silencieux doit rester vivant. Livré identique, −1 opération.
     replace_once(
         js,
         'else _w&&$t.error("Call STT: transcription vide '
@@ -875,8 +859,9 @@ def patch_appel_ecoute_permanente() -> None:
     )
     replace_once(
         js,
-        "z=await(window.__realMic||navigator.mediaDevices.getUserMedia"
-        ".bind(navigator.mediaDevices))({audio:{echoCancellation:!0,"
+        # entrée = code amont BRUT (P134#7 — vrai micro — a été fusionné
+        # ici : cette fonction fait le choix du flux silencieux par-dessus)
+        "z=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:!0,"
         "noiseSuppression:!0,autoGainControl:!0}})",
         "z=window.__callDictation&&o().audio?.stt?.engine===\"web\""
         "&&window.__callSilent?window.__callSilent()"
@@ -886,16 +871,10 @@ def patch_appel_ecoute_permanente() -> None:
         "P144b appel : micro réel réservé au recognizer (flux silencieux "
         "pour la détection de parole)",
     )
-    replace_once(
-        js,
-        "e(P)||(a(P,!0),ae(),window.__callDictation&&"
-        "window.__callDictation.start(n()?.audio?.stt?.language),"
-        '(window.__callDictation&&o().audio?.stt?.engine==="web")&&'
-        "(z.getAudioTracks().forEach(zt=>zt.stop()),z=null))",
-        "e(P)||(a(P,!0),ae(),window.__callDictation&&"
-        "window.__callDictation.start(n()?.audio?.stt?.language))",
-        "P144c appel : libération de micro retirée (flux silencieux vivant)",
-    )
+    # [FUSION — audit] P144c (retrait de la libération de micro) est retiré
+    # avec l'insertion P142b qu'il annulait : jamais inséré, jamais retiré ;
+    # le contrôle `check_patches` (« libération rétablie » interdite) garde
+    # la garde contre une réintroduction future. Livré identique, −1 opération.
     replace_once(
         js,
         "Ke=async()=>{try{J&&J.stop()}catch(Je){}",

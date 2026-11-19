@@ -3742,3 +3742,46 @@ traités ensemble (2026-11-19T13:17Z).
 - **Audit de minimisation** en cours (demande utilisateur) : 56+ fonctions
   `patch_*` ; la chaîne vocale P134→P147 reste la zone la plus patchée du
   chunk `BeEbX_lw.js`.
+
+## 2026-11-19 — audit de minimisation des patchs (−4 opérations)
+
+Demande utilisateur : « minimiser le nombre de patchs ». Inventaire des
+56+ fonctions `patch_*`, focalisation sur la chaîne vocale P134→P147 (zone
+la plus patchée : 8 fonctions sur le chunk `BeEbX_lw.js`).
+
+- **P142b + P144c supprimés (−2)** : P142b *insérait* la libération du
+  micro à l'ouverture de l'énoncé, P144c la *retirait* — deux opérations
+  qui s'annulaient (livré net identique depuis P144). Les deux sont
+  supprimées ; un commentaire de fusion documente le retrait. Le contrôle
+  `check_patches` « libération rétablie interdite » reste en place (garde
+  contre réintroduction future).
+- **P134#6 fusionné dans P141b (−1)** : le remplacement « transcription
+  locale » était *réécrit* intégralement par P141b (garde blob + trace) ;
+  P141b prend désormais le **code amont brut** en entrée et régénère la
+  même sortie.
+- **P134#7 fusionné dans P144b (−1)** : idem — le remplacement « vrai
+  micro » (`__realMic`) est réécrit par P144b (choix du flux silencieux) ;
+  P144b prend le motif amont brut en entrée.
+- **Résultat** : `prepare_src.py` **154 → 150 opérations** ; P134 passe de
+  7 à 5 micro-remplacements (docstrings PATCHES.md/maintenance.typ
+  alignées).
+- **Preuve d'identité du livré** : après régénération, `git status
+  src-assets/` = **0 fichier modifié** (le code produit est strictement
+  identique à `be206b2`) — zéro risque fonctionnel, aucune régénération
+  d'APK nécessaire au-delà du commit de scripts.
+- **Sondes : TOUT VERT** — p134, p138_p139, p141 (24 De + 7 non-rég.),
+  p142 (8 non-rég.), p143 (9 non-rég. — 1ᵉʳ passage : 1 échec
+  transitoire non reproduit, 2ᵉ passage complet vert), p144, p146 (9) ;
+  `check_patches.py` vert.
+- **Sonde p134 alignée sur le contrat P144** (mise à jour justifiée, pas
+  un affaiblissement) : elle validait l'ancien comportement *remplacé
+  délibérément* par P144 et validé device (« ok ca fonctionne ») —
+  (1) `hold()` ne stoppe **plus** l'écoute (écoute permanente : la
+  fermeture est par `stop()`) ; (2) après `hold()`, `onend` **relance**
+  la session (plus de trou d'écoute) ; (3) `mark()` efface l'historique à
+  l'ouverture d'un nouvel énoncé (le résultat « après hold » n'est plus
+  concaténé à l'ancien contenu). Preuve de préexistence : les 3 échecs
+  étaient identiques avec le polyfill d'`a2fd676` (avant P145-P147),
+  rejoué explicitement.
+- **Reste à faire** : régénération v0.0.78 (commit scripts, livré
+  identique) pour garder tag/HEAD alignés.

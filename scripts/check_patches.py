@@ -282,7 +282,9 @@ def check_mode_vocal() -> None:
     if "window.__origGUM=origGUM" not in main_j:
         err("P134 : accès au vrai micro (__origGUM) absent du shim de dictée")
 
-    # P134 — 7 micro-patchs dans le chunk d'appel
+    # P134 — 5 micro-patchs dans le chunk d'appel (2 fusionnés dans
+    # P141b/P144b par l'audit de minimisation ; les motifs ci-dessous
+    # contrôlent le LIVRÉ, identique)
     chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
     if not chunk.exists():
         err("P134 : chunk d'appel BeEbX_lw.js absent")

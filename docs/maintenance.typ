@@ -511,7 +511,7 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
 
   [P134],
   [`chunks/BeEbX_lw.js` (frontend) + `assets/call_polyfill.js` + `MainActivity.java`],
-  [mode d'interaction vocale utilisable en STT local : les 3 refus amont (`stt.engine === "web"` — bouton, lancement, overlay) neutralisés et 4 micro-patchs branchent la transcription sur `window.__callDictation` (SpeechRecognition natif : écoute ouverte au début d'énoncé par la détection de parole amont, figée après 2 s de silence, transcription rendue en local, garde-fou 30 s) ; vrai micro via `window.__realMic` → `__origGUM` (le shim de dictée substitue un flux silencieux qui clouerait la détection) — sept micro-remplacements, structure amont intacte — journal v0.0.78],
+  [mode d'interaction vocale utilisable en STT local : les 3 refus amont (`stt.engine === "web"` — bouton, lancement, overlay) neutralisés et 3 micro-patchs branchent la transcription sur `window.__callDictation` (SpeechRecognition natif : écoute ouverte au début d'énoncé par la détection de parole amont, figée après 2 s de silence, garde-fou 30 s) ; vrai micro via `window.__realMic` → `__origGUM` (le shim de dictée substitue un flux silencieux qui clouerait la détection) — cinq micro-remplacements (2 fusionnés dans P141b/P144b par l'audit de minimisation 2026-11-19, livré identique), structure amont intacte — journal v0.0.78],
 
   [P135],
   [`AndroidTTS.java`],

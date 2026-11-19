@@ -778,6 +778,41 @@ def patch_appel_vad_local() -> None:
     )
 
 
+def patch_appel_silence() -> None:
+    """P147 — mode vocal : le silence normal n'est plus une erreur bloquante.
+
+    Constat appareil : à la fin d'un énoncé sans parole (ou après la voix de
+    l'assistant), le toast « Call STT: transcription vide (moteur : aucun
+    résultat …) » s'affichait alors que le silence est un cas NORMAL du
+    reconnaissant (aucun mot, timeout de parole). L'utilisateur croyait à une
+    panne (« aucun son entendu ») alors que la chaîne fonctionnait.
+
+    Correctif (chaîné sur la sortie P142c) :
+    - `st.error` vide / « no-speech » / « aborted » / « aucun résultat »
+      (silence ou annulation normaux) → trace console UNIQUEMENT
+      (`console.warn`, déjà journalisé dans exec.log) ;
+    - vraies erreurs moteur (network, service-not-allowed, not-allowed,
+      language-not-supported, audio-capture, erreur serveur `st=null`)
+      → toast conservé (diagnostic visible à l'écran).
+
+    Le message reste dans la console pour le diagnostic à distance."""
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    replace_once(
+        js,
+        'else _w&&$t.error(st&&st.error?"Call STT: transcription vide '
+        '(moteur : "+st.error+")":"Call STT: transcription vide '
+        '(micro non entendu ?)")}',
+        "else if(_w){const ce=st&&st.error?st.error:'';"
+        "const sil=/no-speech|aborted|aucun r(?:é|e)sultat/i.test(ce);"
+        'sil?console.warn(`Call STT: silence normal, ignoré'
+        ' (${ce||\'aucun résultat\'})`):$t.error(ce?'
+        '`Call STT: transcription vide (moteur : ${ce})`:'
+        '"Call STT: transcription vide (micro non entendu ?)")}}',
+        "P147 appel : le silence normal n'est plus un toast d'erreur "
+        "(console seulement)",
+    )
+
+
 def patch_appel_warm() -> None:
     """P143 — mode vocal : préchauffage du recognizer + console JS journalisée.
 
@@ -5369,6 +5404,7 @@ def main() -> int:
     patch_appel_vad_local()
     patch_appel_warm()
     patch_appel_ecoute_permanente()
+    patch_appel_silence()
     patch_erreur_tts()
     patch_default_kokoro()
     patch_web_search()

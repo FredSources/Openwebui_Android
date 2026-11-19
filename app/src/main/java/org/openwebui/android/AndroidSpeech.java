@@ -1,6 +1,8 @@
 package org.openwebui.android;
 
+import android.content.Context;
 import android.content.Intent;
+import android.media.AudioManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -49,9 +51,80 @@ public class AndroidSpeech {
     private int clientRetries = 0;
     private boolean resultsSeen = false;
     private boolean stoppedByUser = false;
+    // P145 — « tiling » : le service de reconnaissance joue un bip système
+    // sur le canal STREAM_NOTIFICATION à chaque début/fin de session. On
+    // masque ce canal pendant toute la session de dictée/appel et on le
+    // restaure à l'arrêt (et à la fermeture, garde-fou).
+    private boolean notifMuted = false;
+    private Runnable unmuteTask = null;
 
     public AndroidSpeech(WebView webView) {
         this.webView = webView;
+    }
+
+    // ---- P145 — masquage du bip du recognizer (canal notification) --------
+
+    private void muteNotif() {
+        // une nouvelle session annule un dé-mute différé en attente
+        // (l'écoute permanente ne doit jamais re-entendre le bip)
+        if (unmuteTask != null) {
+            main.removeCallbacks(unmuteTask);
+            unmuteTask = null;
+        }
+        if (notifMuted) {
+            return;
+        }
+        try {
+            AudioManager am = (AudioManager) webView.getContext()
+                    .getSystemService(Context.AUDIO_SERVICE);
+            if (am != null && !am.isStreamMuted(AudioManager.STREAM_NOTIFICATION)) {
+                am.adjustStreamVolume(AudioManager.STREAM_NOTIFICATION,
+                        AudioManager.ADJUST_MUTE, 0);
+                notifMuted = true;
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    /** Restaure le canal notification (seulement si c'est nous qui l'avons masqué). */
+    public void unmuteNotifNow() {
+        if (unmuteTask != null) {
+            main.removeCallbacks(unmuteTask);
+            unmuteTask = null;
+        }
+        if (!notifMuted) {
+            return;
+        }
+        notifMuted = false;
+        try {
+            AudioManager am = (AudioManager) webView.getContext()
+                    .getSystemService(Context.AUDIO_SERVICE);
+            if (am != null) {
+                am.adjustStreamVolume(AudioManager.STREAM_NOTIFICATION,
+                        AudioManager.ADJUST_UNMUTE, 0);
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * P145 — restauration différée : le bip de FIN du recognizer est joué par
+     * le service après stopListening() ; dé-muter trop tôt le laisserait
+     * passer. Si une nouvelle session démarre avant le délai, le dé-mute est
+     * annulé (l'écoute permanente reste muette sans flicker).
+     */
+    private void scheduleUnmute() {
+        if (!notifMuted) {
+            return;
+        }
+        if (unmuteTask != null) {
+            main.removeCallbacks(unmuteTask);
+        }
+        unmuteTask = () -> {
+            unmuteTask = null;
+            unmuteNotifNow();
+        };
+        main.postDelayed(unmuteTask, 800);
     }
 
     // ---- Appels JS (AndroidSpeech.xxx) : arrivent sur un thread binder ----
@@ -59,6 +132,9 @@ public class AndroidSpeech {
     @JavascriptInterface
     public void start(final String id, final String lang) {
         main.post(() -> {
+            // P145 — masqué AVANT startListening() : le bip de début de
+            // session du service est joué sur le canal notification.
+            muteNotif();
             currentId = id;
             currentLang = lang != null ? lang : "";
             retries = 0;
@@ -79,6 +155,9 @@ public class AndroidSpeech {
                 } catch (Exception ignored) {
                 }
             }
+            // P145 — le bip de FIN est joué par le service après
+            // stopListening() : restauration différée (800 ms).
+            scheduleUnmute();
         });
     }
 
@@ -88,6 +167,7 @@ public class AndroidSpeech {
             stoppedByUser = true;
             String id = currentId;
             destroyRecognizer();
+            scheduleUnmute();
             if (id != null) {
                 fire(id, "end", new JSONObject());
             }

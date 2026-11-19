@@ -117,6 +117,8 @@ public class MainActivity extends Activity {
     private static final int MAX_RETRIES = 900; // ~15 min : le 1er lancement extrait les ressources
 
     private WebView webView;
+    // P145 — référence pour dé-muter le canal notification à la fermeture
+    private AndroidSpeech androidSpeech;
     private TextView loadingText;
     private TextView progressLabel;
     private TextView errorText;
@@ -708,12 +710,18 @@ public class MainActivity extends Activity {
                     am.set(android.app.AlarmManager.RTC, System.currentTimeMillis() + 500, pi);
                 } catch (Exception ignored) {
                 }
+                // P145 — le mute du canal notification survit à la mort du
+                // process (état système) : restauration avant extinction.
+                if (androidSpeech != null) {
+                    androidSpeech.unmuteNotifNow();
+                }
                 android.os.Process.killProcess(android.os.Process.myPid());
             }
         }, "AndroidSystem");
 
         // moteur vocal natif (dictée STT mode « web »)
-        webView.addJavascriptInterface(new AndroidSpeech(webView), "AndroidSpeech");
+        androidSpeech = new AndroidSpeech(webView);
+        webView.addJavascriptInterface(androidSpeech, "AndroidSpeech");
         // P128 — synthèse vocale native (lecture à voix haute, appels)
         webView.addJavascriptInterface(new AndroidTTS(webView), "AndroidTTS");
 
@@ -861,6 +869,11 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        // P145 — garde-fou : jamais de canal notification bloqué en muet
+        // si l'activité meurt pendant une session de reconnaissance.
+        if (androidSpeech != null) {
+            androidSpeech.unmuteNotifNow();
+        }
         if (webView != null) {
             webView.destroy();
         }

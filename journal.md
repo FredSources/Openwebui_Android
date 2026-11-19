@@ -3654,3 +3654,58 @@ détection) : les ~300-500 premiers ms (latence de démarrage) étaient perdus.
 - **Attendu au test** : le début de phrase n'est plus tronqué (le recognizer
   écoute avant la parole, comme en dictée) ; en cas d'écart, les traces
   `[call-dict]` restent lisibles via `/fm/logs/tail`.
+
+## 2026-11-19 — P145/P146/P147 : tiling, écho IA, faux « aucun son »
+
+Trois retours appareil suite à la validation de P144 (« ok ca fonctionne »),
+traités ensemble (2026-11-19T13:17Z).
+
+- **P145 — bip de « tiling » au début/fin de dictée et à chaque réactivation
+  du micro** : cause = le canal `STREAM_NOTIFICATION` joué par le service de
+  reconnaissance. `AndroidSpeech.java` : mute ciblé (`ADJUST_MUTE`) avant
+  `startListening()`, dé-mute différé 800 ms après `stop()`/`cancel()`
+  (`scheduleUnmute`, annulé si un nouveau cycle commence), restauration
+  `unmuteNotifNow()` (seulement si muet par nous — l'état muet de
+  l'utilisateur est respecté). `MainActivity.java` : champ `androidSpeech`,
+  dé-mute garde-fou dans `onDestroy()` et avant `Process.killProcess` dans
+  `restartApp()` (le mute est un état système persistant qui survivrait à la
+  mort du process). Seul le canal notification est touché ;
+  `MODIFY_AUDIO_SETTINGS` déjà au manifeste. **Non compilable en local**
+  (aucun `javac`) → validation device finale à faire.
+- **P146 — « la conversation continue toute seule »** : le recognizer
+  (écoute permanente P144) livre des résultats TARDIFS après l'extinction du
+  TTS ; l'activité résiduelle entretenait le VAD et rouvrait des énoncés sur
+  la voix de l'assistant. `call_polyfill.js` : `__callSpeechGate(muted=true)`
+  arme `graceUntil = now + 2500 ms` ; pendant la grâce, `onresult` ignore
+  les résultats tardifs (trace `résultat ignoré (grâce post-TTS)`),
+  `__callVadHit()` renvoie `false`, `onstart` n'entretient pas l'activité,
+  `mark()` refuse l'énoncé (trace `énoncé refusé (grâce post-TTS)`) ;
+  `stop()` remet `graceUntil = 0` (réouverture propre).
+- **P147 — « aucun son entendu » affiché alors que le silence est normal** :
+  `prepare_src.py` : nouvelle fonction `patch_appel_silence()` chaînée sur
+  la sortie P142c — `st.error` vide / `no-speech` / `aborted` /
+  « aucun résultat » → trace console seulement
+  (`Call STT: silence normal, ignoré (…)`, déjà journalisée dans
+  `exec.log`) ; vraies erreurs moteur et `st=null` (erreur serveur) gardent
+  leur toast. Le contrôle P142c de `check_patches.py` est aligné (motif
+  template literal `${ce}`, libellé « moteur : » conservé) — justification :
+  P147 reformule le toast, le contrôle enchaîne sans s'affaibrir.
+- **Contrôles ajoutés** (`check_patches.py`, `check_appel_silence_grace_tiling`)
+  : P145 (canal `STREAM_NOTIFICATION`/`ADJUST_MUTE`, dé-mute différé,
+  restauration ≥ 2 endroits, champ `androidSpeech`), P146 (6 motifs du
+  polyfill : armement, 4 points de branchement, réinit `stop()`), P147
+  (trace « silence normal » présente, toast bloquant amont absent).
+- **Sondes** : `p146_call_grace_test.py` (nouveau — 9 scénarios device joués
+  dans `node` contre le polyfill réel : VAD hors/grâce, onstart silencieux,
+  mark refusé, résultat tardif ignoré, tampons vides, stop réinitialise) ;
+  `p141_call_stt_test.py` étendue (4 scénarios P147 : silence normal sans
+  toast, `no-speech` sans toast, erreur réseau toastée, `st=null` toastée ;
+  extraction du segment `De` réalignée sur la fin reformulée).
+- **Chaîne complète : TOUT VERT** — `py_compile` (2 scripts),
+  `prepare_src.py` **154 opérations** (+ P147), `check_patches.py` vert,
+  `node --check` polyfill, sondes p141 (24 De + non-régressions) / p142 /
+  p143 / p144 / p146 (9) toutes vertes.
+- **Docs** : PATCHES.md (+P145/P146/P147), todo.md (P144 coché validé
+  device ; P145-P147 en attente test appareil), maintenance.typ (+3
+  entrées), audio.typ (+section « Retours appareil P145-P147 ») — PDFs
+  recompilés (avertissement `**` Markdown corrigé).

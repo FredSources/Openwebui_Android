@@ -46,6 +46,11 @@
   var startedAt = 0;
   var readyAt = 0;
   var spawnAttempts = 0;
+  // P146 — fin de grâce post-lecture TTS : les résultats TARDIFS du
+  // recognizer (voix de l'assistant encore en cours de finalisation après
+  // l'extinction) n'ouvrent jamais d'énoncé et n'entretiennent pas la
+  // détection de parole. Armée à chaque image « muette », court 2,5 s.
+  var graceUntil = 0;
 
   function trace(msg) {
     try { console.warn('[call-dict] ' + msg); } catch (e) {}
@@ -57,22 +62,30 @@
     return t.join(' ');
   }
 
-  // P142/P144 — « la parole continue » : activité récente du recognizer
+  // P142/P144/P146 — « la parole continue » : activité récente du recognizer
   // (partiel ou final reçu). Pilote le VAD amont : la détection de parole
   // WebAudio ne tient plus le micro (le recognizer doit entendre).
+  // P146 : pendant la grâce post-TTS, jamais d'activité — sinon un résultat
+  // tardif rouvrirait un énoncé sur la voix de l'assistant.
   window.__callVadHit = function () {
+    if (Date.now() < graceUntil) return false;
     return listening && (Date.now() - lastActivityAt < 500);
   };
 
-  // P144 — pendant la lecture TTS, le chunk vide les tampons à chaque image :
-  // la voix de l'assistant n'entre JAMAIS dans la transcription, et aucune
-  // activité résiduelle ne déclenche un faux énoncé après la lecture.
+  // P144/P146 — pendant la lecture TTS, le chunk vide les tampons à chaque
+  // image : la voix de l'assistant n'entre JAMAIS dans la transcription, et
+  // aucune activité résiduelle ne déclenche un faux énoncé après la lecture.
+  // P146 : le recognizer peut livrer ses résultats TARDIF (émis pendant la
+  // lecture, arrivés après l'extinction) — on arme alors une fenêtre de grâce
+  // de 2,5 s pendant laquelle l'activité est ignorée (résultats, VAD,
+  // marqueur) : la voix de l'assistant n'entretient plus la conversation.
   window.__callSpeechGate = function (muted) {
     if (muted) {
       segs = [];
       cur = '';
       lastWasFinal = false;
       lastActivityAt = 0;
+      graceUntil = Date.now() + 2500;
     }
   };
 
@@ -85,6 +98,12 @@
     r.interimResults = false;
     r.lang = lang || '';
     r.onresult = function (ev) {
+      // P146 — résultat TARDIF pendant la grâce post-TTS : la voix de
+      // l'assistant ne doit ni alimenter les tampons ni entretenir le VAD.
+      if (Date.now() < graceUntil) {
+        trace('résultat ignoré (grâce post-TTS)');
+        return;
+      }
       lastActivityAt = Date.now();
       for (var i = ev.resultIndex || 0; i < ev.results.length; i++) {
         var res = ev.results[i];
@@ -105,7 +124,9 @@
       // et une session qui démarre = la chaîne est saine (compteur remis).
       spawnAttempts = 0;
       readyAt = Date.now();
-      lastActivityAt = Date.now();
+      // P146 — une session qui (re)démarre pendant la grâce n'entretient
+      // pas le VAD (sinon elle rouvrirait un énoncé sur le silence).
+      if (Date.now() >= graceUntil) lastActivityAt = Date.now();
       trace('moteur prêt (' + (readyAt - startedAt) + ' ms)');
     };
     // le moteur s'arrête seul sur les silences : tant que l'écoute est
@@ -123,10 +144,16 @@
     try { r.start(); } catch (e) { /* onend relancera */ }
   }
 
-  // P144 — marqueur de début d'énoncé : garde UNIQUEMENT ce qui vient
+  // P144/P146 — marqueur de début d'énoncé : garde UNIQUEMENT ce qui vient
   // d'arriver (la phrase en cours — sa « tête » est dans l'hypothèse
   // partielle), efface l'historique (ambiance, énoncés précédents).
   function mark() {
+    // P146 — pendant la grâce post-TTS, aucun énoncé ne s'ouvre : un
+    // déclencheur résiduel ne doit pas repartir sur la voix de l'assistant.
+    if (Date.now() < graceUntil) {
+      trace('énoncé refusé (grâce post-TTS)');
+      return;
+    }
     // le déclenchement a lieu dans la foulée du résultat (une image de la
     // boucle VAD) : seules les données de moins de 100 ms sont « la phrase
     // en cours » ; tout le reste est de l'ambiance à effacer.
@@ -186,6 +213,7 @@
     stop: function () {
       listening = false;
       utterance = false;
+      graceUntil = 0;   // P146 : une réouverture d'appel n'hérite pas de la grâce
       if (safety) { clearTimeout(safety); safety = null; }
       var r = rec;
       rec = null;

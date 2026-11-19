@@ -552,6 +552,18 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P144],
   [`chunks/BeEbX_lw.js` + `assets/call_polyfill.js` (frontend)],
   [mode vocal : écoute permanente, fin de la troncature de début — le début de phrase était tronqué (pas en dictée, où le recognizer démarre avant la parole) : en mode vocal il démarrait au début de la parole, les ~300-500 premiers ms (latence de démarrage) étaient perdus ; le recognizer écoute désormais en permanence dès l'ouverture de l'appel et les énoncés sont découpés par marqueurs (`mark()` garde l'hypothèse en cours = la phrase complète, efface l'ambiance) ; micro réel réservé au recognizer (VAD + MediaRecorder sur flux silencieux), libération de micro P142b retirée ; silenciation TTS à chaque image (voix de l'assistant exclue) ; `stop()` à la fermeture — sonde `p144_call_test.py` (5 contrôles) — journal v0.0.78],
+
+  [P145],
+  [`AndroidSpeech.java` + `MainActivity.java`],
+  [dictée et appel : le bip de « tiling » disparaît — un bip système (canal notification joué par le service de reconnaissance) retentissait au début/fin de chaque dictée et à chaque réactivation du micro ; le canal `STREAM_NOTIFICATION` est muet (`ADJUST_MUTE`) pendant les cycles `start()`/`stop()`/`cancel()` du recognizer (`muteNotif()` avant `startListening`, `scheduleUnmute()` = dé-mute différé de 800 ms, annulé si un nouveau cycle commence) ; garde-fous de fermeture `unmuteNotifNow()` (restaure seulement si muet par nous) dans `onDestroy()` et avant `killProcess` dans `restartApp()` — seul le canal notification est touché ; `MODIFY_AUDIO_SETTINGS` déjà au manifeste — *validation device finale requise* (aucun `javac` local) — journal v0.0.78],
+
+  [P146],
+  [`assets/call_polyfill.js` (frontend natif)],
+  [mode vocal : « la conversation continue toute seule » — après chaque réponse lue à voix haute, la conversation repartait d'elle-même : le recognizer livre des résultats *tardifs* (émis pendant la lecture, arrivés après l'extinction) ; `__callSpeechGate(muted=true)` arme une *fenêtre de grâce de 2,5 s* (`graceUntil`) ; pendant la grâce : `onresult` ignore les résultats tardifs (trace), `__callVadHit()` renvoie `false`, `onstart` n'entretient pas le VAD, `mark()` refuse d'ouvrir un énoncé (trace) ; `stop()` remet `graceUntil = 0` (réouverture d'appel propre) — sonde `p146_call_grace_test.py` (9 scénarios device) — journal v0.0.78],
+
+  [P147],
+  [`chunks/BeEbX_lw.js` (frontend)],
+  [mode vocal : le silence normal n'est plus un message d'erreur — « aucun son entendu » s'affichait (`transcription vide (moteur : aucun résultat …)`) alors que le reconnaissant n'avait rien à transcrire (silence de l'utilisateur, cas normal) ; en mode local, `st.error` vide / `no-speech` / `aborted` / `aucun résultat` → trace console seulement (`Call STT: silence normal, ignoré (…)`, journalisée dans `exec.log`), aucun toast ; les vraies erreurs moteur (network, service-not-allowed…, `st=null`) gardent leur toast ; chaîné sur P142c (`patch_appel_silence`) — contrôle P147 dans `check_patches.py` + 4 scénarios dans la sonde p141 — journal v0.0.78],
 )
 
 == Performances de démarrage

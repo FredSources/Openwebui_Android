@@ -361,7 +361,9 @@ def check_appel_vad() -> None:
         err("P142a : détection « parole continue » non pilotée par le recognizer")
     if 'ft.some(xr=>xr>0)&&(J&&J.state!=="recording"' in ct:
         err("P142a : garde VAD amont rétablie (muette pendant l'énoncé)")
-    if '(moteur : "+st.error+")' not in ct:
+    # P142c enchaîné sur P147 : le toast porte toujours l'erreur moteur,
+    # mais sous forme de template literal (`${ce}`) depuis P147.
+    if "(moteur : " not in ct:
         err("P142c : dernière erreur moteur absente du toast")
     poly = PROJ / "app" / "src" / "main" / "assets" / "call_polyfill.js"
     if not poly.exists():
@@ -444,6 +446,69 @@ def check_appel_permanente() -> None:
         err("P143 : console JS non captée (onConsoleMessage absent)")
     if "data/logs/exec.log" not in mt:
         err("P143 : console JS non journalisée dans data/logs/exec.log")
+
+
+def check_appel_silence_grace_tiling() -> None:
+    """P145/P146/P147 — retour device : bip de tiling, écho IA, faux « aucun son ».
+
+    P145 : le canal notification (STREAM_NOTIFICATION) joué par le service de
+    reconnaissance est muet pendant les cycles start()/stop(), et restauré à la
+    fermeture (onDestroy, restartApp) — jamais de canal bloqué en muet.
+    P146 : grâce post-TTS de 2,5 s armée par __callSpeechGate(muted) et
+    branchée aux 4 points (vadHit, onresult, onstart, mark) + réinit à stop().
+    P147 : le silence normal (no-speech / aborted / aucun résultat) n'est plus
+    un toast d'erreur — trace console seulement ; les vraies erreurs moteur
+    restent toastées."""
+    # P145 — Java
+    sp = PROJ / "app" / "src" / "main" / "java" / "org" / "openwebui" / "android" / "AndroidSpeech.java"
+    if not sp.exists():
+        err("P145 : AndroidSpeech.java absent")
+    else:
+        st = sp.read_text(encoding="utf-8", errors="ignore")
+        for motif, lib in (
+            ("STREAM_NOTIFICATION", "canal notification non ciblé"),
+            ("ADJUST_MUTE", "mute du canal absent"),
+            ("unmuteNotifNow", "restauration du canal absente"),
+            ("scheduleUnmute", "dé-mute différé (fin de cycle) absent"),
+            ("muteNotif()", "mute avant startListening() absent"),
+        ):
+            if motif not in st:
+                err(f"P145 : AndroidSpeech.java — {lib}")
+    mj = PROJ / "app" / "src" / "main" / "java" / "org" / "openwebui" / "android" / "MainActivity.java"
+    if not mj.exists():
+        err("P145 : MainActivity.java absent")
+    else:
+        mt = mj.read_text(encoding="utf-8", errors="ignore")
+        if mt.count("unmuteNotifNow()") < 2:
+            err("P145 : dé-mute à la fermeture absent (onDestroy / restartApp)")
+        if "androidSpeech = new AndroidSpeech(" not in mt:
+            err("P145 : référence androidSpeech perdue (champ non instancié)")
+    # P146 — polyfill
+    poly = PROJ / "app" / "src" / "main" / "assets" / "call_polyfill.js"
+    if not poly.exists():
+        err("P146 : assets/call_polyfill.js absent")
+    else:
+        pt = poly.read_text(encoding="utf-8", errors="ignore")
+        for motif, lib in (
+            ("graceUntil = Date.now() + 2500", "armement de la grâce post-TTS absent"),
+            ("if (Date.now() < graceUntil) return false;", "grâce non branchée à __callVadHit()"),
+            ("résultat ignoré (grâce post-TTS)", "grâce non branchée à onresult()"),
+            ("if (Date.now() >= graceUntil) lastActivityAt", "grâce non branchée à onstart()"),
+            ("énoncé refusé (grâce post-TTS)", "grâce non branchée à mark()"),
+            ("graceUntil = 0;", "grâce non réinitialisée à stop()"),
+        ):
+            if motif not in pt:
+                err(f"P146 : call_polyfill.js — {lib}")
+    # P147 — chunk d'appel
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    if not chunk.exists():
+        err("P147 : chunk d'appel BeEbX_lw.js absent")
+    else:
+        ct = chunk.read_text(encoding="utf-8", errors="ignore")
+        if "sil?console.warn(`Call STT: silence normal" not in ct:
+            err("P147 : silence normal non silencieux en console (toast conservé)")
+        if 'else _w&&$t.error(st&&st.error?"Call STT: transcription vide' in ct:
+            err("P147 : toast bloquant amont rétabli (P142c non enchaînée)")
 
 
 def check_tts_lecture() -> None:
@@ -944,6 +1009,7 @@ def main() -> int:
     check_appel_vad()
     check_appel_diag()
     check_appel_permanente()
+    check_appel_silence_grace_tiling()
     check_pyodide_paquets()
     check_p41_harvest()
     check_p54_ciblage()

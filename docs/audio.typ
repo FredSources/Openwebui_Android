@@ -392,6 +392,52 @@ silencieux) ; pendant la lecture TTS les tampons sont vidés à chaque image
 `p144_call_test.py` (5 contrôles : tête de phrase, historique, silenciation,
 segments).
 
+*Retours appareil P145-P147 (v0.0.78)* : trois retours utilisateur ont été
+traités ensemble après la validation de P144.
+
+*P145 — le bip de « tiling »* : un bref bip système (le canal
+notification du service de reconnaissance) retentissait au début et à la fin
+de chaque dictée, et à chaque réactivation du micro. Correctif Java : le
+canal `AudioManager.STREAM_NOTIFICATION` est passé en `ADJUST_MUTE` juste
+avant `startListening()` et remis en son de façon *différée* (800 ms) après
+l'arrêt — le dé-mute est annulé si un nouveau cycle commence, pour ne jamais
+restaurer le son en plein cycle. Deux garde-fous de fermeture
+(`onDestroy()` et `restartApp()`) restaurent le canal *seulement s'il est
+muet par nous* : l'état muet volontaire de l'utilisateur est respecté, et le
+mute — état système persistant — ne peut pas survivre à la mort du process.
+Seul le canal notification est touché (le canal reconnaissance lui-même et
+le canal système restent intacts). Sans `javac` local, la validation finale
+se fait sur l'appareil.
+
+*P146 — « la conversation continue toute seule »* : après la lecture de la
+réponse, la conversation repartait d'elle-même. Le recognizer, écoutant en
+permanence (P144), peut livrer un résultat *tardif* : émis pendant la
+lecture de l'assistant, arrivé après l'extinction du TTS. La silenciation
+existait déjà (les tampons sont vidés à chaque image), mais l'activité de ce
+résultat entretenait le VAD et un marqueur résiduel pouvait rouvrir un
+énoncé. Correctif : `__callSpeechGate(muted)` arme une *fenêtre de grâce* de
+2,5 s ; pendant cette grâce, `onresult` ignore les résultats tardifs (trace
+`résultat ignoré`), `__callVadHit()` renvoie `false`, `onstart`
+n'entretient pas la détection, et `mark()` refuse d'ouvrir un énoncé (trace
+`énoncé refusé`). L'arrêt de l'appel (`stop()`) remet la grâce à zéro : une
+réouverture n'en hérite jamais. Sonde `p146_call_grace_test.py` : les 9
+scénarios device (VAD, résultat tardif, marqueur, tampons, réinitialisation)
+sont joués dans `node` contre le polyfill réel.
+
+*P147 — le silence normal n'est plus une erreur* : « aucun son entendu »
+s'affichait en fin d'énoncé (`Call STT: transcription vide (moteur : aucun
+résultat …)`) alors que l'utilisateur n'avait simplement rien dit — le
+reconnaissant signalant un silence est un fonctionnement normal, pas une
+panne. Le toast n'apparaît plus pour les cas normaux (`no-speech`,
+`aborted`, `aucun résultat`) : la trace reste en console
+(`Call STT: silence normal, ignoré (…)`) et rejoint `exec.log`, consultable
+dans `/fm` → Journaux. Les vraies erreurs (réseau, service de
+reconnaissance indisponible, langue non prise en charge, erreur serveur)
+conservent leur toast — le diagnostic d'échec visible à l'écran n'est pas
+affaibli. La sonde p141 joue les quatre cas (silence normal sans toast,
+`no-speech` sans toast, erreur réseau toastée, réponse serveur manquante
+toastée).
+
 == Messages d'erreur distincts — micro vs init Kokoro (P138, v0.0.78)
 
 *Symptôme signalé par l'utilisateur* : « Accès aux appareils multimédias

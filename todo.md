@@ -177,6 +177,26 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       erreur + latence), console JS captée dans `data/logs/exec.log`
       (lisible à distance via `/fm/logs/tail`) — validé (sonde p143 :
       10 contrôles) ; EN ATTENTE : test appareil
+- [x] P144 : mode vocal — début de phrase tronqué → écoute PERMANENTE du
+      recognizer (`warm()` dès l'ouverture), énoncés découpés par marqueurs
+      (`mark()` garde l'hypothèse en cours), micro réel réservé au
+      recognizer (VAD + MediaRecorder sur flux silencieux), silenciation TTS
+      à chaque image, `stop()` à la fermeture — validé (sonde p144 : 5
+      contrôles) ; test appareil : « ok ca fonctionne »
+- [ ] P145 : bip de « tiling » (canal notification du service de
+      reconnaissance) → mute `STREAM_NOTIFICATION` pendant les cycles
+      `start()`/`stop()` (pont Java), dé-mute différé 800 ms annulable +
+      garde-fous `onDestroy`/`restartApp` — validé (check_patches, Java
+      relu) ; EN ATTENTE : test appareil (aucun `javac` local)
+- [ ] P146 : « la conversation continue toute seule » (résultats tardifs du
+      recognizer après la lecture TTS) → fenêtre de grâce 2,5 s armée par
+      `__callSpeechGate` (branchée à `onresult`/`__callVadHit`/`onstart`/
+      `mark`), `stop()` la réinitialise — validé (sonde p146 : 9 scénarios
+      device) ; EN ATTENTE : test appareil
+- [ ] P147 : toast « aucun son entendu » alors que le silence est normal →
+      `no-speech`/`aborted`/`aucun résultat` en console seulement, vraies
+      erreurs moteur toujours toastées — validé (check_patches + sonde
+      p141 : 4 scénarios P147) ; EN ATTENTE : test appareil
 - [ ] Test appareil v0.0.78 (APK du 2026-11-18, avec P135/P136/P137) : dictée
       (plus d'erreur « client »), mode vocal (bouton « Voice mode » visible,
       énoncé transcrit localement → message dans le chat *derrière* l'overlay ;

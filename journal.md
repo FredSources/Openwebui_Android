@@ -3646,3 +3646,11 @@ détection) : les ~300-500 premiers ms (latence de démarrage) étaient perdus.
   TTS, segments concaténés + p141/p142/p143 vertes). `prepare_src.py` 153
   opérations, `check_patches.py` vert (`check_appel_permanente`).
 - **Docs** : PATCHES.md, maintenance.typ, audio.typ — PDF recompilés.
+
+## 2026-11-19 — v0.0.78 RÉGÉNÉRÉE (P144 livré)
+
+- **CI** : run `44481344297` (Build APK, ref `v0.0.78` → `0b6717b`) —
+  conclusion et assets ci-dessous ; tag local/remote sur `0b6717b`.
+- **Attendu au test** : le début de phrase n'est plus tronqué (le recognizer
+  écoute avant la parole, comme en dictée) ; en cas d'écart, les traces
+  `[call-dict]` restent lisibles via `/fm/logs/tail`.

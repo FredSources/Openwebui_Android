@@ -3524,3 +3524,50 @@ vocal, « aucun texte n'arrive sur le chat ».
   (section P141) — PDF recompilés sans warning, contrôle grammatical OK.
 - **Régénération v0.0.78** : chaîne ci-dessous (itération active sur cette
   release, validation utilisateur « regenere 0.0.78 »).
+
+## 2026-11-18 — v0.0.78 RÉGÉNÉRÉE (P141 livré)
+
+- **CI** : run `44422882568` (Build APK, ref `v0.0.78` → `25a0028`) —
+  **success** ; release publiée à 23:45:38Z :
+  `OpenWebUI_Android-0.0.78-debug.apk` (258 114 030 o),
+  `OpenWebUI_Android-0.0.78-release.apk` (252 409 561 o).
+- **Test appareil** : la chaîne P141 est atteinte jusqu'à `De` (toast
+  `Call STT: transcription vide (micro non entendu ?)` visible = VAD, fermeture
+  d'énoncé, `Qe`, `De` et le toast fonctionnent) MAIS le SpeechRecognizer
+  n'a rien entendu : `text()` ressort vide.
+- **Cause restante (P142)** : l'analyseur WebAudio (`xt(z)`) tient lui aussi
+  le micro réel (client AudioRecord actif) — même effet de silence du
+  recognizer natif que le MediaRecorder avant P141.
+
+## 2026-11-19 — P142 : mode vocal, libérer le micro à l'ouverture de l'énoncé
+
+Test appareil P141 : le toast `Call STT: transcription vide (micro non
+entendu ?)` s'affiche — la chaîne P141 fonctionne jusqu'à `De` (VAD,
+fermeture, `Qe`, `De`, toast) mais le SpeechRecognizer n'a rien entendu.
+
+- **Cause restante** : l'analyseur WebAudio du VAD (`xt(z)`) tient lui aussi
+  le micro réel (client AudioRecord actif) — même silence imposé au
+  recognizer natif que le MediaRecorder avant P141. Capture concurrente :
+  toute capture « MIC » côté web assourdit le SpeechRecognizer (comportement
+  documenté par le shim de dictée).
+- **Correctif (P142) — démultiplexage temporel du micro** :
+  (a) à l'ouverture de l'énoncé, les pistes du micro sont stoppées et
+  `z=null` (Ge() en reprendra un frais à la fermeture) ; le recognizer est
+  démarré AVANT la libération (ordre garanti) ;
+  (b) « la parole continue » = l'activité du recognizer lui-même
+  (`window.__callVadHit()` : résultat partiel/final reçu depuis < 800 ms) —
+  le VAD muet ne peut plus entretenir `Mt` ; la fermeture survient 2 s après
+  le dernier résultat (ou 2,8 s après l'ouverture si le recognizer reste
+  muet) ;
+  (c) le toast de transcription vide porte la dernière erreur moteur :
+  `Call STT: transcription vide (moteur : no-speech)` — diagnostic device
+  explicite (« micro tenu » vs « moteur en échec »).
+- **Validation** : sonde `/tmp/opencode/p142_call_vad_test.py` — **TOUT VERT**
+  (7 polyfill : `__callVadHit` graine/activité/silence/hold + champ `error`
+  de `text()` ; 4 ouverture : ordre start→libération, `z` réinitialisé, micro
+  conservé en STT serveur ; 8 non-régressions dont p141).
+  `prepare_src.py` 148 opérations, `check_patches.py` vert
+  (`check_appel_vad`).
+- **Docs** : `PATCHES.md` (P142), `maintenance.typ` (P142), `audio.typ`
+  (suite P142) — PDF recompilés sans warning.
+- **Régénération v0.0.78** : chaîne ci-dessous.

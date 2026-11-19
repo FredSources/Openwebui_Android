@@ -540,6 +540,10 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P141],
   [`chunks/BeEbX_lw.js` + `assets/call_polyfill.js` (frontend)],
   [mode vocal : le SpeechRecognizer entend enfin le micro — le shim de dictée documente le conflit matériel (« le MediaRecorder monopolise le micro et le SpeechRecognizer natif n'entend rien ») ; or `Ge` démarrait le MediaRecorder sur le vrai micro exactement quand `__callDictation.start()` ouvrait la reconnaissance : le natif était sourd, `text()` vide, aucun énoncé dans le chat (rétroaction utilisateur) ; en STT « web » le MediaRecorder enregistre le flux silencieux (`__callSilent`, polyfill) — la détection de parole garde le vrai micro ; garde « blob < 100 o » réservée au chemin serveur ; repli sur les résultats partiels ; traces `Call STT:` + toast si transcription vide — sonde `p141_call_stt_test.py` (20 contrôles) — journal v0.0.78],
+
+  [P142],
+  [`chunks/BeEbX_lw.js` + `assets/call_polyfill.js` (frontend)],
+  [mode vocal : micro libéré à l'ouverture de l'énoncé — l'analyseur WebAudio du VAD tenait lui aussi le micro réel (client AudioRecord actif) et maintenait le SpeechRecognizer natif en silence (comme le MediaRecorder avant P141) ; démultiplexage temporel : à l'ouverture de l'énoncé, pistes du micro stoppées et `z` réinitialisé (`Ge()` reprend un micro frais à la fermeture), le recognizer étant démarré avant la libération ; « la parole continue » est désormais détectée par l'activité du recognizer (`__callVadHit()` : résultat reçu depuis moins de 800 ms) ; le toast de transcription vide porte la dernière erreur moteur (`moteur : no-speech`) — sonde `p142_call_vad_test.py` (11 contrôles) — journal v0.0.78],
 )
 
 == Performances de démarrage

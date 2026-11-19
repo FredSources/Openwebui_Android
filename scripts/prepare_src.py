@@ -727,6 +727,57 @@ def patch_appel_stt_local() -> None:
     )
 
 
+def patch_appel_vad_local() -> None:
+    """P142 — mode vocal : libérer le micro à l'ouverture de l'énoncé.
+
+    Suite du test appareil P141 : la chaîne est atteinte jusqu'à `De` (le
+    toast « transcription vide » s'affiche) mais le SpeechRecognizer n'entend
+    toujours rien. Cause restante : l'analyseur WebAudio du VAD (`xt(z)`)
+    tient lui aussi le micro réel (client AudioRecord actif) — même silence
+    imposé au recognizer natif que le MediaRecorder avant P141.
+
+    Démultiplexage temporel du micro :
+    (a) à l'ouverture de l'énoncé, le micro réel est LIBÉRÉ (pistes stoppées,
+    `z=null` — `Ge()` en reprendra un frais à la fermeture) : le
+    SpeechRecognizer est alors seul sur le micro ;
+    (b) la détection de « la parole continue » passe à l'activité du
+    recognizer lui-même (`window.__callVadHit()` : résultat partiel/final
+    reçu depuis < 800 ms) — le VAD WebAudio, muet une fois le micro libéré,
+    ne peut plus entretenir `Mt` ;
+    (c) le toast de transcription vide porte désormais la dernière erreur du
+    moteur (`Call STT: transcription vide (moteur : no-speech)`) — avant :
+    impossible de distinguer « micro tenu » de « moteur en échec »."""
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    replace_once(
+        js,
+        'ft.some(xr=>xr>0)&&(J&&J.state!=="recording"&&J.start()',
+        "(ft.some(xr=>xr>0)||window.__callVadHit&&window.__callVadHit())"
+        '&&(J&&J.state!=="recording"&&J.start()',
+        "P142a appel : la parole continue est pilotée par l'activité "
+        "du recognizer (VAD muet pendant l'énoncé)",
+    )
+    replace_once(
+        js,
+        "e(P)||(a(P,!0),ae(),window.__callDictation&&"
+        "window.__callDictation.start(n()?.audio?.stt?.language))",
+        "e(P)||(a(P,!0),ae(),window.__callDictation&&"
+        "window.__callDictation.start(n()?.audio?.stt?.language),"
+        '(window.__callDictation&&o().audio?.stt?.engine==="web")&&'
+        "(z.getAudioTracks().forEach(zt=>zt.stop()),z=null))",
+        "P142b appel : micro réel libéré à l'ouverture de l'énoncé "
+        "(le recognizer entend enfin)",
+    )
+    replace_once(
+        js,
+        'else _w&&$t.error("Call STT: transcription vide '
+        '(micro non entendu ?)")}',
+        "else _w&&$t.error(st&&st.error?\"Call STT: transcription vide "
+        "(moteur : \"+st.error+\")\":\"Call STT: transcription vide "
+        '(micro non entendu ?)")}',
+        "P142c appel : toast de transcription vide = dernière erreur moteur",
+    )
+
+
 def patch_erreur_tts() -> None:
     """P138 — messages d'erreur distincts : micro refusé vs init Kokoro en échec.
 
@@ -5222,6 +5273,7 @@ def main() -> int:
     patch_tts_lecture()
     patch_appel_lecture()
     patch_appel_stt_local()
+    patch_appel_vad_local()
     patch_erreur_tts()
     patch_default_kokoro()
     patch_web_search()

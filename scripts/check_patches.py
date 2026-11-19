@@ -346,6 +346,36 @@ def check_appel_stt_local() -> None:
             err(f"P141 : call_polyfill.js — {lib}")
 
 
+def check_appel_vad() -> None:
+    """P142 — mode vocal : micro libéré à l'ouverture de l'énoncé, activité
+    du recognizer entretenant la détection de parole."""
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    if not chunk.exists():
+        err("P142 : chunk d'appel BeEbX_lw.js absent")
+        return
+    ct = chunk.read_text(encoding="utf-8", errors="ignore")
+    if "||window.__callVadHit&&window.__callVadHit())&&" not in ct:
+        err("P142a : détection « parole continue » non pilotée par le recognizer")
+    if 'ft.some(xr=>xr>0)&&(J&&J.state!=="recording"' in ct:
+        err("P142a : garde VAD amont rétablie (muette pendant l'énoncé)")
+    if "(z.getAudioTracks().forEach(zt=>zt.stop()),z=null)" not in ct:
+        err("P142b : micro réel non libéré à l'ouverture de l'énoncé")
+    if '(moteur : "+st.error+")' not in ct:
+        err("P142c : dernière erreur moteur absente du toast")
+    poly = PROJ / "app" / "src" / "main" / "assets" / "call_polyfill.js"
+    if not poly.exists():
+        err("P142 : assets/call_polyfill.js absent")
+        return
+    pt = poly.read_text(encoding="utf-8", errors="ignore")
+    for motif, lib in (
+        ("window.__callVadHit", "signal d'activité du recognizer absent"),
+        ("lastActivityAt = Date.now();", "horodatage d'activité absent"),
+        ("error: t ? '' : lastError", "champ error absent de text()"),
+    ):
+        if motif not in pt:
+            err(f"P142 : call_polyfill.js — {lib}")
+
+
 def check_tts_lecture() -> None:
     """P135/P136 — lecture à voix haute : le synthétiseur doit s'initialiser
     depuis getVoices(), et la boucle d'attente des voix doit être bornée."""
@@ -841,6 +871,7 @@ def main() -> int:
     check_default_kokoro()
     check_wasm_ort()
     check_appel_stt_local()
+    check_appel_vad()
     check_pyodide_paquets()
     check_p41_harvest()
     check_p54_ciblage()

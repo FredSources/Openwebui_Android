@@ -354,6 +354,21 @@ silencieux en local / réel en serveur ; `De` : garde blob réservée au
 serveur, soumission `{_raw:!0}` au vrai `submitPrompt`, toast si vide) +
 7 non-régressions.
 
+*Suite (P142)* : le test appareil a montré que le SpeechRecognizer restait
+sourd malgré tout — l'*analyseur WebAudio* de la détection de parole tient
+lui aussi le micro réel (client *AudioRecord* actif), maintenant le moteur
+natif en silence. Correctif : *démultiplexage temporel du micro*. À
+l'ouverture de l'énoncé, les pistes du micro sont stoppées (`z` est
+réinitialisé : `Ge()` en reprendra un frais à la fermeture) — le
+SpeechRecognizer, démarré *avant* la libération, entend alors seul. La
+détection de « la parole continue » passe à l'activité du recognizer
+(`__callVadHit()` : résultat partiel ou final reçu depuis moins de 800 ms) ;
+la fermeture survient 2 s après le dernier résultat. Le toast de
+transcription vide porte désormais la dernière erreur du moteur
+(`Call STT: transcription vide (moteur : no-speech)`) — le diagnostic
+devient explicite. Sonde `p142_call_vad_test.py` (11 contrôles) +
+8 non-régressions.
+
 == Messages d'erreur distincts — micro vs init Kokoro (P138, v0.0.78)
 
 *Symptôme signalé par l'utilisateur* : « Accès aux appareils multimédias

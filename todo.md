@@ -164,6 +164,13 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       silencieux en STT local (VAD + SpeechRecognizer gardent le micro),
       garde « blob < 100 o » réservée au serveur, repli sur résultats
       partiels, traces `Call STT:` — validé (sonde p141 : 20 contrôles) ;
+      test appareil : toast `Call STT: transcription vide` = la chaîne est
+      atteinte mais le recognizer reste sourd
+- [x] P142 : suite P141 — l'analyseur WebAudio du VAD tient aussi le micro
+      (capture concurrente) → micro libéré à l'ouverture de l'énoncé (pistes
+      stoppées, `z` réinitialisé), « parole continue » pilotée par l'activité
+      du recognizer (`__callVadHit`, < 800 ms), toast avec la dernière erreur
+      moteur (`moteur : no-speech`) — validé (sonde p142 : 11 contrôles) ;
       EN ATTENTE : test appareil
 - [ ] Test appareil v0.0.78 (APK du 2026-11-18, avec P135/P136/P137) : dictée
       (plus d'erreur « client »), mode vocal (bouton « Voice mode » visible,

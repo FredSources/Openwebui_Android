@@ -27,10 +27,20 @@
   var text = '';
   var partial = '';
   var safety = null;
+  var lastActivityAt = 0;
+  var lastError = '';
 
   function trace(msg) {
     try { console.warn('[call-dict] ' + msg); } catch (e) {}
   }
+
+  // P142 — « la parole continue » : pendant l'énoncé, le micro réel est
+  // libéré pour le SpeechRecognizer (le VAD WebAudio devient muet). C'est
+  // l'activité du recognizer (résultats partiels/finaux) qui entretient la
+  // détection : sans activité pendant 800 ms, le chunk conclut 2 s plus tard.
+  window.__callVadHit = function () {
+    return active && (Date.now() - lastActivityAt < 800);
+  };
 
   function spawn(lang, attempt) {
     if (!active) return;
@@ -41,6 +51,7 @@
     r.interimResults = false;
     r.lang = lang || '';
     r.onresult = function (ev) {
+      lastActivityAt = Date.now();
       for (var i = ev.resultIndex || 0; i < ev.results.length; i++) {
         var res = ev.results[i];
         var t = ((res[0] && res[0].transcript) || '').replace(/^\s+|\s+$/g, '');
@@ -62,7 +73,8 @@
       if (active) setTimeout(function () { spawn(lang, attempt + 1); }, 250);
     };
     r.onerror = function (ev) {
-      trace('erreur moteur : ' + ((ev && (ev.error || ev.message)) || 'inconnue'));
+      lastError = String((ev && (ev.error || ev.message)) || 'inconnue');
+      trace('erreur moteur : ' + lastError);
     };
     rec = r;
     try { r.start(); } catch (e) { /* onend relancera */ }
@@ -74,6 +86,8 @@
       active = true;
       text = '';
       partial = '';
+      lastError = '';
+      lastActivityAt = Date.now();
       trace('écoute ouverte');
       spawn(String(lang || ''), 0);
       if (safety) clearTimeout(safety);
@@ -102,8 +116,9 @@
         (function poll() {
           var t = text || partial;
           if (t || Date.now() >= deadline) {
-            trace('transcription : ' + (t ? t.length + ' car.' : 'vide'));
-            resolve({ text: t });
+            trace('transcription : ' + (t ? t.length + ' car.' : 'vide'
+              + (lastError ? ' (moteur : ' + lastError + ')' : '')));
+            resolve({ text: t, error: t ? '' : lastError });
             return;
           }
           setTimeout(poll, 100);

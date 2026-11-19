@@ -3785,3 +3785,15 @@ la plus patchée : 8 fonctions sur le chunk `BeEbX_lw.js`).
   rejoué explicitement.
 - **Reste à faire** : régénération v0.0.78 (commit scripts, livré
   identique) pour garder tag/HEAD alignés.
+
+## 2026-11-19 — v0.0.78 RÉGÉNÉRÉE (audit de minimisation livré)
+
+- **CI** : run `44548137095` (Build APK, ref `v0.0.78` → `d190742`) —
+  **success** ; tag local/remote forcé sur `d190742`, release recréée
+  (2 APK). Livré identique à `be206b2` (0 diff `src-assets/`) : la
+  régénération ne sert qu'à garder tag/HEAD alignés.
+- **Bilan de la session** : P145 (bip de tiling), P146 (grâce post-TTS),
+  P147 (silence sans toast) livrés + audit −4 opérations ; 7 sondes
+  vertes ; `check_patches.py` vert (150 opérations `prepare_src.py`).
+- **En attente utilisateur** : validation device P145 (aucun `javac`
+  local), P146 et P147 (traces lisibles via `/fm/logs/tail`).

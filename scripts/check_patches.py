@@ -331,6 +331,9 @@ def check_appel_stt_local() -> None:
         err("P141b : trace de transcription absente")
     if "transcription vide (micro non entendu ?)" not in ct:
         err("P141b : toast de transcription vide absent")
+    # P144 — la libération de micro est RETIRÉE (flux silencieux vivant)
+    if "(z.getAudioTracks().forEach(zt=>zt.stop()),z=null)" in ct:
+        err("P144c : libération de micro rétablie (arrêterait le MediaRecorder)")
     poly = PROJ / "app" / "src" / "main" / "assets" / "call_polyfill.js"
     if not poly.exists():
         err("P141 : assets/call_polyfill.js absent")
@@ -338,8 +341,8 @@ def check_appel_stt_local() -> None:
     pt = poly.read_text(encoding="utf-8", errors="ignore")
     for motif, lib in (
         ("window.__callSilent", "flux silencieux __callSilent absent"),
-        ("partial = t;", "repli sur résultats partiels absent"),
-        ("text || partial", "text() sans repli partiel"),
+        ("cur = t;", "repli sur résultats partiels absent"),
+        ("function contenu()", "text() sans repli partiel"),
         ("[call-dict]", "traces du polyfill absentes"),
     ):
         if motif not in pt:
@@ -354,12 +357,10 @@ def check_appel_vad() -> None:
         err("P142 : chunk d'appel BeEbX_lw.js absent")
         return
     ct = chunk.read_text(encoding="utf-8", errors="ignore")
-    if "||window.__callVadHit&&window.__callVadHit())&&" not in ct:
+    if "window.__callVadHit&&window.__callVadHit()" not in ct:
         err("P142a : détection « parole continue » non pilotée par le recognizer")
     if 'ft.some(xr=>xr>0)&&(J&&J.state!=="recording"' in ct:
         err("P142a : garde VAD amont rétablie (muette pendant l'énoncé)")
-    if "(z.getAudioTracks().forEach(zt=>zt.stop()),z=null)" not in ct:
-        err("P142b : micro réel non libéré à l'ouverture de l'énoncé")
     if '(moteur : "+st.error+")' not in ct:
         err("P142c : dernière erreur moteur absente du toast")
     poly = PROJ / "app" / "src" / "main" / "assets" / "call_polyfill.js"
@@ -393,14 +394,47 @@ def check_appel_diag() -> None:
         return
     pt = poly.read_text(encoding="utf-8", errors="ignore")
     for motif, lib in (
-        ("warm: function ()", "méthode warm() absente"),
-        ("préchauffage du moteur", "trace de préchauffage absente"),
-        ("Date.now() - lastActivityAt < 2500", "grâce d'activité non portée à 2,5 s"),
+        ("warm: function (lang)", "méthode warm() absente"),
         ("(prêt à ", "latence de démarrage non journalisée"),
         ("r.onstart = function ()", "prêt du moteur non horodaté"),
     ):
         if motif not in pt:
             err(f"P143 : call_polyfill.js — {lib}")
+
+
+def check_appel_permanente() -> None:
+    """P144 — mode vocal : écoute permanente (fin de la troncature de début).
+
+    Le recognizer doit écouter AVANT la parole (comme en dictée) : `warm()`
+    démarre l'écoute à l'ouverture de l'appel, les énoncés sont découpés par
+    marqueurs, le micro réel est réservé au recognizer (flux silencieux pour
+    le VAD), et la lecture TTS vide les tampons."""
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    if not chunk.exists():
+        err("P144 : chunk d'appel BeEbX_lw.js absent")
+        return
+    ct = chunk.read_text(encoding="utf-8", errors="ignore")
+    if "window.__callSpeechGate&&window.__callSpeechGate(" not in ct:
+        err("P144a : silenciation TTS absente du VAD")
+    if ("z=window.__callDictation&&o().audio?.stt?.engine===\"web\""
+            "&&window.__callSilent?window.__callSilent()") not in ct:
+        err("P144b : micro réel non réservé au recognizer (détection sur flux silencieux)")
+    if "window.__callDictation.stop&&window.__callDictation.stop();" not in ct:
+        err("P144d : arrêt de l'écoute permanente absent de la fermeture")
+    poly = PROJ / "app" / "src" / "main" / "assets" / "call_polyfill.js"
+    if not poly.exists():
+        err("P144 : assets/call_polyfill.js absent")
+        return
+    pt = poly.read_text(encoding="utf-8", errors="ignore")
+    for motif, lib in (
+        ("window.__callSpeechGate", "porte de silenciation TTS absente"),
+        ("function mark()", "marqueur de début d'énoncé absent"),
+        ("segs.slice(-1)", "mark() ne garde pas le déclencheur (tête de phrase perdue)"),
+        ("listening = false", "stop() sans arrêt de l'écoute"),
+        ("Date.now() - lastActivityAt < 500", "fenêtre d'activité incohérente"),
+    ):
+        if motif not in pt:
+            err(f"P144 : call_polyfill.js — {lib}")
     main_j = PROJ / "app" / "src" / "main" / "java" / "org" / "openwebui" / "android" / "MainActivity.java"
     if not main_j.exists():
         err("P143 : MainActivity.java absent")
@@ -909,6 +943,7 @@ def main() -> int:
     check_appel_stt_local()
     check_appel_vad()
     check_appel_diag()
+    check_appel_permanente()
     check_pyodide_paquets()
     check_p41_harvest()
     check_p54_ciblage()

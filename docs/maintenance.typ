@@ -548,6 +548,10 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P143],
   [`chunks/BeEbX_lw.js` + `assets/call_polyfill.js` + `MainActivity.java`],
   [mode vocal : préchauffage du recognizer + console JS journalisée — `moteur : no-speech` persistait malgré la libération du micro : le SpeechRecognizer au démarrage froid (liaison du service, 1-2 s) n'écoutait pas encore quand l'énoncé était écoulé ; `__callDictation.warm()` lie le service dès l'ouverture de l'appel, grâce d'activité portée à 2,5 s (le prêt du moteur entretient l'activité), télémétrie du toast (code d'erreur brut + latence de démarrage) ; console JS captée dans `data/logs/exec.log` (`onConsoleMessage`) : traces `[call-dict]` / `Call STT:` consultables dans `/fm` → Journaux et à distance via `/fm/logs/tail` — sonde `p143_call_warm_test.py` (10 contrôles) — journal v0.0.78],
+
+  [P144],
+  [`chunks/BeEbX_lw.js` + `assets/call_polyfill.js` (frontend)],
+  [mode vocal : écoute permanente, fin de la troncature de début — le début de phrase était tronqué (pas en dictée, où le recognizer démarre avant la parole) : en mode vocal il démarrait au début de la parole, les ~300-500 premiers ms (latence de démarrage) étaient perdus ; le recognizer écoute désormais en permanence dès l'ouverture de l'appel et les énoncés sont découpés par marqueurs (`mark()` garde l'hypothèse en cours = la phrase complète, efface l'ambiance) ; micro réel réservé au recognizer (VAD + MediaRecorder sur flux silencieux), libération de micro P142b retirée ; silenciation TTS à chaque image (voix de l'assistant exclue) ; `stop()` à la fermeture — sonde `p144_call_test.py` (5 contrôles) — journal v0.0.78],
 )
 
 == Performances de démarrage

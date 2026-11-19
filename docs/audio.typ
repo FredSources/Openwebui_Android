@@ -379,6 +379,19 @@ la *console JS est captée* dans `data/logs/exec.log` (`onConsoleMessage`) :
 les traces `[call-dict]`, `Call STT:`, `Kokoro TTS:` se consultent dans
 `/fm` → Journaux et à distance. Sonde `p143_call_warm_test.py` (10 contrôles).
 
+*P144 — écoute permanente (fin de la troncature)* : le début de phrase était
+tronqué — contrairement à la dictée, où le recognizer démarre *avant* la
+parole. En mode vocal, il démarrait *au début* de la parole : les 300 à 500
+premiers millisecondes (latence de démarrage) étaient perdus. Désormais le
+recognizer écoute *en permanence* dès l'ouverture de l'appel et les énoncés
+sont découpés par marqueurs : `mark()` conserve l'hypothèse partielle en
+cours — la phrase dès son premier mot — et efface l'ambiance. Le micro réel
+est réservé au recognizer (détection de parole et MediaRecorder sur flux
+silencieux) ; pendant la lecture TTS les tampons sont vidés à chaque image
+(la voix de l'assistant n'entre jamais dans la transcription). Sonde
+`p144_call_test.py` (5 contrôles : tête de phrase, historique, silenciation,
+segments).
+
 == Messages d'erreur distincts — micro vs init Kokoro (P138, v0.0.78)
 
 *Symptôme signalé par l'utilisateur* : « Accès aux appareils multimédias

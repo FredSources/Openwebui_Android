@@ -3618,3 +3618,31 @@ n'écoute, et la fermeture le coupe.
   (`no-speech #7 (prêt à …)`) et les traces `[call-dict]` / `Call STT:` sont
   lisibles dans `/fm` → Journaux et via `/fm/logs/tail`.
 - Commit journal ci-dessous poussé sur `master` **sans toucher au tag**.
+
+## 2026-11-19 — P144 : écoute permanente, fin de la troncature de début
+
+Constat utilisateur : « toute la chaîne est fonctionnelle, mais le début de
+ma phrase est tronqué » — et « ce problème n'apparait pas en mode dictée ».
+Clé : en dictée, le recognizer démarre AVANT la parole (le tap précède la
+phrase) ; en mode vocal, il démarrait AU début de la parole (déclenché par la
+détection) : les ~300-500 premiers ms (latence de démarrage) étaient perdus.
+
+- **(a) Écoute permanente** : `warm()` = `start()` — le recognizer écoute
+  dès l'ouverture de l'appel ; les énoncés sont découpés par MARQUEURS :
+  `mark()` garde l'hypothèse partielle en cours (la phrase dès son premier
+  mot — c'était la troncature) et efface l'ambiance (fenêtre de déclenchement
+  100 ms) ; relance de session 250 → 150 ms, compteur remis à chaque session
+  aboutie ; `stop()` à la fermeture de l'appel (`Ke`).
+- **(b) Micro réel réservé au recognizer** : `Ge` branche VAD (analyseur) et
+  MediaRecorder sur le flux SILENCIEUX en STT local — plus aucune capture web
+  concurrente (conflit documenté par le shim de dictée) ; la libération de
+  micro P142b est retirée (arrêter le flux déclencherait l'arrêt anticipé du
+  MediaRecorder → `Qe` en plein énoncé).
+- **(c) Silenciation TTS** : `__callSpeechGate` vide les tampons à chaque
+  image pendant la lecture — la voix de l'assistant n'entre jamais dans la
+  transcription, et aucune activité résiduelle ne déclenche un faux énoncé.
+- **Validation** : sonde `/tmp/opencode/p144_call_test.py` — **TOUT VERT**
+  (5 contrôles : tête de phrase conservée, historique effacé, silenciation
+  TTS, segments concaténés + p141/p142/p143 vertes). `prepare_src.py` 153
+  opérations, `check_patches.py` vert (`check_appel_permanente`).
+- **Docs** : PATCHES.md, maintenance.typ, audio.typ — PDF recompilés.

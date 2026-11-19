@@ -803,6 +803,74 @@ def patch_appel_warm() -> None:
     )
 
 
+def patch_appel_ecoute_permanente() -> None:
+    """P144 — mode vocal : écoute permanente (fin de la troncature de début).
+
+    Constat utilisateur : « le début de ma phrase est tronqué » — mais PAS en
+    dictée. En dictée, le recognizer démarre AVANT la parole (le tap précède
+    la phrase) ; en mode vocal, il démarrait AU début de la parole (déclenché
+    par la détection) : les ~300-500 premiers ms (latence de démarrage)
+    étaient déjà écoulés. Correctif = le timing de la dictée :
+
+    (a) le recognizer écoute en PERMANENCE dès l'ouverture de l'appel
+    (`warm()` = `start()` : l'écoute tourne, les énoncés sont découpés par
+    marqueurs — `mark()` garde l'hypothèse partielle en cours, qui contient
+    la phrase dès son premier mot) ;
+    (b) le micro réel n'est PLUS tenu du tout côté web : `Ge` branche la
+    détection de parole (analyseur) et le MediaRecorder sur le flux
+    SILENCIEUX — toute capture web concurrente rend le recognizer sourd
+    (conflit documenté par le shim de dictée) ;
+    (c) la libération de micro P142b est retirée (plus de micro à libérer :
+    le flux silencieux doit rester vivant — l'arrêter déclencherait l'arrêt
+    anticipé du MediaRecorder) ;
+    (d) pendant la lecture TTS, `__callSpeechGate` vide les tampons à chaque
+    image : la voix de l'assistant n'entre jamais dans la transcription, et
+    aucune activité résiduelle ne déclenche un faux énoncé ;
+    (e) `__callDictation.stop()` à la fermeture de l'appel (`Ke`)."""
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    replace_once(
+        js,
+        "(ft.some(xr=>xr>0)||window.__callVadHit&&window.__callVadHit())"
+        '&&(J&&J.state!=="recording"&&J.start()',
+        "(ft.some(xr=>xr>0)||(window.__callSpeechGate&&window.__callSpeechGate("
+        "e(Q)||e(q)&&!(n()?.voiceInterruption??!1)),"
+        "window.__callVadHit&&window.__callVadHit()))"
+        '&&(J&&J.state!=="recording"&&J.start()',
+        "P144a appel : VAD piloté par le recognizer + silenciation TTS",
+    )
+    replace_once(
+        js,
+        "z=await(window.__realMic||navigator.mediaDevices.getUserMedia"
+        ".bind(navigator.mediaDevices))({audio:{echoCancellation:!0,"
+        "noiseSuppression:!0,autoGainControl:!0}})",
+        "z=window.__callDictation&&o().audio?.stt?.engine===\"web\""
+        "&&window.__callSilent?window.__callSilent()"
+        ":await(window.__realMic||navigator.mediaDevices.getUserMedia"
+        ".bind(navigator.mediaDevices))({audio:{echoCancellation:!0,"
+        "noiseSuppression:!0,autoGainControl:!0}})",
+        "P144b appel : micro réel réservé au recognizer (flux silencieux "
+        "pour la détection de parole)",
+    )
+    replace_once(
+        js,
+        "e(P)||(a(P,!0),ae(),window.__callDictation&&"
+        "window.__callDictation.start(n()?.audio?.stt?.language),"
+        '(window.__callDictation&&o().audio?.stt?.engine==="web")&&'
+        "(z.getAudioTracks().forEach(zt=>zt.stop()),z=null))",
+        "e(P)||(a(P,!0),ae(),window.__callDictation&&"
+        "window.__callDictation.start(n()?.audio?.stt?.language))",
+        "P144c appel : libération de micro retirée (flux silencieux vivant)",
+    )
+    replace_once(
+        js,
+        "Ke=async()=>{try{J&&J.stop()}catch(Je){}",
+        "Ke=async()=>{try{J&&J.stop()}catch(Je){}"
+        "window.__callDictation&&window.__callDictation.stop"
+        "&&window.__callDictation.stop();",
+        "P144d appel : arrêt de l'écoute permanente à la fermeture",
+    )
+
+
 def patch_erreur_tts() -> None:
     """P138 — messages d'erreur distincts : micro refusé vs init Kokoro en échec.
 
@@ -5300,6 +5368,7 @@ def main() -> int:
     patch_appel_stt_local()
     patch_appel_vad_local()
     patch_appel_warm()
+    patch_appel_ecoute_permanente()
     patch_erreur_tts()
     patch_default_kokoro()
     patch_web_search()

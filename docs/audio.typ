@@ -242,12 +242,25 @@ locale est impossible.
 = Appels vocaux (temps réel)
 
 Les appels vocaux *temps réel* (Open WebUI « voice call », fournisseur
-`audio.realtime` — OpenAI Realtime API) reposent sur une API distante :
-*désactivés par défaut* en amont (`AUDIO_REALTIME_ENABLED = false`), ils ne
-sont ni activés ni testés dans l'APK. Ils deviennent envisageables en activant
-le réglage et en configurant une API compatible, mais ne font partie d'aucun
-scénario validé sur appareil — à traiter comme une piste, pas comme une
-fonction livrée.
+`audio.realtime`) reposent en amont sur une API distante (OpenAI Realtime API
+ou Azure) et sont *désactivés par défaut* (`AUDIO_REALTIME_ENABLED = false`).
+Trois fournisseurs sont proposés dans l'APK :
+
+- `openai` / `azure` : WebSocket distant — ils exigent une API compatible
+  configurée (clé, modèle, voix) ; aucune n'est validée sur appareil ;
+- `android` *(livré par P149, v0.0.79_beta)* : *la boucle vocale locale* —
+  l'overlay d'appel est raccordé à la boucle existante `current`
+  (SpeechRecognition `AndroidSpeech.java` → chat → TTS Android) et le
+  WebSocket distant n'est *jamais* ouvert (la bifurcation teste
+  `provider !== "android"` ; le backend refuse toute connexion WS avec un
+  message clair : `Realtime calls are handled locally on Android`).
+
+Avec `android` sélectionné, le formulaire reste *identique au standard* : un
+flag désactive les 7 réglages cloud (API Base URL, API Key, Voice Model,
+Voice, Input Transcription, Input Params, Prompt Template) — seul le
+fournisseur reste éditable — puis « Enregistrer » suffit. Les refus amont
+(bouton et lancement en STT « web ») passent naturellement dès que
+`realtime.enabled` est vrai : aucun n'est neutralisé.
 
 == Mode d'interaction vocale — fonctionnel en STT local (P134)
 
@@ -258,9 +271,14 @@ fonction livrée.
 le bouton n'apparaît pas et l'overlay affiche « Call feature is not supported
 when using Web STT engine ». Le build l'apporte ainsi :
 
-+ les *3 refus amont* (affichage du bouton, lancement, ouverture de l'overlay)
-  sont neutralisés dans le chunk d'appel (`BnHPywC-.js`, sept
-  micro-remplacements — structure amont intacte) ;
++ le *refus à l'ouverture de l'overlay* est neutralisé dans le chunk
+  d'appel (`BnHPywC-.js`) — c'est la branche que la bifurcation `current`
+  atteint ; les refus *bouton* et *lancement* restent *intacts*
+  (comportement amont voulu : le mode vocal reste masqué hors realtime —
+  ils passent naturellement dès que `realtime.enabled` est vrai, cas du
+  fournisseur `android` de P149 ; les deux anciens neutralisants de 0.13.0
+  étaient morts en 0.13.4 et ont été retirés lors de l'audit de
+  minimisation) ;
 + la *détection de parole amont* est réutilisée telle quelle : au début de
   l'énoncé, `window.__callDictation.start()` ouvre une écoute
   `SpeechRecognition` *locale* (le même `AndroidSpeech.java` que la dictée) ;
@@ -571,8 +589,12 @@ quel que soit le réglage de langue de l'interface. Conséquences :
   [Appels vocaux],
   [désactivés par défaut],
   [temps réel (`audio.realtime`) : désactivés par défaut ; *mode
-   d'interaction vocale* : utilisable en STT local (P134 — 3 refus amont
-   neutralisés, transcription locale via `SpeechRecognition`, vrai micro) ;
+   d'interaction vocale* : utilisable en STT local (P134 — refus
+   d'overlay neutralisé, transcription locale via `SpeechRecognition`,
+   vrai micro ; refus bouton/clic amont intacts, ils passent dès que
+   `realtime.enabled` est vrai) ; fournisseur *`android`* (P149) : la
+   boucle vocale locale, sans WebSocket, champs cloud désactivés par le
+   flag ;
    chaque réponse lue à voix haute, y compris la deuxième d'un même chat
    (P137) avec la voix locale (P128 + P135/P136) ; messages d'erreur
    distincts micro refusé / init Kokoro (P138) ; dictée sans erreur

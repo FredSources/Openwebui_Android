@@ -289,22 +289,27 @@ def check_mode_vocal() -> None:
     if "window.__origGUM=origGUM" not in main_j:
         err("P134 : accès au vrai micro (__origGUM) absent du shim de dictée")
 
-    # P134 — 5 micro-patchs dans le chunk d'appel (2 fusionnés dans
-    # P141b/P144b par l'audit de minimisation ; les motifs ci-dessous
-    # contrôlent le LIVRÉ, identique)
+    # P134 — micro-patchs du chunk d'appel (audit 2026-11-20 : les anciens
+    # motifs 0.13.0 sont morts, contrôles réalignés sur le LIVRÉ 0.13.4)
     chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
     if not chunk.exists():
         err("P134 : chunk d'appel BnHPywC-.js absent")
         return
     ct = chunk.read_text(encoding="utf-8", errors="ignore")
-    # refus amont : leur PRÉSENCE signifierait un retour en arrière
+    # refus amont 0.13.4 : le bouton et le refus clic sont le comportement
+    # amont VOULU (le mode vocal reste masqué hors realtime) — leur
+    # PRÉSENCE est requise ; seul le refus d'overlay est neutralisé
+    # (P134, branche « current ») — son ABSENCE est requise
     for motif, lib in (
-        ('stt?.engine!=="web"&&(n()', "refus de bouton en STT « web » revenu"),
-        ('engine==="web"){$t.error(f().t("Call feature', "refus d'appel (lo) revenu"),
-        ('else if(s()?.audio?.stt?.engine==="web")', "refus d'overlay revenu"),
+        ('stt?.engine!=="web"&&(a()?.role==="admin"',
+         "condition amont d'affichage du bouton Voice disparue"),
+        ('engine==="web"){Mt.error(_().t("Call feature',
+         "refus d'appel (clic) amont disparu"),
     ):
-        if motif in ct:
+        if motif not in ct:
             err(f"P134 : {lib}")
+    if 'else if(r()?.audio?.stt?.engine==="web")' in ct:
+        err("P134 : refus d'overlay revenu (neutralisation P134 perdue)")
     # branchements locaux : leur ABSENCE signifierait un retour en arrière
     for motif, lib in (
         ("window.__callDictation.start(", "début d'énoncé non branché"),
@@ -314,6 +319,47 @@ def check_mode_vocal() -> None:
     ):
         if motif not in ct:
             err(f"P134 : {lib}")
+
+
+def check_realtime_android() -> None:
+    """P149 — fournisseur realtime « android » (boucle vocale locale)."""
+    js = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "nodes" / "2.Dki0jDRo.js"
+    if not js.exists():
+        err("P149 : nodes/2.Dki0jDRo.js absent")
+        return
+    t = js.read_text(encoding="utf-8", errors="ignore")
+    # dropdown : template à 3 options + 3ᵉ option « Android » + libellé branché
+    if 'Co=v("<option> </option> <option> </option> <option> </option>",1)' not in t:
+        err("P149 : template du select Provider toujours à 2 options "
+            "(le positionneur sortirait du template)")
+    if 'xY.value=xY.__value="android"' not in t:
+        err("P149 : option « Android » absente du dropdown Provider")
+    if "d(xZ,zB)" not in t:
+        err("P149 : libellé « Android » non branché (3ᵉ option)")
+    if 't().t("Android")' not in t:
+        err("P149 : libellé i18n « Android » absent")
+    # flag : 4 inputs + 1 readOnly + 2 textarea = 7 champs désactivés
+    if t.count('disabled=(e(u),a(()=>e(u).PROVIDER==="android"))') != 4:
+        err("P149 : les 4 inputs cloud ne sont pas désactivés en android")
+    if t.count('get readOnly(){return e(u).PROVIDER==="android"}') != 1:
+        err("P149 : API Key (readOnly) non désactivée en android")
+    if t.count('get disabled(){return e(u).PROVIDER==="android"}') != 2:
+        err("P149 : Input Params / Prompt non désactivés en android")
+    # bifurcation : android → boucle locale current (jamais WS)
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
+    if not chunk.exists():
+        err("P149 : chunk d'appel BnHPywC-.js absent")
+        return
+    ct = chunk.read_text(encoding="utf-8", errors="ignore")
+    if 'r()?.audio?.realtime?.provider!=="android"?"bridge":"current"' not in ct:
+        err("P149 : bifurcation android→current absente")
+    # backend : Literal + garde WS
+    ai = (SRC / "open_webui" / "routers" / "audio" / "__init__.py").read_text(encoding="utf-8", errors="ignore")
+    if "Literal['openai', 'azure', 'android']" not in ai:
+        err("P149 : Literal PROVIDER sans « android »")
+    rp = (SRC / "open_webui" / "routers" / "audio" / "realtime.py").read_text(encoding="utf-8", errors="ignore")
+    if "handled locally on Android" not in rp:
+        err("P149 : garde realtime_call (android) absente")
 
 
 def check_appel_stt_local() -> None:
@@ -1053,6 +1099,7 @@ def main() -> int:
     check_p125_fm()
     check_audio_locale()
     check_mode_vocal()
+    check_realtime_android()
     check_tts_lecture()
     check_appel_lecture()
     check_erreur_tts()

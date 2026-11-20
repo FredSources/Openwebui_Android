@@ -3947,3 +3947,159 @@ Suite du 2026-11-19. Chaîne de validation complète, puis livraison
   avec `OpenWebUI_Android-0.0.79_beta-debug.apk` et `-release.apk`.
 - **En attente utilisateur** : test appareil de la migration 0.13.4 (login,
   chat, dictée, mode vocal, TTS) + rétroactions ouvertes P145/P146/P147.
+
+## 2026-11-20 17:34 UTC — audit de cohérence P134 (rétroaction device) + évaluation fournisseur realtime « local »
+
+Rétroaction utilisateur sur v0.0.79_beta : « Le mode vocal n'est pas
+disponible. La synthèse vocale et le mode dictée sont opérationnels » —
+config précisée : **pas de realtime, engine `web`**. Puis : « Ce
+comportement me va » (le refus amont en web non-realtime est **voulu**) et
+demande d'**évaluer** l'ajout d'un fournisseur realtime « système vocal
+local Android » (sans implémenter tout de suite).
+
+### A) Audit de cohérence P134 — 2 patchs MORTS + 3 contrôles morts (faux verts)
+
+Diagnostic factuel (pristine 0.13.4 vs livré, motifs exacts) :
+
+| élément | état | preuve |
+|---|---|---|
+| P134 #1 (bouton affiché en web) | **MORT** | motif vars 0.13.0 `o()?…engine!=="web"&&(n()?…` → **0 occurrence** dans le pristine 0.13.4 ; « déjà appliqué » est un **faux positif** : son `new` = `"!0"` est présent partout |
+| P134 #2 (refus `lo` neutralisé) | **MORT** | motif vars 0.13.0 (`nr`, `o()`, `$t.error`, `f().t`) → **0 occurrence** ; faux « déjà appliqué » car son `new` `"!1){}"` est **partagé avec #3** (`else if(!1){}` le contient) |
+| P134 #3 (refus overlay neutralisé) | **VIVANT** | motif vars 0.13.4 `else if(r()?…==="web"){Mt.error(a().t(…))` : 1 dans le pristine → **0 dans le livré** (neutralisé) |
+| refus clic (handler `on`) | **actif, voulu** | `engine==="web"){Mt.error(_().t("Call feature…` présent dans le livré — comportement amont conservé (« ce comportement me va ») |
+| `check_mode_vocal` : 3 contrôles « refus revenu » | **TOUS MORTS** | motifs vars 0.13.0 (`n()`, `s()`, `$t/f()`) → **0 occurrence** dans le livré : faux verts, ils ne détecteraient aucune régression |
+
+Conséquences fonctionnelles (expliquent la rétroaction) :
+- #1 mort → le bouton « Call » du bandeau suit la condition amont
+  (`realtime.enabled || engine !== "web"`) → **masqué** en web non-realtime
+  = « mode vocal pas disponible » — comportement **confirmé voulu** ;
+- #2 mort → le refus clic (`on`) est intact (inatteignable tant que le
+  bouton est masqué) ;
+- #3 vivant mais **inatteignable en l'état** (branche `current` de `bi`
+  jamais prise sans realtime) → devient **essentiel** dès que le mode
+  local forcera `current`.
+
+Décisions (au feu vert) :
+1. **Retirer P134 #1 et #2** de `prepare_src.py` : patchs morts =
+   ajouts inutiles, faux « déjà appliqués » trompeurs (le retrait ne
+   change **rien au livré** : leurs motifs sont introuvables).
+2. **Garder P134 #3** : nécessaire au mode local (overlay ouvert en
+   `current` avec engine `web`).
+3. **Réaligner les 3 contrôles « refus revenu »** de `check_mode_vocal`
+   sur les motifs 0.13.4 : (a) refus overlay `else if(r()?…` **absent**
+   (neutralisé par #3), (b) refus clic `engine==="web"){Mt.error(_().t(…`
+   **présent** (comportement amont voulu — contrôle inversé), (c) la
+   condition bouton amont reste **présente** (elle doit l'être : le
+   bouton est censé être masqué hors realtime). Justification charte :
+   les anciens motifs ne compilent plus depuis la minification 0.13.4.
+
+### B) Évaluation — fournisseur realtime « local » (système vocal Android)
+
+Architecture existante cartographiée :
+- **serveur** : `realtime.py` = proxy WS `client ↔ bridge ↔ provider`
+  (OpenAI/Azure, protocole Realtime PCM 24 k + messages `bridge.*`) ;
+  validation `provider not in {'openai','azure'}` (L314) ;
+  schéma config `PROVIDER: Literal['openai','azure']`
+  (`routers/audio/__init__.py:334`) ;
+  handshake exige `model`+`voice`+`transcription_model` (L446).
+- **client** (`BnHPywC-.js`) : clic bandeau → si `realtime.enabled` →
+  overlay ; **bifurcation unique** dans l'effet d'ouverture `bi` :
+  `m(connected||connecting||realtime.enabled ? "bridge" : "current")` ;
+  `bridge` → `h().connect()` (WS) ; `current` → boucle existante
+  (STT natif `__callDictation` + chat + TTS) — **qui est précisément le
+  système vocal Android**.
+- **réglages** (`nodes/2.Dki0jDRo.js`) : dropdown provider à **2 options**
+  (`openai`, `azure`), champs URL/Key/Model/Voice affichés selon provider.
+
+Modifications nécessaires (évaluation, pas encore appliquées) :
+
+| # | Fichier | Modification | Nature |
+|---|---|---|---|
+| 1 | `nodes/2.Dki0jDRo.js` | 3ᵉ `<option value="local">` + libellé dans le dropdown Provider | requis |
+| 2 | `nodes/2.Dki0jDRo.js` | masquer URL/Key/Model/Voice/Transcription si `PROVIDER==="local"` (aucun `required` ne doit bloquer) | requis |
+| 3 | `chunks/BnHPywC-.js` | bifurcation `bi` : `…&&provider!=="local" ? "bridge" : "current"` (le WS n'est **jamais** ouvert en local) | requis — **cœur du patch** |
+| 4 | `routers/audio/__init__.py:334` | `Literal['openai','azure']` → + `'local'` (sinon 422 à l'enregistrement) | requis |
+| 5 | `routers/audio/realtime.py` | garde propre : si `local`, pas d'exigence model/voice/transcription (L446) + message explicite si un WS arrive quand même (L314) | robustesse |
+| 6 | `prepare_src.py` + `check_patches.py` | patchs **P149** (réglages + bifurcation + backend) + contrôles ; nettoyage #1/#2 + réalignement `check_mode_vocal` | process projet |
+| 7 | doc | `PATCHES.md`, `maintenance.typ`, `audio.typ` (PDF), `todo.md`, `journal.md` | livrable |
+
+Aucune modification de : refus clic `on` (voulu), boucle `current`
+existante (P134/P141-P147), TTS/dictée (confirmés opérationnels).
+
+Points de vigilance à valider **à l'implémentation** :
+1. la boucle `current` démarre-t-elle quand l'overlay est ouvert par le
+   chemin realtime (`ic.set(!0), Mn.set(!0)`) ? — en 0.0.78 le mode
+   `current` était atteint via le test `getUserMedia` du clic ;
+2. `required` des champs réglages masqués en local ;
+3. libellé i18n de l'option (fallback si clé absente) ;
+4. `check_auth`/retry bridge : `m()==="current"` ⇒ jamais de reconnexion
+   (vérifié : le `ve(...)` de retry teste `m()==="bridge"`).
+
+## 2026-11-20 22:46 UTC — P149 livré : fournisseur realtime « android » (boucle vocale locale)
+
+Décisions utilisateur de la séance :
+- **UI identique au standard** — pas de masquage : « un flag pour désactiver
+  l'ensemble », seul le fournisseur reste éditable ;
+- **tag `v0.0.79_beta` forcé** (le tag/release existants 0.13.4+P148 sont
+  remplacés — choix explicite « recrée 0.0.79_beta »).
+
+### Implémentation — `patch_realtime_android()` (P149, 12 opérations)
+
+1. **template** `nodes/2` : `Co=v("<option> </option> <option> </option>",1)`
+   → 3 `<option>` — **piège découvert en Chromium** : le positionneur
+   `n(ut,2)` de la 3ᵉ option sortait du template à 2 options →
+   `TypeError: Illegal invocation` au montage du select (aucun contrôle
+   Python ne le voit : `node --check` passe) ;
+2. **dropdown** : 3ᵉ option `android` (idiome exact du TEXT_SPLITTER à
+   3 options, variables `xY`/`xZ`/`zB` — `xA`/`xB`/`xT` du plan initial
+   **existaient déjà**, collision évitée) ;
+3. **bifurcation** `chunks/BnHPywC-.js` : `…realtime.enabled &&
+   realtime.provider!=="android" ? "bridge" : "current"` → le WS n'est
+   jamais ouvert pour android ;
+4. **flag** : 7 champs cloud désactivés quand `PROVIDER==="android"`
+   (URL, Voice Model, Voice, Transcription en `X.disabled=(e(u),a(…))`
+   dans un `g()` ; API Key en prop `readOnly` — SensitiveInput n'expose
+   pas `disabled` ; Input Params et Prompt en prop `disabled` — Textarea
+   l'expose) ; Provider jamais touché ;
+5. **backend** : `Literal['openai','azure','android']` +
+   garde `realtime_call` → `Realtime calls are handled locally on Android`.
+
+### Correctifs de séance (au fil des tests)
+
+- chemins `DST/"open_webui"/routers` → `DST/"routers"` (double `open_webui`)
+  — `FileNotFoundError` au 1er lancement ;
+- payload `config/update` : `tts`/`stt` ont **tous leurs champs requis** →
+  reconstruit depuis le `GET` (sinon 422) ;
+- harnais CDP : sélecteur API Key corrigé (`type="text"`, id
+  `password-input-*`, placeholder « API Key ») + `Network.setCacheDisabled`
+  (nom de fichier immutable = cache navigateur) ;
+- bisect pristine/patché : prouve que l'erreur `Illegal invocation` venait
+  bien du template à 2 options (0 erreur sur pristine, 1 sur patché).
+
+### Validations (toutes vertes)
+
+| contrôle | résultat |
+|---|---|
+| `prepare_src.py` | **163 opérations, 0 échec** (151 nets + 12 P149) |
+| `check_patches.py` (dont `check_realtime_android`) | OK |
+| `probe_migration_0134.py` (javac API 34 inclus) | **74/74** |
+| `node --check` (via `check_js_syntax`) | OK |
+| smoke 8090 (`/health`, `/`, frontend servi patché) | OK |
+| harnais CDP Chromium : dropdown | 3 options `openai/azure/android`, labels OK |
+| harnais CDP : avant android | 7 champs **actifs** (baseline) |
+| harnais CDP : après android | 7 champs **désactivés**, Provider **actif** |
+| harnais CDP : retour openai | tout **réactivé** (flag réactif) |
+| persistance API (`POST /config/update` + `GET`) | `PROVIDER=android` enregistré et relu |
+| garde WS | `bridge.error: Realtime calls are handled locally on Android` |
+| `Literal` (import réel) | openai/azure/android acceptés, autre rejeté (422) |
+
+Nettoyage P134 également en place (non commité précédemment) : retrait des
+2 patchs **morts** #1/#2 de `prepare_src.py` (motifs 0.13.0 introuvables),
+`check_mode_vocal` réaligné sur 0.13.4 (refus bouton/clic = présence
+requise, overlay neutralisé) — livré identique.
+
+### Suite
+
+`PATCHES.md` (P149 + ligne P134 corrigée) ; `maintenance.typ`,
+`audio.typ` (+ PDF, grammaire) ; `todo.md` ; commit, push, tag
+`v0.0.79_beta` **forcé**, release remplacée, CI.

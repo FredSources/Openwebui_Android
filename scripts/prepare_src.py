@@ -518,10 +518,17 @@ def patch_mode_vocal() -> None:
     """P134 — rend utilisable le mode d'interaction vocale (bouton « Voice
     mode ») avec le STT local « web ».
 
-    L'amont refuse ce mode dès que `audio.stt.engine === 'web'` (3 refus) et
-    transcrit chaque énoncé par l'API serveur `/api/v1/audio/transcriptions`,
-    qui ne traite pas les fichiers avec ce moteur. Ici :
-    - les 3 refus amont sont neutralisés (bouton affiché + overlay ouvert) ;
+    L'amont refuse ce mode dès que `audio.stt.engine === 'web'` et transcrit
+    chaque énoncé par l'API serveur `/api/v1/audio/transcriptions`, qui ne
+    traite pas les fichiers avec ce moteur. Ici :
+    - les refus *bouton* et *clic* sont laissés **intacts** (comportement
+      amont voulu — audit 2026-11-20) : ils passent naturellement dès que
+      `audio.realtime.enabled` est vrai, cas du fournisseur realtime
+      « android » (P149) qui raccorde l'overlay à la boucle vocale locale ;
+      leurs anciens neutralisants (0.13.0) étaient morts en 0.13.4 et ont
+      été retirés (motifs introuvables = zéro effet au livré) ;
+    - seul le refus à l'ouverture de l'overlay est neutralisé : en mode
+      android la bifurcation choisit `current`, qui atteint cette branche ;
     - la transcription est déportée sur `window.__callDictation`
       (`assets/call_polyfill.js`, SpeechRecognition natif) : les micro-patchs
       déclenchent l'écoute au début de l'énoncé (détection de parole amont)
@@ -529,29 +536,12 @@ def patch_mode_vocal() -> None:
     - le mode vocal demande le VRAI micro (`window.__realMic` → `__origGUM`),
       sinon le flux silencieux du shim de dictée clouerait sa détection de
       parole.
-    Cinq micro-remplacements dans le chunk d'appel (deux autres,
-    transcription locale et vrai micro, ont été fusionnés dans P141b et
-    P144b lors de l'audit de minimisation), structure amont intacte."""
+    Trois micro-remplacements dans le chunk d'appel (les autres ont été
+    fusionnés dans P141b/P144b lors de l'audit de minimisation), structure
+    amont intacte."""
     js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
 
-    # 1) bouton « Voice mode » : affiché quel que soit le moteur STT
-    replace_once(
-        js,
-        'o()?.audio?.stt?.engine!=="web"&&(n()?.role==="admin"'
-        '||(n()?.permissions?.chat?.stt??!0))',
-        "!0",
-        "P134 UI : bouton Voice mode affiché en STT « web »",
-    )
-    # 2) refus au lancement d'un appel (fonction lo)
-    replace_once(
-        js,
-        '!e(nr)?.connected&&!e(nr)?.connecting'
-        '&&!o()?.audio?.realtime?.enabled&&o()?.audio?.stt?.engine==="web")'
-        '{$t.error(f().t("Call feature is not supported when using Web STT engine"));return}',
-        "!1){}",
-        "P134 UI : refus d'appel en STT « web » neutralisé (lo)",
-    )
-    # 3) refus à l'ouverture de l'overlay (fonction H4)  [0.13.4 : s()→r(),
+    # refus à l'ouverture de l'overlay (fonction H4)  [0.13.4 : s()→r(),
     #    $t.error→Mt.error, i().t→a().t]
     replace_once(
         js,
@@ -588,6 +578,113 @@ def patch_mode_vocal() -> None:
     #    silencieux au getUserMedia, ce qui rendrait la détection muette)
     #    — [FUSION P144b] porté par `patch_appel_ecoute_permanente` (entrée
     #    amont brute), qui ajoute le choix du flux silencieux par-dessus.
+
+
+def patch_realtime_android() -> None:
+    """P149 — fournisseur realtime « android » : la boucle vocale locale Android.
+
+    L'amont n'offre que deux fournisseurs realtime (openai, azure), tous deux
+    branchés sur le WebSocket distant. Or l'APK possède déjà une boucle vocale
+    locale complète (SpeechRecognizer → chat → TTS Android, branche « current ») :
+    ce patch ouvre le choix « Android » dans la liste des fournisseurs et
+    raccorde l'overlay d'appel à cette boucle — sans toucher au protocole WS.
+
+    - dropdown Provider : 3ᵉ option « Android » (idiome exact des 3 options
+      déjà compilé pour le TEXT_SPLITTER, variables libres xY/xZ/zB) ;
+    - bifurcation d'appel : `realtime.enabled && provider !== "android"` →
+      `current` (le WebSocket n'est jamais ouvert pour android) ;
+    - formulaire : les champs cloud (URL, clé, modèle, voix, transcription,
+      paramètres, prompt) sont DÉSACTIVÉS par le flag
+      `PROVIDER === "android"` — l'UI reste identique au standard, seul le
+      fournisseur reste éditable (décision 2026-11-20 : pas de masquage) ;
+    - backend : `'android'` accepté par le Literal PROVIDER + garde claire
+      dans `realtime_call` (le WS ne doit jamais s'ouvrir).
+
+    Les refus amont (bouton / clic en STT « web ») passent naturellement dès
+    que `realtime.enabled` est vrai : aucun refus n'est neutralisé ici."""
+    js = DST / "frontend" / "_app" / "immutable" / "nodes" / "2.Dki0jDRo.js"
+    chunk = DST / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
+    audio_init = DST / "routers" / "audio" / "__init__.py"
+    realtime = DST / "routers" / "audio" / "realtime.py"
+
+    # 1) le template statique du select Provider ne contient que 2 options :
+    #    la 3ᵉ doit y être ajoutée, sinon le positionneur `n(ut,2)` sort du
+    #    template → « Illegal invocation » au montage (vérifié en Chromium).
+    replace_once(
+        js,
+        'Co=v("<option> </option> <option> </option>",1)',
+        'Co=v("<option> </option> <option> </option> <option> </option>",1)',
+        "P149 UI : template du select Provider porté à 3 options",
+    )
+    # 2) dropdown Provider : 3ᵉ option « Android » — l'idiome des 3 options
+    #    est déjà compilé tel quel pour le TEXT_SPLITTER (motif d'autorité) ;
+    #    `xY`/`xZ`/`zB` sont vérifiés libres dans tout le module minifié.
+    replace_once(
+        js,
+        'ut.value=ut.__value="azure",g((mt,bt)=>{d(gt,mt),d(yt,bt)},[()=>(t(),a(()=>t().t("settings.audio.realtime.openai"))),()=>(t(),a(()=>t().t("Azure OpenAI")))])',
+        'ut.value=ut.__value="azure";var xY=n(ut,2),xZ=l(xY,!0);r(xY),xY.value=xY.__value="android",g((mt,bt,zB)=>{d(gt,mt),d(yt,bt),d(xZ,zB)},[()=>(t(),a(()=>t().t("settings.audio.realtime.openai"))),()=>(t(),a(()=>t().t("Azure OpenAI"))),()=>(t(),a(()=>t().t("Android")))])',
+        "P149 UI : option « Android » dans le dropdown Provider realtime",
+    )
+    # 3) bifurcation d'appel : android → boucle vocale locale « current »
+    #    (jamais de WebSocket : `provider!=="android"` rend le test négatif)
+    replace_once(
+        chunk,
+        'm(h()?.connected||h()?.connecting||r()?.audio?.realtime?.enabled?"bridge":"current")',
+        'm(h()?.connected||h()?.connecting||r()?.audio?.realtime?.enabled&&r()?.audio?.realtime?.provider!=="android"?"bridge":"current")',
+        "P149 appel : android force la boucle locale current (jamais WS)",
+    )
+    # 4) flag `PROVIDER === "android"` → champs cloud désactivés (UI identique
+    #    au standard : tout reste visible, seul le fournisseur reste éditable).
+    #    Idiome exact du build : `X.disabled=(e(u),a(()=>…))` dans un `g()`.
+    for old, new, lib in (
+        ('At(He,()=>e(u).OPENAI_API_BASE_URL,lt=>We(u,e(u).OPENAI_API_BASE_URL=lt)),o(_e,He)',
+         'At(He,()=>e(u).OPENAI_API_BASE_URL,lt=>We(u,e(u).OPENAI_API_BASE_URL=lt)),g(()=>{He.disabled=(e(u),a(()=>e(u).PROVIDER==="android"))}),o(_e,He)',
+         "champ API Base URL"),
+        ('At(He,()=>e(u).MODEL,lt=>We(u,e(u).MODEL=lt)),o(_e,He)',
+         'At(He,()=>e(u).MODEL,lt=>We(u,e(u).MODEL=lt)),g(()=>{He.disabled=(e(u),a(()=>e(u).PROVIDER==="android"))}),o(_e,He)',
+         "champ Voice Model"),
+        ('At(ze,()=>e(u).VOICE,He=>We(u,e(u).VOICE=He)),o(me,ze)',
+         'At(ze,()=>e(u).VOICE,He=>We(u,e(u).VOICE=He)),g(()=>{ze.disabled=(e(u),a(()=>e(u).PROVIDER==="android"))}),o(me,ze)',
+         "champ Voice"),
+        ('At(ze,()=>e(u).TRANSCRIPTION_MODEL,He=>We(u,e(u).TRANSCRIPTION_MODEL=He)),o(me,ze)',
+         'At(ze,()=>e(u).TRANSCRIPTION_MODEL,He=>We(u,e(u).TRANSCRIPTION_MODEL=He)),g(()=>{ze.disabled=(e(u),a(()=>e(u).PROVIDER==="android"))}),o(me,ze)',
+         "champ Input Transcription Model"),
+    ):
+        replace_once(js, old, new, f"P149 UI : {lib} désactivé en android")
+    # API Key : SensitiveInput n'expose que `readOnly` (→ `disabled={readOnly}`)
+    replace_once(
+        js,
+        'get value(){return e(u).OPENAI_API_KEY},set value(lt){We(u,e(u).OPENAI_API_KEY=lt)},$$legacy:!0})',
+        'get value(){return e(u).OPENAI_API_KEY},set value(lt){We(u,e(u).OPENAI_API_KEY=lt)},get readOnly(){return e(u).PROVIDER==="android"},$$legacy:!0})',
+        "P149 UI : champ API Key désactivé en android",
+    )
+    # Textarea : Textarea.svelte expose bien une prop `disabled` (→ `{disabled}`)
+    for old, new, lib in (
+        ('get value(){return e(p)},set value(lt){s(p,lt)},$$legacy:!0})',
+         'get value(){return e(p)},set value(lt){s(p,lt)},get disabled(){return e(u).PROVIDER==="android"},$$legacy:!0})',
+         "champ Input Params"),
+        ('get value(){return e(u).REALTIME_CALL_PROMPT_TEMPLATE},set value(He){We(u,e(u).REALTIME_CALL_PROMPT_TEMPLATE=He)},$$legacy:!0})',
+         'get value(){return e(u).REALTIME_CALL_PROMPT_TEMPLATE},set value(He){We(u,e(u).REALTIME_CALL_PROMPT_TEMPLATE=He)},get disabled(){return e(u).PROVIDER==="android"},$$legacy:!0})',
+         "champ Prompt Template"),
+    ):
+        replace_once(js, old, new, f"P149 UI : {lib} désactivé en android")
+    # 5) backend : fournisseur accepté + garde WS
+    replace_once(
+        audio_init,
+        "PROVIDER: Literal['openai', 'azure'] = 'openai'",
+        "PROVIDER: Literal['openai', 'azure', 'android'] = 'openai'",
+        "P149 backend : fournisseur « android » accepté par le Literal",
+    )
+    replace_once(
+        realtime,
+        "        if not config.get('audio.realtime.enabled'):\n"
+        "            raise ValueError('Realtime calls are disabled')\n",
+        "        if not config.get('audio.realtime.enabled'):\n"
+        "            raise ValueError('Realtime calls are disabled')\n"
+        "        if config.get('audio.realtime.provider') == 'android':\n"
+        "            raise ValueError('Realtime calls are handled locally on Android')\n",
+        "P149 backend : garde claire si un WS android venait à s'ouvrir",
+    )
 
 
 def patch_tts_lecture() -> None:
@@ -5489,6 +5586,7 @@ def main() -> int:
     patch_ui_moteurs_locaux()
     patch_ui_moteurs_rag()
     patch_mode_vocal()
+    patch_realtime_android()
     patch_tts_lecture()
     patch_appel_lecture()
     patch_appel_stt_local()

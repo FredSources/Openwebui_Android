@@ -568,6 +568,10 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P148],
   [`routers/auths.py` + `utils/oauth.py`],
   [`encode_basic_auth` : repli RFC 7617 pour aiohttp épinglé — nouveau besoin de 0.13.4 : l'introspection OAuth2 (`auths.py`) et le refresh de token (`oauth.py`) appellent `encode_basic_auth`, absent d'aiohttp 3.10.10 (ajouté en 3.11) ; le pin `aiohttp==3.10.10` est une décision de dépôt (`[PIN-REPO]`) qu'on ne touche pas — repli fidèle `BasicAuth(login, password, encoding).encode()` (RFC 7617, équivalence vérifiée) ; `oauth.py` expose la fonction par garde `hasattr` (les appels amont `aiohttp.encode_basic_auth(...)` restent intacts) — découvert par le smoke test 8090 (`ImportError` au chargement de `main.py`) — contrôle `check_p148_aiohttp` — journal v0.0.79_beta],
+
+  [P149],
+  [`nodes/2.Dki0jDRo.js` + `chunks/BnHPywC-.js` (frontend) + `routers/audio/__init__.py` + `routers/audio/realtime.py`],
+  [fournisseur realtime « android » : la boucle vocale locale — l'amont n'offre que `openai`/`azure` (WebSocket distant) alors que l'APK possède déjà la boucle locale (SpeechRecognizer → chat → TTS Android) ; (a) le template statique du select Provider passe à 3 `<option>` — *piège : sans elle le positionneur sort du DOM et le montage lève `Illegal invocation`* (seulement visible en navigateur) — puis la 3ᵉ option `android` suit l'idiome exact des 3 options du TEXT_SPLITTER ; (b) la bifurcation d'appel choisit `current` dès que `provider === "android"` (le WS n'est jamais ouvert) ; (c) l'UI reste identique au standard : le flag `PROVIDER === "android"` désactive les 7 champs cloud (URL, clé en `readOnly`, modèle, voix, transcription, paramètres, prompt), seul le fournisseur reste éditable ; (d) `'android'` accepté par le `Literal` + garde `realtime_call` (`handled locally on Android`) — harnais CDP Chromium (3 options, 7 champs désactivés, réactivité), persistance API et fermeture WS vérifiées — contrôle `check_realtime_android` — journal v0.0.79_beta],
 )
 
 == Performances de démarrage
@@ -623,7 +627,7 @@ journal v0.0.79_beta). Chaque étape a un contrôle associé.
   [*Relocaliser les fichiers frontend hashés* : la minification renomme les `chunks/*.js` et `nodes/*.js` à chaque version — mettre à jour les chemins dans `scripts/prepare_src.py`, `scripts/check_patches.py` et les sondes (migration 0.13.4 : 5 fichiers renommés, ex. `BeEbX_lw.js` → `BnHPywC-.js`).],
 
   [4.],
-  [Rejouer `.venv313/bin/python3 scripts/prepare_src.py` : chaque patch qui échoue signale un changement amont (motif renommé ou logique changée) à intégrer à la main — 0.13.4 : 153 opérations, 0 échec. Mettre à jour `PATCHES.md`.],
+  [Rejouer `.venv313/bin/python3 scripts/prepare_src.py` : chaque patch qui échoue signale un changement amont (motif renommé ou logique changée) à intégrer à la main — 0.13.4 : 163 opérations, 0 échec. Mettre à jour `PATCHES.md`.],
 
   [5.],
   [*Réaligner `check_patches.py`* : les motifs de contrôle suivent la minification et se désalignent en faux positifs (0.13.4 : 25 contrôles réalignés). Chaque réalignement doit être *justifié au journal* (aucun contrôle n'est affaibli sans raison écrite).],

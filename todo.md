@@ -236,6 +236,34 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       (chunks) — PDFs recompilés 0 warning
 - [x] Livrer **0.0.79_beta** : `versionName`, commit `180d183`, push `origin master`,
       tag `v0.0.79_beta` poussé nommément (jamais `--tags`), CI run 44705257612 **success** — release + 2 APK publiés
+- [x] **P149 — fournisseur realtime « android »** (boucle vocale locale,
+      demandé « au plus proche du code initial ») :
+      - [x] `prepare_src.py` : `patch_realtime_android()` — **12 opérations**
+        (template `Co` à 3 options, 3ᵉ option `android`, bifurcation
+        `provider!=="android"`→`current`, 7 champs cloud désactivés par le
+        flag, `Literal` + garde `realtime_call`) — **163 opérations, 0 échec**
+      - [x] `check_patches.py` : `check_realtime_android()` (template,
+        option, libellé, 4+1+2 champs désactivés, bifurcation, Literal,
+        garde) — **0 erreur**
+      - [x] `probe_migration_0134.py` : **74/74** (javac inclus)
+      - [x] smoke **8090** : serveur vert, frontend servi avec les patchs
+      - [x] harnais **CDP Chromium** (profil neuf, cache désactivé) :
+        dropdown 3 options + libellés, 7 champs actifs (baseline), 7
+        désactivés + Provider actif après « Android », **tout réactivé** au
+        retour « OpenAI »
+      - [x] backend réel : `Literal` accepte android (autre rejeté),
+        persistance `config/update` + relecture, **garde WS** avec message
+        clair `handled locally on Android`
+      - [x] piège corrigé en route : template à 2 options →
+        `Illegal invocation` au montage (détecté uniquement en Chromium)
+      - [x] `PATCHES.md` (+P149, ligne P134 corrigée) et `journal.md`
+- [ ] Livraison **0.0.79_beta remplaçante** (tag forcé, décision utilisateur) :
+      `maintenance.typ` + `audio.typ` (+ PDF, grammaire), commit, `push origin
+      master`, force du tag `v0.0.79_beta` + remplacement de la release, CI
+- [ ] Test appareil v0.0.79_beta (avec P149) : choisir « Android » dans
+      Réglages → Audio → Voice calls (Realtime), vérifier le désactivage des
+      champs, enregistrer, puis appuyer sur le bouton d'appel → la boucle
+      locale doit démarrer (dictée + réponses lues, **sans** WebSocket)
 - [ ] Test appareil v0.0.79_beta : migration 0.13.4 + P148 (login OAuth si
       configuré) + rétroactions ouvertes P145 (bip tiling), P146 (relance
       conversation), P147 (faux « aucun son »)

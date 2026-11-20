@@ -257,9 +257,11 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       - [x] piège corrigé en route : template à 2 options →
         `Illegal invocation` au montage (détecté uniquement en Chromium)
       - [x] `PATCHES.md` (+P149, ligne P134 corrigée) et `journal.md`
-- [ ] Livraison **0.0.79_beta remplaçante** (tag forcé, décision utilisateur) :
-      `maintenance.typ` + `audio.typ` (+ PDF, grammaire), commit, `push origin
-      master`, force du tag `v0.0.79_beta` + remplacement de la release, CI
+- [x] Livraison **0.0.79_beta remplaçante** (tag forcé, décision utilisateur) :
+      `maintenance.typ` + `audio.typ` (+ PDF, grammaire, 0 warning), commit
+      `7c200f1`, `push origin master`, tag `v0.0.79_beta` forcé `75579e4`→`7c200f1`
+      + poussé nommément, release remplacée (titre + note P149 + 2 APK), CI
+      run 44832951778 **success**
 - [ ] Test appareil v0.0.79_beta (avec P149) : choisir « Android » dans
       Réglages → Audio → Voice calls (Realtime), vérifier le désactivage des
       champs, enregistrer, puis appuyer sur le bouton d'appel → la boucle

@@ -4103,3 +4103,23 @@ requise, overlay neutralisé) — livré identique.
 `PATCHES.md` (P149 + ligne P134 corrigée) ; `maintenance.typ`,
 `audio.typ` (+ PDF, grammaire) ; `todo.md` ; commit, push, tag
 `v0.0.79_beta` **forcé**, release remplacée, CI.
+
+## 2026-11-20 23:02 UTC — v0.0.79_beta livrée (P149 + nettoyage P134)
+
+- `versionName '0.0.79_beta'` inchangé (déjà en place) ;
+- commit `7c200f1` (11 fichiers : patchs + scripts + doc Typst/PDF + journal)
+  poussé sur `origin master` ;
+- tag `v0.0.79_beta` **forcé** de `75579e4` → `7c200f1` (décision
+  utilisateur : remplacer la release 0.13.4+P148) puis poussé **nommément**
+  (jamais `--tags`) — `origin master` et le tag sont alignés sur `7c200f1` ;
+- CI **run 44832951778 → success** (5 min : build debug+release, APK
+  vérifiés, release mise à jour) ;
+- release `v0.0.79_beta` : titre « fournisseur realtime Android (P149) +
+  nettoyage P134 », note P149 ajoutée, 2 APK (`debug` + `release`)
+  remplacés ;
+- annotations CI : dépréciations Node.js 20 / setup-java v4 (préexistantes,
+  non bloquantes).
+
+Reste ouvert : **test appareil** (choisir « Android » → champs désactivés →
+Enregistrer → appel qui doit démarrer la boucle locale sans WS) —
+`todo.md`.

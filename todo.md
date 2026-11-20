@@ -234,8 +234,8 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [x] Doc : `PATCHES.md` (+P148, chunks renommés), `maintenance.typ`
       (procédure de mise à jour réécrite en 11 étapes + P148) et `audio.typ`
       (chunks) — PDFs recompilés 0 warning
-- [ ] Livrer **0.0.79_beta** : `versionName`, commit, push `origin master`,
-      tag `v0.0.79_beta` poussé nommément (jamais `--tags`), CI `gh run watch`
+- [x] Livrer **0.0.79_beta** : `versionName`, commit `180d183`, push `origin master`,
+      tag `v0.0.79_beta` poussé nommément (jamais `--tags`), CI run 44705257612 **success** — release + 2 APK publiés
 - [ ] Test appareil v0.0.79_beta : migration 0.13.4 + P148 (login OAuth si
       configuré) + rétroactions ouvertes P145 (bip tiling), P146 (relance
       conversation), P147 (faux « aucun son »)

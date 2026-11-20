@@ -3930,3 +3930,20 @@ Suite du 2026-11-19. Chaîne de validation complète, puis livraison
   (0 warning).
 - `docs/audio.typ` : 5 chunks renommés — `audio.pdf` recompilé (0
   warning).
+
+### Livraison 0.0.79_beta
+
+- **Commit** `180d183` (850 fichiers : scripts + doc + `src-assets/` régénéré
+  0.13.4) poussé sur `origin master` (`95b2e6e..180d183`) — arbre propre
+  (`git status` vide).
+- **Garde-fou P93** : `verifier_tag.py` avec `TAG=v0.0.79_beta` →
+  `✓ tag v0.0.79_beta == versionName 0.0.79_beta`.
+- **Tag** `v0.0.79_beta` créé sur `180d183` et poussé **nommément**
+  (`git push -f origin v0.0.79_beta` — jamais `--tags`).
+- **CI** : run `44705257612` **success** (5 min 19) — seules annotations :
+  dépréciations d'actions GitHub (Node 20, `setup-java@v4`), sans impact.
+- **Release** publiée par `github-actions` :
+  `https://github.com/FredSources/Openwebui_Android/releases/tag/v0.0.79_beta`
+  avec `OpenWebUI_Android-0.0.79_beta-debug.apk` et `-release.apk`.
+- **En attente utilisateur** : test appareil de la migration 0.13.4 (login,
+  chat, dictée, mode vocal, TTS) + rétroactions ouvertes P145/P146/P147.

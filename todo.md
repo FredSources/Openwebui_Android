@@ -254,6 +254,12 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       - [x] backend réel : `Literal` accepte android (autre rejeté),
         persistance `config/update` + relecture, **garde WS** avec message
         clair `handled locally on Android`
+      - [x] retours appareil corrigés : template **dédié `CoA`** (le `Co`
+        partagé ajoutait une 3ᵉ option vide dans Call mode), **masquage**
+        des 7 champs (au lieu de la désactivation), **`provider` exposé par
+        `/api/config`** (sinon la bifurcation choisissait « bridge » → WS
+        ouvert → garde) — revalidé : clic « Voice mode » sans aucune
+        requête WS + overlay Listening ;
       - [x] piège corrigé en route : template à 2 options →
         `Illegal invocation` au montage (détecté uniquement en Chromium)
       - [x] `PATCHES.md` (+P149, ligne P134 corrigée) et `journal.md`

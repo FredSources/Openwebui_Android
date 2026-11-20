@@ -255,12 +255,12 @@ Trois fournisseurs sont proposés dans l'APK :
   `provider !== "android"` ; le backend refuse toute connexion WS avec un
   message clair : `Realtime calls are handled locally on Android`).
 
-Avec `android` sélectionné, le formulaire reste *identique au standard* : un
-flag désactive les 7 réglages cloud (API Base URL, API Key, Voice Model,
-Voice, Input Transcription, Input Params, Prompt Template) — seul le
-fournisseur reste éditable — puis « Enregistrer » suffit. Les refus amont
-(bouton et lancement en STT « web ») passent naturellement dès que
-`realtime.enabled` est vrai : aucun n'est neutralisé.
+Avec `android` sélectionné, les 7 réglages cloud *disparaissent* (API Base
+URL, API Key, Voice Model, Voice, Input Transcription, Input Params, Prompt
+Template — masquage du conteneur de chaque champ, seul le fournisseur reste
+visible) — puis « Enregistrer » suffit. Les refus amont (bouton et lancement
+en STT « web ») passent naturellement dès que `realtime.enabled` est vrai :
+aucun n'est neutralisé.
 
 == Mode d'interaction vocale — fonctionnel en STT local (P134)
 
@@ -593,8 +593,8 @@ quel que soit le réglage de langue de l'interface. Conséquences :
    d'overlay neutralisé, transcription locale via `SpeechRecognition`,
    vrai micro ; refus bouton/clic amont intacts, ils passent dès que
    `realtime.enabled` est vrai) ; fournisseur *`android`* (P149) : la
-   boucle vocale locale, sans WebSocket, champs cloud désactivés par le
-   flag ;
+   boucle vocale locale, sans WebSocket, champs cloud *masqués* par le flag
+   (seul le fournisseur reste visible) ;
    chaque réponse lue à voix haute, y compris la deuxième d'un même chat
    (P137) avec la voix locale (P128 + P135/P136) ; messages d'erreur
    distincts micro refusé / init Kokoro (P138) ; dictée sans erreur

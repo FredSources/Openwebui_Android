@@ -4123,3 +4123,39 @@ requise, overlay neutralisé) — livré identique.
 Reste ouvert : **test appareil** (choisir « Android » → champs désactivés →
 Enregistrer → appel qui doit démarrer la boucle locale sans WS) —
 `todo.md`.
+
+## 2026-11-20 23:40 UTC — P149 corrigé au retour appareil (3 points)
+
+Rétroaction utilisateur sur l'APK v0.0.79_beta :
+1. « le menu Call mode a un champ vide comme 3ᵉ choix » ;
+2. « je préfère que les champs soient invisibles plutôt que désactivés » ;
+3. « lors de l'activation du call j'ai *Realtime calls are handled locally on
+   Android* » (ma garde backend, donc le WS s'ouvrait quand même).
+
+### Causes et correctifs
+
+| # | Cause | Correctif |
+|---|-------|-----------|
+| 1 | `Co` (template `<option>` à 2) est **partagé** avec Call mode et Authentication : l'élargir ajoutait une 3ᵉ option vide **partout** | template **dédié `CoA`** à 3 options, déclaré à côté de `Co` (intact) et branché **uniquement** sur le select Provider (`var Oe=CoA()`) |
+| 2 | demande : masquer, pas griser | **un seul effet** remplace les 7 désactivations : il remonte au conteneur de chaque `AdminSettingField` (div racine — template `rk=<div><label> <div>input</div> <desc></div>`) et pose `display:none` (label + champ + description d'un coup) ; l'API Key (SensitiveInput, id généré) est le **frère suivant** du champ URL ; réactivation au retour `openai` |
+| 3 | `/api/config` n'exposait que `enabled/model/voice` pour realtime → `provider` = `undefined` → `undefined !== "android"` **toujours vrai** → « bridge » → `h().connect()` → garde | deux ajouts dans `main.py` : la clé `audio.realtime.provider` **dans le `get_many`** (sinon `config.get(...)` = `None`) puis `'provider': ...` **dans le dict** |
+
+### Validations (toutes vertes, après correction)
+
+- `prepare_src.py` : **160 opérations, 0 échec** (8 P149) · `check_patches.py`
+  : OK (contrôles P149 réécrits : `CoA` présent, `Co` intact, Provider branché,
+  masquage, config) ;
+- `probe_migration_0134.py` : **74/74** (javac) ;
+- harnais CDP Chromium : Call mode à **2 options** (3ᵉ vide disparue),
+  dropdown 3 options, 7 champs **visibles → masqués → réaffichés**,
+  Provider actif ;
+- test d'appel décisif : config `{enabled:true, provider:"android"}` → clic
+  **« Voice mode »** → **aucune requête WS/realtime** dans le réseau CDP et
+  overlay **« Listening... »** (la boucle locale `current` démarre) ;
+- persistance API + garde WS inchangées (message déjà servi si un client
+  tente quand même).
+
+### Suite
+
+`PATCHES.md` (ligne P149 réécrite), `maintenance.typ`/`audio.typ` (PDF),
+`todo.md`, commit, push, tag `v0.0.79_beta` **re-forcé**, CI.

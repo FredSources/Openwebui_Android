@@ -328,23 +328,30 @@ def check_realtime_android() -> None:
         err("P149 : nodes/2.Dki0jDRo.js absent")
         return
     t = js.read_text(encoding="utf-8", errors="ignore")
-    # dropdown : template à 3 options + 3ᵉ option « Android » + libellé branché
-    if 'Co=v("<option> </option> <option> </option> <option> </option>",1)' not in t:
-        err("P149 : template du select Provider toujours à 2 options "
-            "(le positionneur sortirait du template)")
+    # dropdown : template DÉDIÉ à 3 options (Co intact = partagé à 2 options)
+    if 'CoA=v("<option> </option> <option> </option> <option> </option>",1)' not in t:
+        err("P149 : template dédié CoA absent (select Provider à 2 options)")
+    if 'Co=v("<option> </option> <option> </option> <option>' in t:
+        err("P149 : template partagé Co élargi → 3ᵉ option vide dans "
+            "Call mode / Authentication")
+    if "var Oe=CoA()" not in t:
+        err("P149 : select Provider non branché sur CoA")
     if 'xY.value=xY.__value="android"' not in t:
         err("P149 : option « Android » absente du dropdown Provider")
     if "d(xZ,zB)" not in t:
         err("P149 : libellé « Android » non branché (3ᵉ option)")
     if 't().t("Android")' not in t:
         err("P149 : libellé i18n « Android » absent")
-    # flag : 4 inputs + 1 readOnly + 2 textarea = 7 champs désactivés
-    if t.count('disabled=(e(u),a(()=>e(u).PROVIDER==="android"))') != 4:
-        err("P149 : les 4 inputs cloud ne sont pas désactivés en android")
-    if t.count('get readOnly(){return e(u).PROVIDER==="android"}') != 1:
-        err("P149 : API Key (readOnly) non désactivée en android")
-    if t.count('get disabled(){return e(u).PROVIDER==="android"}') != 2:
-        err("P149 : Input Params / Prompt non désactivés en android")
+    # masquage des 7 réglages cloud (conteneur AdminSettingField)
+    if 'droid=(e(u),a(()=>e(u).PROVIDER==="android"))' not in t:
+        err("P149 : effet de masquage android absent")
+    if t.count('"realtime-api-base-url"') < 2:
+        err("P149 : masquage ne couvre pas le champ URL")
+    if 'input[id^="password-input"]' not in t:
+        err("P149 : masquage de l'API Key (frère du champ URL) absent")
+    # plus aucune désactivation (le masquage l'a remplacée)
+    if t.count('disabled=(e(u),a(()=>e(u).PROVIDER==="android"))'):
+        err("P149 : désactivation résiduelle (le masquage suffit)")
     # bifurcation : android → boucle locale current (jamais WS)
     chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
     if not chunk.exists():
@@ -353,13 +360,20 @@ def check_realtime_android() -> None:
     ct = chunk.read_text(encoding="utf-8", errors="ignore")
     if 'r()?.audio?.realtime?.provider!=="android"?"bridge":"current"' not in ct:
         err("P149 : bifurcation android→current absente")
-    # backend : Literal + garde WS
+    # backend : Literal + garde WS + provider exposé à /api/config
     ai = (SRC / "open_webui" / "routers" / "audio" / "__init__.py").read_text(encoding="utf-8", errors="ignore")
     if "Literal['openai', 'azure', 'android']" not in ai:
         err("P149 : Literal PROVIDER sans « android »")
     rp = (SRC / "open_webui" / "routers" / "audio" / "realtime.py").read_text(encoding="utf-8", errors="ignore")
     if "handled locally on Android" not in rp:
         err("P149 : garde realtime_call (android) absente")
+    mp = (SRC / "open_webui" / "main.py").read_text(encoding="utf-8", errors="ignore")
+    if "'provider': config.get('audio.realtime.provider')" not in mp:
+        err("P149 : provider absent de /api/config (la bifurcation "
+            "lirait undefined → bridge → WS)")
+    if "'audio.realtime.provider',\n        'audio.realtime.model'" not in mp:
+        err("P149 : clé audio.realtime.provider absente du get_many "
+            "de /api/config (config.get(...) = None)")
 
 
 def check_appel_stt_local() -> None:

@@ -589,16 +589,17 @@ def patch_realtime_android() -> None:
     ce patch ouvre le choix « Android » dans la liste des fournisseurs et
     raccorde l'overlay d'appel à cette boucle — sans toucher au protocole WS.
 
-    - dropdown Provider : 3ᵉ option « Android » (idiome exact des 3 options
-      déjà compilé pour le TEXT_SPLITTER, variables libres xY/xZ/zB) ;
+    - dropdown Provider : 3ᵉ option « Android » sur **son propre template**
+      (`CoA` — `Co` est partagé avec les autres selects à 2 options) ;
     - bifurcation d'appel : `realtime.enabled && provider !== "android"` →
       `current` (le WebSocket n'est jamais ouvert pour android) ;
-    - formulaire : les champs cloud (URL, clé, modèle, voix, transcription,
-      paramètres, prompt) sont DÉSACTIVÉS par le flag
-      `PROVIDER === "android"` — l'UI reste identique au standard, seul le
-      fournisseur reste éditable (décision 2026-11-20 : pas de masquage) ;
-    - backend : `'android'` accepté par le Literal PROVIDER + garde claire
-      dans `realtime_call` (le WS ne doit jamais s'ouvrir).
+    - formulaire : les 7 réglages cloud (URL, clé, modèle, voix,
+      transcription, paramètres, prompt) deviennent **invisibles** quand
+      `PROVIDER === "android"` (masquage du conteneur de chaque
+      `AdminSettingField` — décision 2026-11-20), seul le fournisseur reste ;
+    - backend : `'android'` accepté par le Literal PROVIDER, garde claire
+      dans `realtime_call`, et `provider` exposé par `/api/config`
+      (sinon la bifurcation lit `undefined` et choisit « bridge »).
 
     Les refus amont (bouton / clic en STT « web ») passent naturellement dès
     que `realtime.enabled` est vrai : aucun refus n'est neutralisé ici."""
@@ -606,15 +607,25 @@ def patch_realtime_android() -> None:
     chunk = DST / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
     audio_init = DST / "routers" / "audio" / "__init__.py"
     realtime = DST / "routers" / "audio" / "realtime.py"
+    main_py = DST / "main.py"
 
-    # 1) le template statique du select Provider ne contient que 2 options :
-    #    la 3ᵉ doit y être ajoutée, sinon le positionneur `n(ut,2)` sort du
-    #    template → « Illegal invocation » au montage (vérifié en Chromium).
+    # 1) le select Provider a besoin de son PROPRE template à 3 options :
+    #    `Co` est partagé avec les autres selects à 2 options (Call mode,
+    #    Authentication) — l'élargir ajoutait une 3ᵉ option VIDE partout ;
+    #    et sans 3ᵉ option dans son template, le positionneur `n(ut,2)` sort
+    #    du DOM → « Illegal invocation » au montage (constaté en Chromium).
     replace_once(
         js,
-        'Co=v("<option> </option> <option> </option>",1)',
-        'Co=v("<option> </option> <option> </option> <option> </option>",1)',
-        "P149 UI : template du select Provider porté à 3 options",
+        'Co=v("<option> </option> <option> </option>",1),LR=',
+        'Co=v("<option> </option> <option> </option>",1),'
+        'CoA=v("<option> </option> <option> </option> <option> </option>",1),LR=',
+        "P149 UI : template dédié à 3 options (CoA, Co intact)",
+    )
+    replace_once(
+        js,
+        'children:(He,lt)=>{var Oe=Co(),at=Xe(Oe),gt=l(at,!0);r(at),at.value=at.__value="openai";',
+        'children:(He,lt)=>{var Oe=CoA(),at=Xe(Oe),gt=l(at,!0);r(at),at.value=at.__value="openai";',
+        "P149 UI : select Provider branché sur son template CoA",
     )
     # 2) dropdown Provider : 3ᵉ option « Android » — l'idiome des 3 options
     #    est déjà compilé tel quel pour le TEXT_SPLITTER (motif d'autorité) ;
@@ -633,41 +644,23 @@ def patch_realtime_android() -> None:
         'm(h()?.connected||h()?.connecting||r()?.audio?.realtime?.enabled&&r()?.audio?.realtime?.provider!=="android"?"bridge":"current")',
         "P149 appel : android force la boucle locale current (jamais WS)",
     )
-    # 4) flag `PROVIDER === "android"` → champs cloud désactivés (UI identique
-    #    au standard : tout reste visible, seul le fournisseur reste éditable).
-    #    Idiome exact du build : `X.disabled=(e(u),a(()=>…))` dans un `g()`.
-    for old, new, lib in (
-        ('At(He,()=>e(u).OPENAI_API_BASE_URL,lt=>We(u,e(u).OPENAI_API_BASE_URL=lt)),o(_e,He)',
-         'At(He,()=>e(u).OPENAI_API_BASE_URL,lt=>We(u,e(u).OPENAI_API_BASE_URL=lt)),g(()=>{He.disabled=(e(u),a(()=>e(u).PROVIDER==="android"))}),o(_e,He)',
-         "champ API Base URL"),
-        ('At(He,()=>e(u).MODEL,lt=>We(u,e(u).MODEL=lt)),o(_e,He)',
-         'At(He,()=>e(u).MODEL,lt=>We(u,e(u).MODEL=lt)),g(()=>{He.disabled=(e(u),a(()=>e(u).PROVIDER==="android"))}),o(_e,He)',
-         "champ Voice Model"),
-        ('At(ze,()=>e(u).VOICE,He=>We(u,e(u).VOICE=He)),o(me,ze)',
-         'At(ze,()=>e(u).VOICE,He=>We(u,e(u).VOICE=He)),g(()=>{ze.disabled=(e(u),a(()=>e(u).PROVIDER==="android"))}),o(me,ze)',
-         "champ Voice"),
-        ('At(ze,()=>e(u).TRANSCRIPTION_MODEL,He=>We(u,e(u).TRANSCRIPTION_MODEL=He)),o(me,ze)',
-         'At(ze,()=>e(u).TRANSCRIPTION_MODEL,He=>We(u,e(u).TRANSCRIPTION_MODEL=He)),g(()=>{ze.disabled=(e(u),a(()=>e(u).PROVIDER==="android"))}),o(me,ze)',
-         "champ Input Transcription Model"),
-    ):
-        replace_once(js, old, new, f"P149 UI : {lib} désactivé en android")
-    # API Key : SensitiveInput n'expose que `readOnly` (→ `disabled={readOnly}`)
+    # 4) flag `PROVIDER === "android"` → les 7 réglages cloud deviennent
+    #    INVISIBLES (décision 2026-11-20 : masquage, pas désactivation).
+    #    Chaque champ est un `AdminSettingField` : template
+    #    `<div><label> <div>input</div> <desc></div>` → on remonte au div
+    #    racine (premier ancêtre ayant un `<label>` enfant direct) et on le
+    #    masque (label + champ + description d'un coup) ; l'API Key
+    #    (SensitiveInput, id généré) est le frère suivant du champ URL.
+    #    Un seul effet, inséré avant l'effet de grille du formulaire.
     replace_once(
         js,
-        'get value(){return e(u).OPENAI_API_KEY},set value(lt){We(u,e(u).OPENAI_API_KEY=lt)},$$legacy:!0})',
-        'get value(){return e(u).OPENAI_API_KEY},set value(lt){We(u,e(u).OPENAI_API_KEY=lt)},get readOnly(){return e(u).PROVIDER==="android"},$$legacy:!0})',
-        "P149 UI : champ API Key désactivé en android",
+        'g(()=>he=P($e,1,"grid grid-cols-1 gap-2",null,he,{',
+        """g(()=>{const droid=(e(u),a(()=>e(u).PROVIDER==="android")),fc=x=>{for(let p=x;p;p=p.parentElement)if(p.querySelector(":scope>label"))return p;return null};
+for(const id of ["realtime-api-base-url","realtime-model","realtime-call-voice","realtime-transcription-model","realtime-input-params","realtime-prompt-template"]){const el=document.getElementById(id),c=el&&fc(el);c&&(c.style.display=droid?"none":"")}
+const u0=document.getElementById("realtime-api-base-url"),c0=u0&&fc(u0),kk=c0&&c0.nextElementSibling;kk&&kk.querySelector('input[id^="password-input"]')&&(kk.style.display=droid?"none":"")}),
+g(()=>he=P($e,1,"grid grid-cols-1 gap-2",null,he,{""",
+        "P149 UI : 7 réglages cloud masqués en android (flag PROVIDER)",
     )
-    # Textarea : Textarea.svelte expose bien une prop `disabled` (→ `{disabled}`)
-    for old, new, lib in (
-        ('get value(){return e(p)},set value(lt){s(p,lt)},$$legacy:!0})',
-         'get value(){return e(p)},set value(lt){s(p,lt)},get disabled(){return e(u).PROVIDER==="android"},$$legacy:!0})',
-         "champ Input Params"),
-        ('get value(){return e(u).REALTIME_CALL_PROMPT_TEMPLATE},set value(He){We(u,e(u).REALTIME_CALL_PROMPT_TEMPLATE=He)},$$legacy:!0})',
-         'get value(){return e(u).REALTIME_CALL_PROMPT_TEMPLATE},set value(He){We(u,e(u).REALTIME_CALL_PROMPT_TEMPLATE=He)},get disabled(){return e(u).PROVIDER==="android"},$$legacy:!0})',
-         "champ Prompt Template"),
-    ):
-        replace_once(js, old, new, f"P149 UI : {lib} désactivé en android")
     # 5) backend : fournisseur accepté + garde WS
     replace_once(
         audio_init,
@@ -684,6 +677,27 @@ def patch_realtime_android() -> None:
         "        if config.get('audio.realtime.provider') == 'android':\n"
         "            raise ValueError('Realtime calls are handled locally on Android')\n",
         "P149 backend : garde claire si un WS android venait à s'ouvrir",
+    )
+    # 6) `/api/config` n'exposait que enabled/model/voice pour realtime :
+    #    sans `provider`, la bifurcation lisait `undefined !== "android"`
+    #    (toujours vrai) → « bridge » → WS ouvert → garde déclenchée
+    #    (rétroaction appareil 2026-11-20). Deux ajouts : la clé dans le
+    #    `get_many` (sinon `config.get(...)` = None) puis dans le dict.
+    replace_once(
+        main_py,
+        "        'audio.realtime.enabled',\n        'audio.realtime.model',\n",
+        "        'audio.realtime.enabled',\n        'audio.realtime.provider',\n"
+        "        'audio.realtime.model',\n",
+        "P149 config : clé audio.realtime.provider lue par /api/config",
+    )
+    replace_once(
+        main_py,
+        "                    'realtime': {\n"
+        "                        'enabled': config.get('audio.realtime.enabled'),\n",
+        "                    'realtime': {\n"
+        "                        'enabled': config.get('audio.realtime.enabled'),\n"
+        "                        'provider': config.get('audio.realtime.provider'),\n",
+        "P149 config : provider exposé à /api/config (bifurcation frontend)",
     )
 
 

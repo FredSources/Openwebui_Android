@@ -190,20 +190,27 @@ def check_audio_locale() -> None:
 
 
     # P131 — options des moteurs locaux morts masquées dans l'UI
-    ui = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "nodes" / "2.DwSK4ZlF.js"
+    ui = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "nodes" / "2.Dki0jDRo.js"
     if not ui.exists():
         err("P131 : chunk des réglages audio absent (2.*.js)")
     else:
         ut = ui.read_text(encoding="utf-8", errors="ignore")
-        if "st.disabled=!0,st.hidden=!0" not in ut:
+        # [0.13.4] select TTS : variable `at` (l'option porte sa value avant
+        # le disable) ; STT et embedding partagent `J` → motifs allongés.
+        if 'at.value=at.__value="transformers";at.disabled=!0,at.hidden=!0;' not in ut:
             err("P131 : option TTS « Transformers (Local) » toujours visible")
-        if "E.disabled=!0,E.hidden=!0" not in ut:
+        if ("J.disabled=!0,J.hidden=!0,d(me,bt),d(ze,xt),d(lt,St),"
+                "d(at,Se),d(ut,pt),d(mt,wt)}") not in ut:
             err("P131 : option STT « Whisper (Local) » toujours visible")
         # P132 — options RAG mortes masquées (embedding/rerank/découpage)
+        # [0.13.4] j→J (+ chaîne d() distincte de P131 STT), Nt→St, ht→ft
         for motif, lib in (
-            ("j.disabled=!0,j.hidden=!0", "embedding « SentenceTransformers »"),
-            ("Nt.disabled=!0,Nt.hidden=!0", "rerank « SentenceTransformers »"),
-            ("ht.disabled=!0,ht.hidden=!0", "découpage « Token (Transformers) »"),
+            ("J.disabled=!0,J.hidden=!0,d(me,gt),d(ze,ut),d(lt,yt),d(at,mt)}",
+             "embedding « SentenceTransformers »"),
+            ("St.disabled=!0,St.hidden=!0,d(Se,ft),d(wt,Ct)}",
+             "rerank « SentenceTransformers »"),
+            ('ft.disabled=!0,ft.hidden=!0,d(Ct,`${Ht??""} (${oa??""})`)',
+             "découpage « Token (Transformers) »"),
         ):
             if motif not in ut:
                 err(f"P132 : option RAG « {lib} » toujours visible")
@@ -285,9 +292,9 @@ def check_mode_vocal() -> None:
     # P134 — 5 micro-patchs dans le chunk d'appel (2 fusionnés dans
     # P141b/P144b par l'audit de minimisation ; les motifs ci-dessous
     # contrôlent le LIVRÉ, identique)
-    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
     if not chunk.exists():
-        err("P134 : chunk d'appel BeEbX_lw.js absent")
+        err("P134 : chunk d'appel BnHPywC-.js absent")
         return
     ct = chunk.read_text(encoding="utf-8", errors="ignore")
     # refus amont : leur PRÉSENCE signifierait un retour en arrière
@@ -315,26 +322,30 @@ def check_appel_stt_local() -> None:
     Le MediaRecorder du mode vocal monopolisait le micro (conflit documenté
     par le shim de dictée) et la garde `blob < 100 o` étouffait la
     transcription locale : aucun énoncé n'arrivait dans le chat."""
-    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
     if not chunk.exists():
-        err("P141 : chunk d'appel BeEbX_lw.js absent")
+        err("P141 : chunk d'appel BnHPywC-.js absent")
         return
     ct = chunk.read_text(encoding="utf-8", errors="ignore")
-    if ("J=new MediaRecorder(window.__callDictation"
-            '&&o().audio?.stt?.engine==="web"&&window.__callSilent') not in ct:
+    # [0.13.4] correspondances : J→X, z→W, o()→i(), Je→Rt, jt→xr
+    if ("X=new MediaRecorder(window.__callDictation"
+            '&&i().audio?.stt?.engine==="web"&&window.__callSilent') not in ct:
         err("P141a : MediaRecorder non déporté sur le flux silencieux (STT local)")
-    if "J=new MediaRecorder(z),J.onstart" in ct:
+    if "X=new MediaRecorder(W),X.onstart" in ct:
         err("P141a : MediaRecorder sur le vrai micro revenu (le natif sera sourd)")
-    if "if((!Je||Je.size<100)&&!_w)return;" not in ct:
+    if "if((!Rt||Rt.size<100)&&!_w)return;" not in ct:
         err("P141b : garde blob non réservée au chemin serveur")
-    if 'if(!Je||Je.size<100)return;await jt();' in ct:
+    if 'if(!Rt||Rt.size<100)return;await xr();' in ct:
         err("P141b : garde blob amont rétablie (transcription locale étouffée)")
     if 'console.warn(`Call STT: ' not in ct:
         err("P141b : trace de transcription absente")
     if "transcription vide (micro non entendu ?)" not in ct:
         err("P141b : toast de transcription vide absent")
-    # P144 — la libération de micro est RETIRÉE (flux silencieux vivant)
-    if "(z.getAudioTracks().forEach(zt=>zt.stop()),z=null)" in ct:
+    # P144 — la libération de micro à l'ouverture de l'énoncé est RETIRÉE
+    # (flux silencieux vivant) ; [0.13.4] z→W, zt→Rt. La libération de
+    # fermeture amont (`W&&(...),W=null` dans Ae) reste intacte : elle n'est
+    # PAS un problème (le MediaRecorder est déjà arrêté à ce stade).
+    if "(W.getAudioTracks().forEach(Rt=>Rt.stop()),W=null)" in ct:
         err("P144c : libération de micro rétablie (arrêterait le MediaRecorder)")
     poly = PROJ / "app" / "src" / "main" / "assets" / "call_polyfill.js"
     if not poly.exists():
@@ -354,14 +365,15 @@ def check_appel_stt_local() -> None:
 def check_appel_vad() -> None:
     """P142 — mode vocal : micro libéré à l'ouverture de l'énoncé, activité
     du recognizer entretenant la détection de parole."""
-    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
     if not chunk.exists():
-        err("P142 : chunk d'appel BeEbX_lw.js absent")
+        err("P142 : chunk d'appel BnHPywC-.js absent")
         return
     ct = chunk.read_text(encoding="utf-8", errors="ignore")
     if "window.__callVadHit&&window.__callVadHit()" not in ct:
         err("P142a : détection « parole continue » non pilotée par le recognizer")
-    if 'ft.some(xr=>xr>0)&&(J&&J.state!=="recording"' in ct:
+    # [0.13.4] ft→wt, xr→nt, J→X (boucle VAD)
+    if 'wt.some(nt=>nt>0)&&(X&&X.state!=="recording"' in ct:
         err("P142a : garde VAD amont rétablie (muette pendant l'énoncé)")
     # P142c enchaîné sur P147 : le toast porte toujours l'erreur moteur,
     # mais sous forme de template literal (`${ce}`) depuis P147.
@@ -383,14 +395,15 @@ def check_appel_vad() -> None:
 
 def check_appel_diag() -> None:
     """P143 — préchauffage du recognizer + console JS journalisée."""
-    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
     if not chunk.exists():
-        err("P143 : chunk d'appel BeEbX_lw.js absent")
+        err("P143 : chunk d'appel BnHPywC-.js absent")
         return
     ct = chunk.read_text(encoding="utf-8", errors="ignore")
     if "window.__callDictation.warm&&window.__callDictation.warm()," not in ct:
         err("P143 : préchauffage du recognizer absent de l'ouverture d'appel")
-    if 'return Ge(),E().addEventListener("chat:start",ct)' in ct:
+    # [0.13.4] Ge→lt, E()→I(), ct→$e
+    if 'return lt(),I().addEventListener("chat:start",$e)' in ct:
         err("P143 : préchauffage amont rétabli (démarrage froid)")
     poly = PROJ / "app" / "src" / "main" / "assets" / "call_polyfill.js"
     if not poly.exists():
@@ -413,14 +426,14 @@ def check_appel_permanente() -> None:
     démarre l'écoute à l'ouverture de l'appel, les énoncés sont découpés par
     marqueurs, le micro réel est réservé au recognizer (flux silencieux pour
     le VAD), et la lecture TTS vide les tampons."""
-    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
     if not chunk.exists():
-        err("P144 : chunk d'appel BeEbX_lw.js absent")
+        err("P144 : chunk d'appel BnHPywC-.js absent")
         return
     ct = chunk.read_text(encoding="utf-8", errors="ignore")
     if "window.__callSpeechGate&&window.__callSpeechGate(" not in ct:
         err("P144a : silenciation TTS absente du VAD")
-    if ("z=window.__callDictation&&o().audio?.stt?.engine===\"web\""
+    if ("W=window.__callDictation&&i().audio?.stt?.engine===\"web\""
             "&&window.__callSilent?window.__callSilent()") not in ct:
         err("P144b : micro réel non réservé au recognizer (détection sur flux silencieux)")
     if "window.__callDictation.stop&&window.__callDictation.stop();" not in ct:
@@ -505,9 +518,9 @@ def check_appel_silence_grace_tiling() -> None:
             if motif not in pt:
                 err(f"P146 : call_polyfill.js — {lib}")
     # P147 — chunk d'appel
-    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
     if not chunk.exists():
-        err("P147 : chunk d'appel BeEbX_lw.js absent")
+        err("P147 : chunk d'appel BnHPywC-.js absent")
     else:
         ct = chunk.read_text(encoding="utf-8", errors="ignore")
         if "sil?console.warn(`Call STT: silence normal" not in ct:
@@ -532,79 +545,86 @@ def check_tts_lecture() -> None:
         err("P135 : `ready` non volatile (visibilité depuis le thread JS)")
 
     # P136 — garde-fous de la boucle d'attente des voix dans le chunk d'appel
-    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
     if not chunk.exists():
-        err("P136 : chunk d'appel BeEbX_lw.js absent")
+        err("P136 : chunk d'appel BnHPywC-.js absent")
         return
     ct = chunk.read_text(encoding="utf-8", errors="ignore")
+    # [0.13.4] correspondances : ce→Xe, at→Gt, st→ut, et→Et, kt→er, Mt→Tt,
+    #    ft→wt (fonction `We`)
     for motif, lib in (
-        ("Promise.race([new Promise(st=>{let et=null,gs=Date.now();",
+        ("Promise.race([new Promise(ut=>{let Et=null,gs=Date.now();",
          "boucle d'attente des voix non horodatée"),
-        ("if(!Mt.length&&Date.now()-gs<5e3)return;",
+        ("if(!Tt.length&&Date.now()-gs<5e3)return;",
          "lecture non forcée au-delà de 5 s sans voix"),
-        ("at.aborted&&ft()}),new Promise(st=>setTimeout(st,15e3))])}",
+        ("Gt.aborted&&wt()}),new Promise(ut=>setTimeout(ut,15e3))])}",
          "garde-fous 15 s absent (une lecture sans retour fige la file)"),
     ):
         if motif not in ct:
             err(f"P136 : {lib}")
     # un retour en arrière signifierait l'ancienne boucle sans borne
-    if "kt=setInterval(()=>{const Mt=speechSynthesis.getVoices();if(!Mt.length)return;" in ct:
+    if "er=setInterval(()=>{const Tt=speechSynthesis.getVoices();if(!Tt.length)return;" in ct:
         err("P136 : boucle d'attente des voix rétablie sans borne")
 
 
 def check_appel_lecture() -> None:
     """P137 — la file de lecture d'un appel doit être relancée à chaque réponse."""
-    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
     if not chunk.exists():
-        err("P137 : chunk d'appel BeEbX_lw.js absent")
+        err("P137 : chunk d'appel BnHPywC-.js absent")
         return
     ct = chunk.read_text(encoding="utf-8", errors="ignore")
 
+    # [0.13.4] correspondances : bt→Ke, Wt→be, Le→Se, ue→je, nt→Le,
+    # a(q,…)→o(Z,…), ct→$e, S→D, ae→Oe, Z→Y, ce→Xe, Je→Rt, at→Gt
     # marqueur de boucle active : déclaré, effacé à la fin, testé au démarrage
-    if 'let bt={},Wt={},Le="",ue=null,ntSig=null;' not in ct:
+    if 'let Ke={},be={},Se="",je=null,ntSig=null;' not in ct:
         err("P137 : marqueur de boucle de lecture absent (ntSig)")
-    if "{a(q,!1),ntSig=null;break}" not in ct:
+    if "{o(Z,!1),ntSig=null;break}" not in ct:
         err("P137 : fin de boucle sans effacement du marqueur")
-    if "ntSig!==ce.signal&&(ntSig=ce.signal,nt(at,ce.signal)),a(q,!0)}" not in ct:
+    if "ntSig!==Xe.signal&&(ntSig=Xe.signal,Le(Gt,Xe.signal)),o(Z,!0)}" not in ct:
         err("P137 : ct ne relance pas la boucle / ne remet pas l'état « parle »")
-    if "S=!0,bt[at]=!1," not in ct:
+    if "D=!0,Ke[Gt]=!1," not in ct:
         err("P137 : drapeau « réponse finie » jamais effacé (relance immédiate "
             "puis re-arrêt de la boucle)")
-    if "ce.signal.aborted&&(ce=new AbortController())" not in ct:
+    if "Xe.signal.aborted&&(Xe=new AbortController())" not in ct:
         err("P137 : signal annulé non recréé (interruption → plus de lecture)")
     # rétrogradation : version amont, la boucle ne se relance jamais
-    if "}else if(bt[Je]&&rt[Je]&&rt[Je].length===0){a(q,!1);break}" in ct:
+    if "}else if(Ke[Rt]&&ke[Rt]&&ke[Rt].length===0){o(Z,!1);break}" in ct:
         err("P137 : boucle de lecture à nouveau non relançable (version amont)")
-    if "ce=new AbortController,a(q,!0),nt(at,ce.signal))}" in ct:
+    if "Xe=new AbortController,o(Z,!0),Le(Gt,Xe.signal))}" in ct:
         err("P137 : ct d'origine rétabli (relance conditionnée au changement de chat)")
 
 
 def check_erreur_tts() -> None:
     """P138 — micro refusé et init Kokoro en échec : deux messages distincts,
     et l'init TTS jamais laissée en rejet silencieux."""
-    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
     if not chunk.exists():
-        err("P138 : chunk d'appel BeEbX_lw.js absent")
+        err("P138 : chunk d'appel BnHPywC-.js absent")
         return
     ct = chunk.read_text(encoding="utf-8", errors="ignore")
     # (a) découpe : le micro garde son message + return, l'init a son propre try
-    if ('dr=null}catch{$t.error(c().t("Permission denied when accessing media '
+    # [0.13.4] correspondances : dr→ca, $t→Mt, D()→A(), jn/pi→ic/Mn
+    if ('ca=null}catch{Mt.error(c().t("Permission denied when accessing media '
         'devices"));return}try{f().audio?.tts?.engine==="browser-kokoro"') not in ct:
         err("P138a : découpe try micro / try init Kokoro absente")
-    if ("catch(e1){$t.error(`Kokoro TTS: ${e1}`),"
-        "console.warn(`Kokoro TTS: ${e1}`)}jn.set(!0),pi.set(!0)") not in ct:
+    if ("catch(e1){Mt.error(`Kokoro TTS: ${e1}`),"
+        "console.warn(`Kokoro TTS: ${e1}`)}ic.set(!0),Mn.set(!0)") not in ct:
         err("P138a : message Kokoro distinct + ouverture de l'appel absent")
-    if "await D().init())),jn.set(!0),pi.set(!0)}catch{$t.error" in ct:
+    if "await A().init())),ic.set(!0),Mn.set(!0)}catch{Mt.error" in ct:
         err("P138a : try unique amont rétabli (toute erreur = micro refusé)")
-    drz = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "DRZDe0Yd.js"
+    drz = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "AZSCJQb3.js"
     if not drz.exists():
-        err("P138 : chunk TTS DRZDe0Yd.js absent")
+        err("P138 : chunk TTS AZSCJQb3.js absent")
         return
     d = drz.read_text(encoding="utf-8", errors="ignore")
-    if ("await he().init())}catch(e2){tr.error(`Kokoro TTS: ${e2}`),"
-        "p(Me,!1),p(Se,!1);return}for(") not in d:
+    # [0.13.4] correspondances : he()→M(), ti→ri, tr→ir, p(Me,!1),p(Se,!1)→
+    #    v(xe,!1),v(p,!1), gt→Je, Ke→Ye
+    if ("await M().init())}catch(e2){ir.error(`Kokoro TTS: ${e2}`),"
+        "v(xe,!1),v(p,!1);return}for(") not in d:
         err("P138b : init Kokoro de la file de lecture non interceptée")
-    if "await he().init());for(const[,Ke]of gt.entries()){" in d:
+    if "await M().init());for(const[,Ye]of Je.entries()){" in d:
         err("P138b : init non protégée amont rétablie (rejet silencieux)")
 
 
@@ -614,6 +634,7 @@ def _check_p139_fichier(path: pathlib.Path, setter: str, config: str, label: str
         return
     t = path.read_text(encoding="utf-8", errors="ignore")
     for motif, msg in (
+        # [0.13.4] node 2 : jr→fl, $config→c ; node 55 : W→Y, $config→E
         (f"const S={setter},C={config};", f"stores {label} ({setter}/{config})"),
         ("window.AndroidTTS.voicesJson()", "sonde de voix AndroidTTS absente"),
         ("if(eng===\"browser-kokoro\"){fix(!1);return}", "normalisation sync kokoro absente"),
@@ -628,9 +649,10 @@ def _check_p139_fichier(path: pathlib.Path, setter: str, config: str, label: str
         if motif not in t:
             err(f"P139 : {label} — {msg}")
     # rétrogradation : l'IIFE a disparu du chargeur
-    if setter == "jr" and "jr.set(K.ui),t0(K?.keybindings)" in t:
+    # [0.13.4] node 2 : ne→ge, K→Q, jr→fl, t0→em ; node 55 : W→Y, Oe→We
+    if setter == "fl" and "fl.set(Q.ui),em(Q?.keybindings)" in t:
         err("P139 : IIFE absente du chargeur de réglages (node 2)")
-    if setter == "W" and "W.set(t)}if(await Oe.set(" in t:
+    if setter == "Y" and "Y.set(t)}if(await We.set(" in t:
         err("P139 : IIFE absente du chargeur de réglages (node 55)")
 
 
@@ -638,8 +660,9 @@ def check_default_kokoro() -> None:
     """P139 — les deux chargeurs de `$settings` forcent/normalisent Kokoro
     quand le « Default » navigateur est inutilisable."""
     imm = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "nodes"
-    _check_p139_fichier(imm / "2.DwSK4ZlF.js", "jr", "Sr", "layout (app)")
-    _check_p139_fichier(imm / "55.s0_1KP7y.js", "W", "Te", "/s/[id]")
+    # [0.13.4] node 2 : stores fl/c ; node 55 : stores Y/E
+    _check_p139_fichier(imm / "2.Dki0jDRo.js", "fl", "c", "layout (app)")
+    _check_p139_fichier(imm / "56.DyQrwVL7.js", "Y", "E", "/s/[id]")
 
 
 def check_wasm_ort() -> None:
@@ -854,12 +877,14 @@ def check_p41_harvest() -> None:
         str(PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "nodes" / "0.*.js")
     )
     if nodes and not any(
-        "files:ge.files||[]" in open(c, encoding="utf-8", errors="ignore").read()
+        # [0.13.4] le message worker porte `W` (le worker s'appelle `ge`)
+        "files:W.files||[]" in open(c, encoding="utf-8", errors="ignore").read()
         for c in nodes
     ):
         err("P41b : frontend sans transmission des fichiers produits")
     if nodes and not any(
-        "u.packages||[]" in open(c, encoding="utf-8", errors="ignore").read()
+        # [0.13.4] la 5e argument de l'appel rt = `R.packages||[]`
+        "R.packages||[]" in open(c, encoding="utf-8", errors="ignore").read()
         for c in nodes
     ):
         err("P46c : frontend sans transit des paquets serveur")
@@ -900,7 +925,8 @@ def check_js_syntax() -> None:
     for c in sorted(cibles):
         t = open(c, encoding="utf-8", errors="ignore").read()
         # ne contrôler que les fichiers que NOUS patchons
-        if not any(m in t for m in ("__prewarm", "__inNames", "files:ge.files||[]", "u.packages||[]",
+        # [0.13.4] marqueurs renommés : files:ge→files:W, u.packages→R.packages
+        if not any(m in t for m in ("__prewarm", "__inNames", "files:W.files||[]", "R.packages||[]",
                                     "micropip','numpy'", "__callDictation", "__androidTtsPolyfilled",
                                     "Kokoro TTS: ", "__owuiSysTTS")):
             continue
@@ -963,26 +989,28 @@ def check_p104_diag() -> None:
     # P106 — la voie worker doit être FORCÉE dans le bundle (la décision au
     # chargement du module lit une config pas encore arrivée → iframe choisie,
     # qui n'a ni ramassage P41 ni persistance IDBFS : piège des deux copies).
+    # [0.13.4] cp→Wu, qd(rp)→vu(Pu), hp(worker)→Vu, ap(iframe)→Nu
     import glob as _g
     chunks = _g.glob(str(PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "*.js"))
     if chunks and not any(
-        "const cp=()=>new hp" in open(c, encoding="utf-8", errors="ignore").read()
+        "const Wu=()=>new Vu" in open(c, encoding="utf-8", errors="ignore").read()
         for c in chunks
     ):
-        err("P106 : la voie worker n'est pas forcée dans le bundle (attendu const cp=()=>new hp)")
+        err("P106 : la voie worker n'est pas forcée dans le bundle (attendu const Wu=()=>new Vu)")
     for c in chunks:
         t2 = open(c, encoding="utf-8", errors="ignore").read()
-        if "enable_pyodide_file_persistence?new hp:new ap" in t2:
+        if "enable_pyodide_file_persistence?new Vu:new Nu" in t2:
             err(f"P106 : la décision iframe/worker conditionnelle est encore présente — {c}")
-    # P107 — la signature de Me() doit déclarer TO (le corps l'utilise :
+    # P107 — la signature de rt() doit déclarer TO (le corps l'utilise :
     # exec_timeout + minuteur) ; retirer le préchauffage P70 l'avait emporté.
+    # [0.13.4] Me→rt ; la signature porte déjà `X=[]` (P46c) → TO=120 ajouté
     import glob as _g2
     nodes = _g2.glob(str(PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "nodes" / "0.*.js"))
     if nodes and not any(
-        "Me=async(t,i,F,P=[],X=[],TO=120)=>{" in open(c, encoding="utf-8", errors="ignore").read()
+        ",rt=async(t,c,F,S=[],Pk=[],TO=120)=>{" in open(c, encoding="utf-8", errors="ignore").read()
         for c in nodes
     ):
-        err("P107 : le paramètre TO=120 est absent de la signature de Me()")
+        err("P107 : le paramètre TO=120 est absent de la signature de rt()")
     # P108 — les fichiers produits doivent être ENREGISTRÉS (base + stockage,
     # sinon invisibles au gestionnaire) et les avertissements FS bénins ne
     # doivent pas faire basculer le statut à error.
@@ -994,6 +1022,26 @@ def check_p104_diag() -> None:
         err("P108 : le filtre d'avertissements FS bénins est absent de builtin.py")
     if "await remonte_fichiers_sable(output" not in bt:
         err("P108 : l'appel de remontée n'est pas async (avec user_id)")
+
+
+def check_p148_aiohttp() -> None:
+    """P148 — `encode_basic_auth` (aiohttp >= 3.11) doit être replacé par un
+    repli fidèle : sans lui, `import open_webui.main` lève ImportError au
+    chargement (smoke test 8090 du 2026-11-19, migration 0.13.4)."""
+    a = SRC / "open_webui" / "routers" / "auths.py"
+    t = a.read_text(encoding="utf-8", errors="ignore")
+    if "from aiohttp import ClientSession, encode_basic_auth" in t:
+        err("P148 : import direct d'encode_basic_auth rétabli (ImportError "
+            "avec aiohttp 3.10 épinglé)")
+    if "def encode_basic_auth(login, password, encoding=\"latin1\")" not in t:
+        err("P148 : repli encode_basic_auth absent de auths.py")
+    o = SRC / "open_webui" / "utils" / "oauth.py"
+    t2 = o.read_text(encoding="utf-8", errors="ignore")
+    if 'if not hasattr(aiohttp, "encode_basic_auth")' not in t2:
+        err("P148 : repli encode_basic_auth absent de oauth.py")
+    # le repli doit rester équivalent (BasicAuth.encode → RFC 7617)
+    if "BasicAuth(login, password, encoding).encode()" not in t + t2:
+        err("P148 : repli non équivalent (BasicAuth.encode absent)")
 
 
 def main() -> int:
@@ -1019,6 +1067,7 @@ def main() -> int:
     check_p41_harvest()
     check_p54_ciblage()
     check_p104_diag()
+    check_p148_aiohttp()
     check_js_syntax()
     check_build_gradle()
     check_compilation()

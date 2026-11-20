@@ -455,17 +455,22 @@ def patch_ui_moteurs_locaux() -> None:
     des listes déroulantes. Deux micro-remplacements, structure amont intacte.
     Le moteur TTS « Web API » (valeur « ») est conservé : c'est la voix
     Android system (P128) ; le STT « Web API » (`web`) est la dictée native."""
-    js = DST / "frontend" / "_app" / "immutable" / "nodes" / "2.DwSK4ZlF.js"
+    js = DST / "frontend" / "_app" / "immutable" / "nodes" / "2.Dki0jDRo.js"
+    # [0.13.4] le select TTS admin n'a plus de `.disabled` slim sur l'option
+    # `transformers` : on l'ajoute (masquage définitif). Variable = `at`.
     replace_once(
         js,
-        "st.disabled=(v(),l(()=>v()?.features?.slim===!0)),d(dt,",
-        "st.disabled=!0,st.hidden=!0,d(dt,",
+        'at.value=at.__value="transformers";',
+        'at.value=at.__value="transformers";at.disabled=!0,at.hidden=!0;',
         "P131 UI : option TTS « Transformers (Local) » masquée",
     )
+    # [0.13.4] STT : `E`→`J`, (v(),l(...))→(c(),a(...)), `S`→(me,bt,ze,xt,…)
     replace_once(
         js,
-        "E.disabled=(v(),l(()=>v()?.features?.slim===!0)),d(S,",
-        "E.disabled=!0,E.hidden=!0,d(S,",
+        "J.disabled=(c(),a(()=>c()?.features?.slim===!0)),d(me,bt),"
+        "d(ze,xt),d(lt,St),d(at,Se),d(ut,pt),d(mt,wt)}",
+        "J.disabled=!0,J.hidden=!0,d(me,bt),d(ze,xt),d(lt,St),"
+        "d(at,Se),d(ut,pt),d(mt,wt)}",
         "P131 UI : option STT « Whisper (Local) » masquée",
     )
 
@@ -482,23 +487,29 @@ def patch_ui_moteurs_rag() -> None:
       absente — « Character » et « Tiktoken » restent, le shim tiktoken est
       embarqué).
     Trois micro-remplacements, structure Svelte amont intacte."""
-    js = DST / "frontend" / "_app" / "immutable" / "nodes" / "2.DwSK4ZlF.js"
+    js = DST / "frontend" / "_app" / "immutable" / "nodes" / "2.Dki0jDRo.js"
+    # [0.13.4] embedding : j→J, d(E,st)→d(me,gt),d(ze,ut),d(lt,yt),d(at,mt)
     replace_once(
         js,
-        "j.disabled=v()?.features?.slim===!0,d(E,st)",
-        "j.disabled=!0,j.hidden=!0,d(E,st)",
+        "J.disabled=(c(),a(()=>c()?.features?.slim===!0)),d(me,gt),"
+        "d(ze,ut),d(lt,yt),d(at,mt)}",
+        "J.disabled=!0,J.hidden=!0,d(me,gt),d(ze,ut),d(lt,yt),d(at,mt)}",
         "P132 UI : option embedding « SentenceTransformers » masquée",
     )
+    # [0.13.4] rerank : Nt→St, d(Ct,xt)→d(Se,ft),d(wt,Ct)
     replace_once(
         js,
-        "Nt.disabled=v()?.features?.slim===!0,d(Ct,xt)",
-        "Nt.disabled=!0,Nt.hidden=!0,d(Ct,xt)",
+        "St.disabled=(c(),a(()=>c()?.features?.slim===!0)),d(Se,ft),d(wt,Ct)}",
+        "St.disabled=!0,St.hidden=!0,d(Se,ft),d(wt,Ct)}",
         "P132 UI : option rerank « SentenceTransformers » masquée",
     )
+    # [0.13.4] découpage : ht→ft, d(gt,…)→d(Ct,…)
     replace_once(
         js,
-        "ht.disabled=v()?.features?.slim===!0,d(gt,",
-        "ht.disabled=!0,ht.hidden=!0,d(gt,",
+        "ft.disabled=(c(),a(()=>c()?.features?.slim===!0)),"
+        "d(Ct,`${Ht??\"\"} (${oa??\"\"})`)",
+        "ft.disabled=!0,ft.hidden=!0,"
+        "d(Ct,`${Ht??\"\"} (${oa??\"\"})`)",
         "P132 UI : option découpage « Token (Transformers) » masquée",
     )
 
@@ -521,7 +532,7 @@ def patch_mode_vocal() -> None:
     Cinq micro-remplacements dans le chunk d'appel (deux autres,
     transcription locale et vrai micro, ont été fusionnés dans P141b et
     P144b lors de l'audit de minimisation), structure amont intacte."""
-    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
 
     # 1) bouton « Voice mode » : affiché quel que soit le moteur STT
     replace_once(
@@ -540,28 +551,31 @@ def patch_mode_vocal() -> None:
         "!1){}",
         "P134 UI : refus d'appel en STT « web » neutralisé (lo)",
     )
-    # 3) refus à l'ouverture de l'overlay (fonction H4)
+    # 3) refus à l'ouverture de l'overlay (fonction H4)  [0.13.4 : s()→r(),
+    #    $t.error→Mt.error, i().t→a().t]
     replace_once(
         js,
-        'else if(s()?.audio?.stt?.engine==="web")'
-        '{$t.error(i().t("Call feature is not supported when using Web STT engine")),F();return}',
+        'else if(r()?.audio?.stt?.engine==="web")'
+        '{Mt.error(a().t("Call feature is not supported when using Web STT engine")),F();return}',
         "else if(!1){}",
         "P134 UI : refus d'appel en STT « web » neutralisé (overlay)",
     )
     # 4) début d'énoncé (détection de parole) → ouverture de l'écoute locale
+    #    [0.13.4 : e(P)→e(O), a(P,!0)→o(O,!0), ae()→Oe(), Mt→Tt, n()→i()]
     replace_once(
         js,
-        "e(P)||(a(P,!0),ae()),Mt=Date.now()",
-        "e(P)||(a(P,!0),ae(),"
-        "window.__callDictation&&window.__callDictation.start(n()?.audio?.stt?.language)),"
-        "Mt=Date.now()",
+        "e(O)||(o(O,!0),Oe()),Tt=Date.now()",
+        "e(O)||(o(O,!0),Oe(),"
+        "window.__callDictation&&window.__callDictation.start(i()?.audio?.stt?.language)),"
+        "Tt=Date.now()",
         "P134 appel : écoute locale ouverte au début de l'énoncé",
     )
     # 5) fin d'énoncé (2 s de silence) → l'écoute se fige, le résultat arrive
+    #    [0.13.4 : e(P)→e(O), —Mt→-Tt, G→ce, J→X]
     replace_once(
         js,
-        "e(P)&&Date.now()-Mt>2e3&&(G=!0,J)",
-        "e(P)&&Date.now()-Mt>2e3&&(G=!0,J)"
+        "e(O)&&Date.now()-Tt>2e3&&(ce=!0,X)",
+        "e(O)&&Date.now()-Tt>2e3&&(ce=!0,X)"
         "&&(window.__callDictation&&window.__callDictation.hold(),!0)",
         "P134 appel : écoute locale fermée en fin d'énoncé",
     )
@@ -590,25 +604,27 @@ def patch_tts_lecture() -> None:
       d'événement ne peut plus figer la file de lecture).
     P135 (AndroidTTS.voicesJson → initialisation) traite la cause racine ;
     ceci est le garde-fou côté amont."""
-    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
 
+    # [0.13.4] correspondances : ce→Xe, at→Gt, st→ut, et→Et, kt→er, Mt→Tt,
+    #    ft→wt (dans la fonction `We`)
     replace_once(
         js,
-        "const at=ce.signal;return new Promise(st=>{let et=null;",
-        "const at=ce.signal;return Promise.race([new Promise(st=>{let et=null,gs=Date.now();",
+        "const Gt=Xe.signal;return new Promise(ut=>{let Et=null;",
+        "const Gt=Xe.signal;return Promise.race([new Promise(ut=>{let Et=null,gs=Date.now();",
         "P136 lecture : boucle d'attente des voix horodatée",
     )
     replace_once(
         js,
-        "kt=setInterval(()=>{const Mt=speechSynthesis.getVoices();if(!Mt.length)return;",
-        "kt=setInterval(()=>{const Mt=speechSynthesis.getVoices();"
-        "if(!Mt.length&&Date.now()-gs<5e3)return;",
+        "er=setInterval(()=>{const Tt=speechSynthesis.getVoices();if(!Tt.length)return;",
+        "er=setInterval(()=>{const Tt=speechSynthesis.getVoices();"
+        "if(!Tt.length&&Date.now()-gs<5e3)return;",
         "P136 lecture : lecture forcée au-delà de 5 s sans voix",
     )
     replace_once(
         js,
-        "at.aborted&&ft()})}",
-        "at.aborted&&ft()}),new Promise(st=>setTimeout(st,15e3))])}",
+        "Gt.aborted&&wt()})}",
+        "Gt.aborted&&wt()}),new Promise(ut=>setTimeout(ut,15e3))])}",
         "P136 lecture : garde-fous 15 s sur la lecture",
     )
 
@@ -632,30 +648,32 @@ def patch_appel_lecture() -> None:
       sans lui, la détection de parole resterait active pendant la lecture et
       le micro capterait la voix de l'assistant.
     Structure amont intacte : le `break` est conservé (aucune boucle orpheline)."""
-    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
 
+    # [0.13.4] correspondances : bt→Ke, Wt→be, Le→Se, ue→je, nt→Le,
+    # a(q,…)→o(Z,…), ct→$e, S→D, ae→Oe, Z→Y, ce→Xe, Je→Rt, at→Gt
     replace_once(
         js,
-        'let bt={},Wt={},Le="",ue=null;',
-        'let bt={},Wt={},Le="",ue=null,ntSig=null;',
+        'let Ke={},be={},Se="",je=null;',
+        'let Ke={},be={},Se="",je=null,ntSig=null;',
         "P137 appel : marqueur de boucle de lecture active",
     )
     replace_once(
         js,
-        "}else if(bt[Je]&&rt[Je]&&rt[Je].length===0){a(q,!1);break}",
-        "}else if(bt[Je]&&rt[Je]&&rt[Je].length===0)"
-        "{a(q,!1),ntSig=null;break}",
+        "}else if(Ke[Rt]&&ke[Rt]&&ke[Rt].length===0){o(Z,!1);break}",
+        "}else if(Ke[Rt]&&ke[Rt]&&ke[Rt].length===0)"
+        "{o(Z,!1),ntSig=null;break}",
         "P137 appel : fin de boucle = marqueur effacé (à relancer)",
     )
     replace_once(
         js,
-        "ct=async Je=>{const{id:at}=Je.detail;S=!0,Le!==at&&(`${at}`,ae(!1),"
-        "Le=at,Z=!1,ce=new AbortController,a(q,!0),nt(at,ce.signal))}",
-        "ct=async Je=>{const{id:at}=Je.detail;S=!0,bt[at]=!1,"
-        "Le!==at&&(`${at}`,ae(!1),"
-        "Le=at,Z=!1,ce=new AbortController),"
-        "ce.signal.aborted&&(ce=new AbortController()),"
-        "ntSig!==ce.signal&&(ntSig=ce.signal,nt(at,ce.signal)),a(q,!0)}",
+        "$e=async Rt=>{const{id:Gt}=Rt.detail;D=!0,Se!==Gt&&(`${Gt}`,Oe(!1),"
+        "Se=Gt,Y=!1,Xe=new AbortController,o(Z,!0),Le(Gt,Xe.signal))}",
+        "$e=async Rt=>{const{id:Gt}=Rt.detail;D=!0,Ke[Gt]=!1,"
+        "Se!==Gt&&(`${Gt}`,Oe(!1),"
+        "Se=Gt,Y=!1,Xe=new AbortController),"
+        "Xe.signal.aborted&&(Xe=new AbortController()),"
+        "ntSig!==Xe.signal&&(ntSig=Xe.signal,Le(Gt,Xe.signal)),o(Z,!0)}",
         "P137 appel : la boucle de lecture est relancée à chaque réponse",
     )
 
@@ -682,35 +700,38 @@ def patch_appel_stt_local() -> None:
     STT « web ». La garde ne s'applique plus qu'au chemin serveur ; trace
     `console.warn("Call STT: …")` et toast explicite si la transcription
     locale est vide (sinon : silence total, impossible à diagnostiquer)."""
-    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
     replace_once(
         js,
-        "J=new MediaRecorder(z),J.onstart=()=>{ee=[]}",
-        "J=new MediaRecorder(window.__callDictation"
-        '&&o().audio?.stt?.engine==="web"&&window.__callSilent'
-        "?window.__callSilent():z),J.onstart=()=>{ee=[]}",
+        # [0.13.4] J→X, z→W, ee→de, o()→i()
+        "X=new MediaRecorder(W),X.onstart=()=>{de=[]}",
+        "X=new MediaRecorder(window.__callDictation"
+        '&&i().audio?.stt?.engine==="web"&&window.__callSilent'
+        "?window.__callSilent():W),X.onstart=()=>{de=[]}",
         "P141a appel : MediaRecorder sur flux silencieux en STT local "
         "(le natif retrouve le micro)",
     )
     replace_once(
         js,
-        # entrée = code amont BRUT (P134#6 a été fusionné ici : cette
-        # fonction régénère la même sortie, avec la garde affranchie)
-        'De=async Je=>{if(!Je||Je.size<100)return;await jt();'
-        'const at=V0(Je,"recording.wav"),st=await rb(localStorage.token,at,'
-        "n()?.audio?.stt?.language).catch(et=>($t.error(`${et}`),null));"
-        'if(st&&(st.text,st.text!=="")){const et=await x()(st.text,{_raw:!0})}}',
-        'De=async Je=>{const _w=window.__callDictation'
-        '&&o().audio?.stt?.engine==="web";'
-        "if((!Je||Je.size<100)&&!_w)return;await jt();"
-        'const at=Je&&Je.size>=100?V0(Je,"recording.wav"):null,'
+        # [0.13.4] entrée = code amont BRUT (P134#6 fusionné ici : cette
+        # fonction régénère la même sortie, garde blob affranchie).
+        # Correspondances : De→ot, Je→Rt, jt→xr, V0→Zk, rb→Px,
+        # n()→i(), $t.error→Mt.error, x()→R()
+        'ot=async Rt=>{if(!Rt||Rt.size<100)return;await xr();'
+        'const Gt=Zk(Rt,"recording.wav"),ut=await Px(localStorage.token,Gt,'
+        "i()?.audio?.stt?.language).catch(Et=>(Mt.error(`${Et}`),null));"
+        'if(ut&&(ut.text,ut.text!=="")){const Et=await R()(ut.text,{_raw:!0})}}',
+        'ot=async Rt=>{const _w=window.__callDictation'
+        '&&i().audio?.stt?.engine==="web";'
+        "if((!Rt||Rt.size<100)&&!_w)return;await xr();"
+        'const at=Rt&&Rt.size>=100?Zk(Rt,"recording.wav"):null,'
         "st=await(_w?window.__callDictation.text()"
-        ":rb(localStorage.token,at,n()?.audio?.stt?.language))"
-        ".catch(et=>($t.error(`${et}`),null));"
+        ":Px(localStorage.token,at,i()?.audio?.stt?.language))"
+        ".catch(Et=>(Mt.error(`${Et}`),null));"
         'console.warn(`Call STT: ${_w?"local":"serveur"} -> '
         '${st&&st.text?st.text.length+" car.":"vide"}`);'
-        'if(st&&(st.text,st.text!=="")){const et=await x()(st.text,{_raw:!0})}'
-        'else _w&&$t.error("Call STT: transcription vide (micro non entendu ?)")}',
+        'if(st&&(st.text,st.text!=="")){const Et=await R()(st.text,{_raw:!0})}'
+        'else _w&&Mt.error("Call STT: transcription vide (micro non entendu ?)")}',
         "P141b appel : transcription locale affranchie de la garde blob "
         "+ trace et toast si vide",
     )
@@ -738,12 +759,13 @@ def patch_appel_vad_local() -> None:
     (c) le toast de transcription vide porte désormais la dernière erreur du
     moteur (`Call STT: transcription vide (moteur : no-speech)`) — avant :
     impossible de distinguer « micro tenu » de « moteur en échec »."""
-    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
+    # [0.13.4] correspondances : ft→wt, xr→nt, J→X (boucle VAD `Wt`)
     replace_once(
         js,
-        'ft.some(xr=>xr>0)&&(J&&J.state!=="recording"&&J.start()',
-        "(ft.some(xr=>xr>0)||window.__callVadHit&&window.__callVadHit())"
-        '&&(J&&J.state!=="recording"&&J.start()',
+        'wt.some(nt=>nt>0)&&(X&&X.state!=="recording"&&X.start()',
+        "(wt.some(nt=>nt>0)||window.__callVadHit&&window.__callVadHit())"
+        '&&(X&&X.state!=="recording"&&X.start()',
         "P142a appel : la parole continue est pilotée par l'activité "
         "du recognizer (VAD muet pendant l'énoncé)",
     )
@@ -753,9 +775,9 @@ def patch_appel_vad_local() -> None:
     # silencieux doit rester vivant. Livré identique, −1 opération.
     replace_once(
         js,
-        'else _w&&$t.error("Call STT: transcription vide '
+        'else _w&&Mt.error("Call STT: transcription vide '
         '(micro non entendu ?)")}',
-        "else _w&&$t.error(st&&st.error?\"Call STT: transcription vide "
+        "else _w&&Mt.error(st&&st.error?\"Call STT: transcription vide "
         "(moteur : \"+st.error+\")\":\"Call STT: transcription vide "
         '(micro non entendu ?)")}',
         "P142c appel : toast de transcription vide = dernière erreur moteur",
@@ -780,16 +802,16 @@ def patch_appel_silence() -> None:
       → toast conservé (diagnostic visible à l'écran).
 
     Le message reste dans la console pour le diagnostic à distance."""
-    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
     replace_once(
         js,
-        'else _w&&$t.error(st&&st.error?"Call STT: transcription vide '
+        'else _w&&Mt.error(st&&st.error?"Call STT: transcription vide '
         '(moteur : "+st.error+")":"Call STT: transcription vide '
         '(micro non entendu ?)")}',
         "else if(_w){const ce=st&&st.error?st.error:'';"
         "const sil=/no-speech|aborted|aucun r(?:é|e)sultat/i.test(ce);"
         'sil?console.warn(`Call STT: silence normal, ignoré'
-        ' (${ce||\'aucun résultat\'})`):$t.error(ce?'
+        ' (${ce||\'aucun résultat\'})`):Mt.error(ce?'
         '`Call STT: transcription vide (moteur : ${ce})`:'
         '"Call STT: transcription vide (micro non entendu ?)")}}',
         "P147 appel : le silence normal n'est plus un toast d'erreur "
@@ -811,13 +833,14 @@ def patch_appel_warm() -> None:
     Par ailleurs la console JS est captée dans data/logs/exec.log côté Java
     (`onConsoleMessage`, MainActivity) : les traces [call-dict] / Call STT:
     deviennent consultables dans /fm -> Journaux, lisibles à distance."""
-    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
+    # [0.13.4] correspondances : Ge→lt, E()→I(), ct→$e
     replace_once(
         js,
-        'return Ge(),E().addEventListener("chat:start",ct)',
-        "return Ge(),window.__callDictation&&window.__callDictation.warm"
+        'return lt(),I().addEventListener("chat:start",$e)',
+        "return lt(),window.__callDictation&&window.__callDictation.warm"
         "&&window.__callDictation.warm(),"
-        'E().addEventListener("chat:start",ct)',
+        'I().addEventListener("chat:start",$e)',
         "P143 appel : préchauffage du recognizer à l'ouverture de l'appel",
     )
 
@@ -846,24 +869,26 @@ def patch_appel_ecoute_permanente() -> None:
     image : la voix de l'assistant n'entre jamais dans la transcription, et
     aucune activité résiduelle ne déclenche un faux énoncé ;
     (e) `__callDictation.stop()` à la fermeture de l'appel (`Ke`)."""
-    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
     replace_once(
         js,
-        "(ft.some(xr=>xr>0)||window.__callVadHit&&window.__callVadHit())"
-        '&&(J&&J.state!=="recording"&&J.start()',
-        "(ft.some(xr=>xr>0)||(window.__callSpeechGate&&window.__callSpeechGate("
-        "e(Q)||e(q)&&!(n()?.voiceInterruption??!1)),"
+        "(wt.some(nt=>nt>0)||window.__callVadHit&&window.__callVadHit())"
+        '&&(X&&X.state!=="recording"&&X.start()',
+        # [0.13.4] correspondances : ft→wt, xr→nt, J→X, e(Q)→e(N), e(q)→e(Z),
+        #    n()→i() (boucle VAD `Wt`)
+        "(wt.some(nt=>nt>0)||(window.__callSpeechGate&&window.__callSpeechGate("
+        "e(N)||e(Z)&&!(i()?.voiceInterruption??!1)),"
         "window.__callVadHit&&window.__callVadHit()))"
-        '&&(J&&J.state!=="recording"&&J.start()',
+        '&&(X&&X.state!=="recording"&&X.start()',
         "P144a appel : VAD piloté par le recognizer + silenciation TTS",
     )
     replace_once(
         js,
         # entrée = code amont BRUT (P134#7 — vrai micro — a été fusionné
         # ici : cette fonction fait le choix du flux silencieux par-dessus)
-        "z=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:!0,"
+        "W=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:!0,"
         "noiseSuppression:!0,autoGainControl:!0}})",
-        "z=window.__callDictation&&o().audio?.stt?.engine===\"web\""
+        "W=window.__callDictation&&i().audio?.stt?.engine===\"web\""
         "&&window.__callSilent?window.__callSilent()"
         ":await(window.__realMic||navigator.mediaDevices.getUserMedia"
         ".bind(navigator.mediaDevices))({audio:{echoCancellation:!0,"
@@ -877,8 +902,8 @@ def patch_appel_ecoute_permanente() -> None:
     # la garde contre une réintroduction future. Livré identique, −1 opération.
     replace_once(
         js,
-        "Ke=async()=>{try{J&&J.stop()}catch(Je){}",
-        "Ke=async()=>{try{J&&J.stop()}catch(Je){}"
+        "Ae=async()=>{try{X&&X.stop()}catch(Rt){}",
+        "Ae=async()=>{try{X&&X.stop()}catch(Rt){}"
         "window.__callDictation&&window.__callDictation.stop"
         "&&window.__callDictation.stop();",
         "P144d appel : arrêt de l'écoute permanente à la fermeture",
@@ -901,37 +926,42 @@ def patch_erreur_tts() -> None:
     Interceptée : journal `Kokoro TTS: …`, retour à l'état « ne parle pas »
     (`p(Me,!1),p(Se,!1)`) puis `return` — la lecture muette devient un
     message explicite dans les journaux."""
-    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BeEbX_lw.js"
+    js = DST / "frontend" / "_app" / "immutable" / "chunks" / "BnHPywC-.js"
+    # [0.13.4] correspondances bouton Voice mode : dr→ca, os→pn, D()→A(),
+    # Jd.set(new Ip)→lv.set(new px), jn.set/pi.set→ic.set/Mn.set,
+    # $t.error→Mt.error, f().t→c().t
     replace_once(
         js,
-        'try{let dr=await navigator.mediaDevices.getUserMedia({audio:!0});'
-        'dr&&dr.getTracks().forEach(os=>os.stop()),dr=null,'
-        'f().audio?.tts?.engine==="browser-kokoro"&&(D()||'
-        "(await Jd.set(new Ip({dtype:f().audio?.tts?.engineConfig?.dtype??"
-        '"fp32"})),await D().init())),jn.set(!0),pi.set(!0)}'
-        'catch{$t.error(c().t("Permission denied when accessing media devices"))}',
-        'try{let dr=await navigator.mediaDevices.getUserMedia({audio:!0});'
-        "dr&&dr.getTracks().forEach(os=>os.stop()),dr=null}"
-        'catch{$t.error(c().t("Permission denied when accessing media devices"));'
+        'try{let ca=await navigator.mediaDevices.getUserMedia({audio:!0});'
+        'ca&&ca.getTracks().forEach(pn=>pn.stop()),ca=null,'
+        'f().audio?.tts?.engine==="browser-kokoro"&&(A()||'
+        "(await lv.set(new px({dtype:f().audio?.tts?.engineConfig?.dtype??"
+        '"fp32"})),await A().init())),ic.set(!0),Mn.set(!0)}'
+        'catch{Mt.error(c().t("Permission denied when accessing media devices"))}',
+        'try{let ca=await navigator.mediaDevices.getUserMedia({audio:!0});'
+        "ca&&ca.getTracks().forEach(pn=>pn.stop()),ca=null}"
+        'catch{Mt.error(c().t("Permission denied when accessing media devices"));'
         "return}"
-        'try{f().audio?.tts?.engine==="browser-kokoro"&&(D()||'
-        "(await Jd.set(new Ip({dtype:f().audio?.tts?.engineConfig?.dtype??"
-        '"fp32"})),await D().init()))}'
-        'catch(e1){$t.error(`Kokoro TTS: ${e1}`),console.warn(`Kokoro TTS: ${e1}`)}'
-        "jn.set(!0),pi.set(!0)",
+        'try{f().audio?.tts?.engine==="browser-kokoro"&&(A()||'
+        "(await lv.set(new px({dtype:f().audio?.tts?.engineConfig?.dtype??"
+        '"fp32"})),await A().init()))}'
+        'catch(e1){Mt.error(`Kokoro TTS: ${e1}`),console.warn(`Kokoro TTS: ${e1}`)}'
+        "ic.set(!0),Mn.set(!0)",
         "P138a appel : micro refusé / init Kokoro = messages distincts",
     )
-    js2 = DST / "frontend" / "_app" / "immutable" / "chunks" / "DRZDe0Yd.js"
+    js2 = DST / "frontend" / "_app" / "immutable" / "chunks" / "AZSCJQb3.js"
+    # [0.13.4] correspondances : v()→$(), he()→M(), ti→ri, gt→Je, Ke→Ye,
+    #    tr.error→ir.error, p(Me,!1),p(Se,!1)→v(xe,!1),v(p,!1)
     replace_once(
         js2,
-        'if(v().audio?.tts?.engine==="browser-kokoro"){'
-        "he()||(await Ha.set(new ti({dtype:v().audio?.tts?.engineConfig?.dtype??"
-        '"fp32"})),await he().init());for(const[,Ke]of gt.entries()){',
-        'if(v().audio?.tts?.engine==="browser-kokoro"){'
-        "try{he()||(await Ha.set(new ti({dtype:v().audio?.tts?.engineConfig?.dtype??"
-        '"fp32"})),await he().init())}'
-        "catch(e2){tr.error(`Kokoro TTS: ${e2}`),p(Me,!1),p(Se,!1);return}"
-        "for(const[,Ke]of gt.entries()){",
+        'if($().audio?.tts?.engine==="browser-kokoro"){'
+        "M()||(await Ha.set(new ri({dtype:$().audio?.tts?.engineConfig?.dtype??"
+        '"fp32"})),await M().init());for(const[,Ye]of Je.entries()){',
+        'if($().audio?.tts?.engine==="browser-kokoro"){'
+        "try{M()||(await Ha.set(new ri({dtype:$().audio?.tts?.engineConfig?.dtype??"
+        '"fp32"})),await M().init())}'
+        "catch(e2){ir.error(`Kokoro TTS: ${e2}`),v(xe,!1),v(p,!1);return}"
+        "for(const[,Ye]of Je.entries()){",
         "P138b TTS : init Kokoro interceptée (rejet silencieux impossible)",
     )
 
@@ -1013,24 +1043,27 @@ def patch_default_kokoro() -> None:
     Stores : node 2 = `jr` (`$settings`) / `Sr` (`$config`) ;
     node 55 = `W` (`$settings`) / `Te` (`$config`) — tous module-level,
     accessibles même dans les callbacks différés de la sonde (≤ 2 s)."""
-    n2 = DST / "frontend" / "_app" / "immutable" / "nodes" / "2.DwSK4ZlF.js"
+    n2 = DST / "frontend" / "_app" / "immutable" / "nodes" / "2.Dki0jDRo.js"
+    # [0.13.4] layout : ne→ge, ep→wg, K→Q, jr→fl ($settings), t0→em,
+    #    $config = `c` (features/audio lus via c())
     replace_once(
         n2,
-        "ne=async te=>{const K=await ep(localStorage.token);K?.ui&&jr.set(K.ui),"
-        "t0(K?.keybindings)",
-        "ne=async te=>{const K=await ep(localStorage.token);K?.ui&&jr.set(K.ui),"
-        f"{_p139_iife('jr', 'Sr')},"
-        "t0(K?.keybindings)",
+        "ge=async ae=>{const Q=await wg(localStorage.token);Q?.ui&&fl.set(Q.ui),"
+        "em(Q?.keybindings)",
+        "ge=async ae=>{const Q=await wg(localStorage.token);Q?.ui&&fl.set(Q.ui),"
+        f"{_p139_iife('fl', 'c')},"
+        "em(Q?.keybindings)",
         "P139a layout : default inutilisable → Kokoro + normalisation voix/dtype",
     )
-    n55 = DST / "frontend" / "_app" / "immutable" / "nodes" / "55.s0_1KP7y.js"
+    n55 = DST / "frontend" / "_app" / "immutable" / "nodes" / "56.DyQrwVL7.js"
+    # [0.13.4] /s/[id] : W→Y ($settings), $config = `E` (features via E())
     replace_once(
         n55,
-        'try{t=JSON.parse(localStorage.getItem("settings")??"{}")}catch(v){}W.set(t)}'
-        "if(await Oe.set(",
-        'try{t=JSON.parse(localStorage.getItem("settings")??"{}")}catch(v){}W.set(t)}'
-        f"{_p139_iife('W', 'Te')};"
-        "if(await Oe.set(",
+        'try{t=JSON.parse(localStorage.getItem("settings")??"{}")}catch(p){}Y.set(t)}'
+        "if(await We.set(",
+        'try{t=JSON.parse(localStorage.getItem("settings")??"{}")}catch(p){}Y.set(t)}'
+        f"{_p139_iife('Y', 'E')};"
+        "if(await We.set(",
         "P139b /s/[id] : default inutilisable → Kokoro + normalisation voix/dtype",
     )
 
@@ -1103,7 +1136,7 @@ def patch_web_search() -> None:
 
 def patch_frontend_engines() -> None:
     """P10 — ajout de « embedded-searxng » dans la liste des providers (dropdown)."""
-    js = DST / "frontend" / "_app" / "immutable" / "nodes" / "2.DwSK4ZlF.js"
+    js = DST / "frontend" / "_app" / "immutable" / "nodes" / "2.Dki0jDRo.js"
     if not js.exists():
         # le nom du chunk est haché : rechercher le fichier porteur de la liste
         import glob
@@ -1112,17 +1145,18 @@ def patch_frontend_engines() -> None:
             if 'map' in f:
                 continue
             try:
-                if 'z=["ollama_cloud","perplexity_search","searxng"' in open(f, encoding='utf-8', errors='replace').read():
+                if 'w=["ollama_cloud","perplexity_search","searxng"' in open(f, encoding='utf-8', errors='replace').read():
                     candidates.append(f)
             except OSError:
                 pass
         if len(candidates) != 1:
             raise SystemExit(f"PATCH EN ÉCHEC [P10] : chunk de la liste moteurs introuvable ({candidates})")
         js = type(js)(candidates[0])
+    # [0.13.4] la liste s'allonge (google_pse, brave…) et la variable devient `w`
     replace_once(
         js,
-        'z=["ollama_cloud","perplexity_search","searxng","yacy"',
-        'z=["ollama_cloud","perplexity_search","searxng","embedded-searxng","yacy"',
+        'w=["ollama_cloud","perplexity_search","searxng","yacy"',
+        'w=["ollama_cloud","perplexity_search","searxng","embedded-searxng","yacy"',
         "P10 frontend liste providers +embedded-searxng",
     )
 
@@ -1624,7 +1658,7 @@ _FM_STYLE = """
 
 
 # P121 — icônes SVG reprises du sprite d'Open WebUI
-# (src-assets/frontend/_app/immutable/chunks/wN8N8j40.js ; viewBox 24, stroke 1.5)
+# (src-assets/frontend/_app/immutable/chunks/wCZlPA5v.js ; viewBox 24, stroke 1.5)
 _FM_SVG = ('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" '
            'stroke="currentColor" stroke-width="1.5" stroke-linecap="round" '
            'stroke-linejoin="round" aria-hidden="true">')
@@ -3074,7 +3108,7 @@ def patch_files_manager() -> None:
 
 # P123 — icône du bouton flottant /fm : « fichier + roue crante » (fichiers ET
 # paramètres de l'application), dessinée au trait Open WebUI (viewBox 24,
-# stroke 1.5, currentColor). Le sprite amont (chunks/wN8N8j40.js) ne contient
+# stroke 1.5, currentColor). Le sprite amont (chunks/wCZlPA5v.js) ne contient
 # ni `paperclip` ni `gear` parmi ses 123 noms — l'icône est donc dessinée, et
 # l'émoji 📎 (&#128206;) est retiré. Disque de fond #3b82f6 (couleur du FAB)
 # pour détourer la roue du document.
@@ -3435,10 +3469,11 @@ def patch_p106_voie_worker() -> None:
     ENABLE_PYODIDE_FILE_PERSISTENCE=true (P44) : on force la voie worker dans le
     bundle, seule voie complète."""
     root = DST / "frontend" / "_app" / "immutable"
+    # [0.13.4] cp→Wu, qd(rp)→vu(Pu), hp(worker)→Vu, ap(iframe)→Nu
     _patch_first_match(
         str(root / "chunks" / "*.js"),
-        "const cp=()=>qd(rp)?.features?.enable_pyodide_file_persistence?new hp:new ap",
-        "const cp=()=>new hp",
+        "const Wu=()=>vu(Pu)?.features?.enable_pyodide_file_persistence?new Vu:new Nu",
+        "const Wu=()=>new Vu",
         "P106 voie worker forcée pour le bac à sable",
     )
 
@@ -3452,11 +3487,13 @@ def patch_p107_signature_to() -> None:
     defined » observé le 2026-11-11. On restaure UNIQUEMENT le paramètre, le
     préchauffage restant révoqué (création du bac à sable à la demande)."""
     root = DST / "frontend" / "_app" / "immutable"
+    # [0.13.4] Me→rt ; la signature rt a déjà été étendue à `Pk=[]` par P46c —
+    # on y ajoute le délai TO=120 (corps inchangé : il utilise déjà TO/…).
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
-        ",Me=async(t,i,F,P=[],X=[])=>{",
-        ",Me=async(t,i,F,P=[],X=[],TO=120)=>{",
-        "P107 signature TO=120 restaurée dans Me()",
+        ",rt=async(t,c,F,S=[],Pk=[])=>{",
+        ",rt=async(t,c,F,S=[],Pk=[],TO=120)=>{",
+        "P107 signature TO=120 restaurée dans rt()",
     )
 
 
@@ -3476,11 +3513,20 @@ def patch_upload_harvest() -> None:
         WORKER_HARVEST_JS,
         "P41a worker : fichiers /mnt/uploads renvoyés",
     )
+    # [0.13.4] `rt` livre son résultat par 3 callbacks ; les 3 doivent embarquer
+    # les fichiers récoltés (sinon le timeout et l'erreur perdent la moisson).
+    for _cb in ("(stdout:R,stderr:Ue,result:P}",
+                "(stdout:R,stderr:Ue,result:P}"):
+        pass  # (les deux formes ci-dessous couvrent les 3 occurrences)
+    # [0.13.4] un SEUL callback porte les fichiers : celui du message worker,
+    # où les données sont `W` (`const{id:g,...W}=se.data` ; `ge` = le worker).
+    # Les callbacks timeout/erreur n'ont aucune donnée de message (fidélité
+    # 0.13.0 : seul le callback message avait `files:`).
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
-        'F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h},(be,Ge)=>typeof Ge=="bigint"?Ge.toString():Ge)))',
-        'F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h,files:ge.files||[]},(be,Ge)=>typeof Ge=="bigint"?Ge.toString():Ge)))',
-        "P41b frontend : fichiers transmis au backend",
+        "{stdout:R,stderr:Ue,result:P},(oe,Pe)=>typeof Pe==\"bigint\"?Pe.toString():Pe))),ke=!1))},X=",
+        "{stdout:R,stderr:Ue,result:P,files:W.files||[]},(oe,Pe)=>typeof Pe==\"bigint\"?Pe.toString():Pe))),ke=!1))},X=",
+        "P41b frontend : fichiers transmis au backend (message worker)",
     )
     replace_once(
         DST / "tools" / "builtin.py",
@@ -3580,8 +3626,9 @@ def patch_pyodide_universel() -> None:
     # execute:python même si l'id porté est périmé.
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
-        'if(u?.session_id===n().id){if(h==="execute:python")',
-        'if(u?.session_id===n().id||h==="execute:python"){if(h==="execute:python")',
+        # [0.13.4] structure aplatie : plus de bloc imbriqué
+        'if(R?.session_id===n().id&&P==="execute:python"){',
+        'if(P==="execute:python"&&(R?.session_id===n().id||!0)){',
         "P98 frontend : execute:python accepté même si session_id périmé",
     )
     # P99b — le worker n'émettait AUCUNE réponse si le chargement Pyodide (j)
@@ -3795,36 +3842,51 @@ def patch_pyodide_detection() -> None:
         "P46b execute_code : paquets calculés côté serveur",
     )
     root = DST / "frontend" / "_app" / "immutable"
+    # [0.13.4] `rt=async(t,c,F,S=[])` : le 5e paramètre (paquets serveur) a
+    # disparu en amont — on le rétablit et on le fusionne dans le postMessage.
+    # Nom `Pk` (et NON `X`) : en 0.13.4 le handler onerror de rt s'appelle `X`
+    # → un paramètre `X` déclaré deux fois = SyntaxError au chargement.
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
-        "Me(u.id,u.code,i,u.files||[])",
-        "Me(u.id,u.code,i,u.files||[],u.packages||[])",
-        "P46c frontend : transit des paquets serveur",
+        "rt=async(t,c,F,S=[])=>",
+        "rt=async(t,c,F,S=[],Pk=[])=>",
+        "P46c frontend : transit des paquets serveur (signature rt)",
     )
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
-        'Me(u.id,u.code,i,u.files||[],u.packages||[]);return}',
-        'Me(u.id,u.code,i,u.files||[],u.packages||[],u.exec_timeout||120).catch(e=>{try{i&&i({error:"execute_code frontend: "+(e&&e.message||e)})}catch(x){}});return}',
-        "P85a frontend : échec de Me acquitté (plus d'attente infinie)",
+        "rt(R.id,R.code,c,R.files||[]);",
+        "rt(R.id,R.code,c,R.files||[],R.packages||[]);",
+        "P46c frontend : transit des paquets serveur (appel)",
     )
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
-        "!pe().has(t.chat_id)))return;",
-        '!pe().has(t.chat_id))){try{i&&i({error:"event dropped: conversation non active dans cet onglet"})}catch(e){}return;}',
+        "packages:_e,files:Re.length>0?Re:void 0});let Fe=setTimeout(",
+        "packages:[...new Set([..._e,...Pk])],files:Re.length>0?Re:void 0});let Fe=setTimeout(",
+        "P46c frontend : transit des paquets serveur (fusion postMessage)",
+    )
+    # [0.13.4] l'appel est désormais `rt(R.id,R.code,c,R.files||[],R.packages||[])`
+    # (callback de résultat = `c`, 3e argument de rt)
+    _patch_first_match(
+        str(root / "nodes" / "0.*.js"),
+        'rt(R.id,R.code,c,R.files||[],R.packages||[]);return}',
+        'rt(R.id,R.code,c,R.files||[],R.packages||[],R.exec_timeout||120).catch(e=>{try{c&&c({error:"execute_code frontend: "+(e&&e.message||e)})}catch(x){}});return}',
+        "P85a frontend : échec de rt acquitté (plus d'attente infinie)",
+    )
+    # [0.13.4] pe()→v(), callback de retour i→c
+    _patch_first_match(
+        str(root / "nodes" / "0.*.js"),
+        "!v().has(t.chat_id)))return;",
+        '!v().has(t.chat_id))){try{c&&c({error:"event dropped: conversation non active dans cet onglet"})}catch(e){}return;}',
         "P85b frontend : événement écarté acquitté explicitement",
     )
-    _patch_first_match(
-        str(root / "nodes" / "0.*.js"),
-        "Me=async(t,i,F,P=[])",
-        "Me=async(t,i,F,P=[],X=[])",
-        "P46d frontend : signature Me étendue",
-    )
-    _patch_first_match(
-        str(root / "nodes" / "0.*.js"),
-        "packages:ue,files:k.length>0?k:void 0}",
-        "packages:[...new Set([...ue,...X])],files:k.length>0?k:void 0,exec_timeout:TO}",
-        "P46e frontend : fusion regex + serveur",
-    )
+    # [0.13.4] P46d/P46e absorbés par les 3 patches P46c ci-dessus :
+    #    la fonction s'appelle `rt` (signature déjà étendue à `Pk=[]`) et le
+    #    postMessage fusionne déjà `[..._e,...Pk]` — plus aucun motif `Me=`/
+    #    `packages:ue` dans le livré 0.13.4.
+    if "Pk=[]" not in root.joinpath("nodes", "0.CAO82wNH.js").read_text(
+            encoding="utf-8", errors="ignore"):
+        raise SystemExit("PATCH EN ÉCHEC [P46d] : signature rt sans Pk (paquets serveur)")
+    PATCHES.append(("P46d/P46e frontend : paquets serveur", "absorbés par P46c (0.13.4)"))
     replace_once(
         DST / "config.py",
         "- This Python environment runs via Pyodide in the browser. **Do not install packages** — `pip install`, `subprocess`, and `micropip.install()` are not available.",
@@ -3969,22 +4031,28 @@ def patch_sandbox_hardening() -> None:
         'async function j(e=[]){if(!L){L=$e(e);L.catch(()=>{L=null})}await L,e.length>0&&self.pyodide&&(e=e.filter(x=>!(x in self.pyodide.loadedPackages)),e.length>0&&await self.pyodide.pyimport("micropip").install(e))}',
         "P49a worker : init réinitialisée après échec",
     )
+    # [0.13.4] Pe→X, me→Fe, U(worker)→ge, _e→ce, Xt→jt, rt()→tt()
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
-        'Pe=v=>{clearTimeout(me),U.removeEventListener("message",_e),U.removeEventListener("error",Pe),F&&F(',
-        'Pe=v=>{clearTimeout(me),U.removeEventListener("message",_e),U.removeEventListener("error",Pe),(()=>{try{U.terminate()}catch(e){}})(),Xt.set(null),(()=>{try{const w=rt();w.postMessage({type:"fs:sync",id:"__rewarm"})}catch(e){}})(),F&&F(',
+        'X=se=>{clearTimeout(Fe),ge.removeEventListener("message",ce),ge.removeEventListener("error",X),F&&F(',
+        'X=se=>{clearTimeout(Fe),ge.removeEventListener("message",ce),ge.removeEventListener("error",X),'
+        '(()=>{try{ge.terminate()}catch(e){}})(),jt.set(null),'
+        '(()=>{try{const w=tt();w.postMessage({type:"fs:sync",id:"__rewarm"})}catch(e){}})(),F&&F(',
         "P49b frontend : worker mort remplacé (onerror)",
     )
+    # [0.13.4] message data = `W` (P41b a ajouté files:W.files||[]) ; worker
+    # = `ge`, store = `jt`, accesseur = `tt()` ; stderr du message = `W.stderr`
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
-        'F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h,files:ge.files||[]},(be,Ge)=>typeof Ge=="bigint"?Ge.toString():Ge)))',
-        'ge.stderr&&/(memory access out of bounds|out of memory|null function|unreachable|wasm corrupt|Execution timeout)/i.test(ge.stderr)&&(Xt.set(null),(()=>{try{U.terminate()}catch(e){}})(),(()=>{try{const w=rt();w.postMessage({type:"fs:sync",id:"__rewarm"})}catch(e){}})()),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h,files:ge.files||[]},(be,Ge)=>typeof Ge=="bigint"?Ge.toString():Ge)))',
+        'F&&F(JSON.parse(JSON.stringify({stdout:R,stderr:Ue,result:P,files:W.files||[]},(oe,Pe)=>typeof Pe=="bigint"?Pe.toString():Pe)))',
+        'W.stderr&&/(memory access out of bounds|out of memory|null function|unreachable|wasm corrupt|Execution timeout)/i.test(W.stderr)&&(jt.set(null),(()=>{try{ge.terminate()}catch(e){}})(),(()=>{try{const w=tt();w.postMessage({type:"fs:sync",id:"__rewarm"})}catch(e){}})()),F&&F(JSON.parse(JSON.stringify({stdout:R,stderr:Ue,result:P,files:W.files||[]},(oe,Pe)=>typeof Pe=="bigint"?Pe.toString():Pe)))',
         "P83 frontend : kill uniquement crash wasm + re-préchauffage",
     )
+    # [0.13.4] v→se, P→S, E→g, ge→W, k→Re, Ra→$a, be→oe
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
-        "if(E){const be=await Ra(E);be&&k.push({name:ge,data:be})}",
-        "if(v?.data){k.push({name:ge,data:v.data})}else if(E){const be=await Ra(E);be&&k.push({name:ge,data:be})}",
+        "if(g){const oe=await $a(g);oe&&Re.push({name:W,data:oe})}",
+        "if(se?.data){Re.push({name:W,data:se.data})}else if(g){const oe=await $a(g);oe&&Re.push({name:W,data:oe})}",
         "P51b frontend : fichiers inline acceptés",
     )
     # P87 — délai d'exécution paramétrable (défaut 120 s) : une boucle infinie
@@ -4370,14 +4438,17 @@ def patch_event_timeout() -> None:
     root = DST / "frontend" / "_app" / "immutable"
     _patch_first_match(
         str(root / "nodes" / "0.*.js"),
-        ',Xt.set(null),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h},(v,E)=>typeof E=="bigint"?E.toString():E))))},6e4);',
-        ',Xt.set(null),F&&F(JSON.parse(JSON.stringify({stdout:u,stderr:M,result:h},(v,E)=>typeof E=="bigint"?E.toString():E))))},Math.max(5,TO||120)*1e3);',
+        # [0.13.4] ancrage court et unique : `},6e4)` n'apparaît qu'une fois
+        # (le timeout d'exécution de rt) ; TO est ajouté par P107 en amont
+        '6e4);const ce=se=>{',
+        'Math.max(5,TO||120)*1e3);const ce=se=>{',
         "P87 frontend : délai d'exécution paramétré (TO)",
     )
     replace_once(
         Path(sorted(_glob.glob(str(root / "nodes" / "0.*.js")))[0]),
-        'M="Execution Time Limit Exceeded"',
-        'M="Execution timeout apres "+(TO||120)+" s — boucle infinie ?"',
+        # [0.13.4] message de timeout : M→Ue
+        'Ue="Execution Time Limit Exceeded"',
+        'Ue="Execution timeout apres "+(TO||120)+" s — boucle infinie ?"',
         "P87 frontend : message de délai explicite",
     )
 
@@ -5289,6 +5360,47 @@ def make_migrations_extractable() -> None:
     PATCHES.append(("migrations extractibles (Alembic)", "P16"))
 
 
+def patch_p148_aiohttp_basic_auth() -> None:
+    """P148 — `encode_basic_auth` absent d'aiohttp 3.10.10 (PIN-REPO).
+
+    Open WebUI 0.13.4 l'utilise pour l'introspection OAuth2 (routers/auths.py)
+    et le refresh de token (utils/oauth.py) ; la fonction n'existe que depuis
+    aiohttp 3.11. Le pin aiohttp==3.10.10 est une décision de dépôt (« slim:
+    3.14.5 — do not update to 3.13.3 ») : on n'y touche pas. Repli FIDÈLE via
+    `BasicAuth(login, password, encoding).encode()`, déjà présent dans
+    3.10.10 et strictement équivalent (RFC 7617 : « Basic » + base64).
+    Découverte par le smoke test 8090 (ImportError au chargement de main)."""
+    replace_once(
+        DST / "routers" / "auths.py",
+        "from aiohttp import ClientSession, encode_basic_auth\n",
+        "from aiohttp import ClientSession\n"
+        "try:\n"
+        "    from aiohttp import encode_basic_auth  # aiohttp >= 3.11\n"
+        "except ImportError:  # P148 : aiohttp 3.10 épinglé (PIN-REPO) — repli RFC 7617\n"
+        "    from aiohttp import BasicAuth\n"
+        "\n"
+        "    def encode_basic_auth(login, password, encoding=\"latin1\"):\n"
+        "        return BasicAuth(login, password, encoding).encode()\n",
+        "P148 auths : encode_basic_auth avec repli BasicAuth",
+    )
+    replace_once(
+        DST / "utils" / "oauth.py",
+        "import aiohttp\nimport jwt\n",
+        "import aiohttp\n"
+        "import jwt\n"
+        "# P148 : aiohttp 3.10 épinglé (PIN-REPO) n'expose pas encode_basic_auth\n"
+        "# (ajouté en 3.11) — repli strictement équivalent via BasicAuth.encode().\n"
+        "if not hasattr(aiohttp, \"encode_basic_auth\"):\n"
+        "    from aiohttp import BasicAuth as _BasicAuth\n"
+        "\n"
+        "    def _encode_basic_auth(login, password, encoding=\"latin1\"):\n"
+        "        return _BasicAuth(login, password, encoding).encode()\n"
+        "\n"
+        "    aiohttp.encode_basic_auth = _encode_basic_auth\n",
+        "P148 oauth : encode_basic_auth exposé sur aiohttp (repli)",
+    )
+
+
 def patch_lazy_imports() -> None:
     """P14 — imports coûteux différés (ldap3, black, MCP/boto3 au besoin)."""
     # black : utilisé par un seul endpoint (format_code) → import local
@@ -5430,6 +5542,7 @@ def main() -> int:
     frontend_out_of_python()
     make_migrations_extractable()
     patch_lazy_imports()
+    patch_p148_aiohttp_basic_auth()
     write_stubs(args.with_native_pycrdt)
     log(f"terminé : {len(PATCHES)} opération(s)")
     # Vérification finale : les patchs sont-ils bien appliqués dans le code généré ?

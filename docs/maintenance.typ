@@ -70,7 +70,7 @@ flowchart LR
   [Chaquopy : CPython 3.13 embarqué, ABI `arm64-v8a`, `minSdk 24`],
 
   [Backend],
-  [Open WebUI 0.13.0 *patché* (FastAPI + uvicorn + SQLite) dans `src/open_webui/`],
+  [Open WebUI 0.13.4 *patché* (FastAPI + uvicorn + SQLite) dans `src/open_webui/`],
 
   [Frontend],
   [UI SvelteKit compilée, livrée dans le wheel amont (`open_webui/frontend/`)],
@@ -126,7 +126,7 @@ rencontré et sa solution, dans l'ordre chronologique.
 
 == Phase A — Sources et cadrage
 
-- Récupération des sources Open WebUI 0.13.0 *via le wheel PyPI* (le wheel
+- Récupération des sources Open WebUI 0.13.4 *via le wheel PyPI* (le wheel
   contient le frontend déjà compilé : aucun build npm nécessaire). Piège : le
   wheel porte `Requires-Python <3.13` — téléchargé avec un Python 3.12 portable.
 - Cible *Python 3.13* (les wheels Android du dépôt Chaquopy existent en cp313).
@@ -459,7 +459,7 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
 
   [P121],
   [`android_fm.py`],
-  [rétraction de la sidebar en *icônes seules* + icônes Open WebUI : suppression du bouton ☰ et de `body.sidehide`, état `body.sideicons` (56 px, libellés `.sl` masqués, resizer masqué, groupes forcés ouverts, infobulles `title`), 13 icônes SVG extraites du sprite `wN8N8j40.js` d'Open WebUI (`folder`, `list`, `pdf-logo`, `image`, `code`, `markdown-logo`, `package`, `settings`, `brain`, `search`, `tools`, `page-text`, `sidebar-expand`), structure `.si`/`.sl`, mobile en colonne d'icônes permanente avec plein en overlay + voile, persistance `localStorage.sidebar` — journal v0.0.73],
+  [rétraction de la sidebar en *icônes seules* + icônes Open WebUI : suppression du bouton ☰ et de `body.sidehide`, état `body.sideicons` (56 px, libellés `.sl` masqués, resizer masqué, groupes forcés ouverts, infobulles `title`), 13 icônes SVG extraites du sprite `wCZlPA5v.js` d'Open WebUI (`folder`, `list`, `pdf-logo`, `image`, `code`, `markdown-logo`, `package`, `settings`, `brain`, `search`, `tools`, `page-text`, `sidebar-expand`), structure `.si`/`.sl`, mobile en colonne d'icônes permanente avec plein en overlay + voile, persistance `localStorage.sidebar` — journal v0.0.73],
 
   [P122],
   [`android_fm.py`],
@@ -498,11 +498,11 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [découpage des gros fichiers par les API Android : *MediaExtractor* et *MediaMuxer* sans transcodage (m4a/webm), pont Java→Python (`register_audio_split`, fonction à un argument JSON) enregistré au démarrage du serveur, appelé pour les formats hors wav/mp3 — zéro modification amont — journal v0.0.78],
 
   [P131],
-  [`nodes/2.DwSK4ZlF.js` (frontend)],
+  [`nodes/2.Dki0jDRo.js` (frontend)],
   [UI audio : les options mortes « Transformers (Local) » (TTS) et « Whisper (Local) » (STT) sont masquées (`disabled`+`hidden`, mécanisme slim de l'amont) — restent « Web API » (= voix Android system / dictée native) et les moteurs distants ; une valeur déjà enregistrée reste affichée — journal v0.0.78],
 
   [P132],
-  [`nodes/2.DwSK4ZlF.js` (frontend)],
+  [`nodes/2.Dki0jDRo.js` (frontend)],
   [UI RAG : les options mortes « Default (SentenceTransformers) » (embedding et rerank) et « Token (Transformers) » (découpage) sont masquées pareillement — torch/sentence-transformers non embarqués ; restent Ollama/OpenAI/Azure, le rerank *External* ou le scoring cosinus, et les découpages Character/Tiktoken — journal v0.0.78],
 
   [P133],
@@ -510,7 +510,7 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [dictée : l'erreur « client » disparaît — relance automatique sur `ERROR_CLIENT` (service de reconnaissance qui redémarre, 2 tentatives espacées de 400 ms), codes d'erreur explicités (trop de demandes, service coupé, langue non prise en charge — plus rien ne retombe sur « client »), code Android brut dans le payload (`{error, code}`) et libellé lisible en français dans le shim, langue non forcée quand le réglage est vide (imposer `Locale.toString()` → « fr_FR » provoquait des erreurs client) ; diagnostic TTS : toast explicite si aucun moteur TTS n'est installé sur l'appareil — journal v0.0.78],
 
   [P134],
-  [`chunks/BeEbX_lw.js` (frontend) + `assets/call_polyfill.js` + `MainActivity.java`],
+  [`chunks/BnHPywC-.js` (frontend) + `assets/call_polyfill.js` + `MainActivity.java`],
   [mode d'interaction vocale utilisable en STT local : les 3 refus amont (`stt.engine === "web"` — bouton, lancement, overlay) neutralisés et 3 micro-patchs branchent la transcription sur `window.__callDictation` (SpeechRecognition natif : écoute ouverte au début d'énoncé par la détection de parole amont, figée après 2 s de silence, garde-fou 30 s) ; vrai micro via `window.__realMic` → `__origGUM` (le shim de dictée substitue un flux silencieux qui clouerait la détection) — cinq micro-remplacements (2 fusionnés dans P141b/P144b par l'audit de minimisation 2026-11-19, livré identique), structure amont intacte — journal v0.0.78],
 
   [P135],
@@ -518,19 +518,19 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [lecture à voix haute : le synthétiseur s'initialise depuis `getVoices()` — cause racine du silence (réponses de l'appel vocal *et* lecture des messages) : `voicesJson()` renvoyait `"[]"` tant que `speak()` n'avait pas été appelé, or `speak()` n'est appelé qu'après que `getVoices()` n'est plus vide (attente amont en boucle à 100 ms) : verrou permanent, aucun son, sans erreur ; `voicesJson()` déclenche l'initialisation, les demandes reçues pendant le démarrage sont mises en file (`initDone`) au lieu de lever une erreur prématurée, `tts`/`ready` sont `volatile` (lus depuis le thread JS), voix par défaut si la liste reste vide — zéro modification amont — journal v0.0.78],
 
   [P136],
-  [`chunks/BeEbX_lw.js` (frontend)],
+  [`chunks/BnHPywC-.js` (frontend)],
   [lecture à voix haute : la boucle d'attente des voix est bornée — l'amont interroge `speechSynthesis.getVoices()` en boucle (100 ms) jusqu'à une liste non vide, puis lit : sans voix, la boucle ne se termine jamais et `nt()` (file de lecture de l'appel vocal) reste bloqué sur `await Y(st)`, plus rien n'est lu sans erreur ; trois micro-remplacements dans `Y` : horodatage de l'attente, lecture forcée au-delà de 5 s (voix par défaut du moteur), garde-fous 15 s sur la promesse — garde-fou de la cause racine traitée par P135 — journal v0.0.78],
 
   [P137],
-  [`chunks/BeEbX_lw.js` (frontend)],
+  [`chunks/BnHPywC-.js` (frontend)],
   [mode vocal : chaque réponse est lue à voix haute — la boucle de lecture `nt` se terminait dès la fin d'une réponse (`break` sur `chat:finish`) et `ct` (`chat:start`, dispatché à chaque génération) ne la relançait que si l'identifiant de chat changeait : le deuxième message d'un même chat (et tout message après interruption) était empilé sans lecteur, réponse générée mais aucun son ; marqueur de boucle active `ntSig`, drapeau « réponse finie » effacé à chaque génération, relance de `nt` avec recréation de l'`AbortController` si annulé, état « parle » remis à vrai (sinon le micro capterait l'assistant) — journal v0.0.78],
 
   [P138],
-  [`chunks/BeEbX_lw.js` + `chunks/DRZDe0Yd.js` (frontend)],
+  [`chunks/BnHPywC-.js` + `chunks/AZSCJQb3.js` (frontend)],
   [messages d'erreur distincts : micro refusé vs init Kokoro en échec — le bouton « Mode vocal » enveloppait `getUserMedia` et l'init du worker Kokoro dans un même `try` : toute erreur Kokoro affichait « Accès aux appareils multimédias refusé » (signalé par l'utilisateur) ; découpe en deux `try` — le micro garde le message amont + `return`, l'init logue `Kokoro TTS: …` (toast + console) et l'appel s'ouvre quand même ; dans la file de lecture TTS (`Be`), l'init `he()‖(…init())` n'était dans aucun `try` : échec = rejet silencieux (aucun son, aucune erreur) — interceptée : journal + états « ne parle pas » redressés puis `return` — sonde `p138_p139_test.py` (15 contrôles) — journal v0.0.78],
 
   [P139],
-  [`nodes/2.DwSK4ZlF.js` + `nodes/55.s0_1KP7y.js` (frontend)],
+  [`nodes/2.Dki0jDRo.js` + `nodes/56.DyQrwVL7.js` (frontend)],
   [« Default » inutilisable → le default devient Kokoro — même IIFE dans les deux chargeurs de `$settings` (`ne` du layout, toutes les routes ; `de` de `/s/[id]`) : engine du compte vide → sonde de voix ≤ 2 s (polling 150 ms, `AndroidTTS.voicesJson()` puis `speechSynthesis.getVoices()`, cache `window.__owuiSysTTS`) ; aucune voix et moteur admin vide → `engine: "browser-kokoro"`, `dtype: "q8"` si absent (sinon `fp32` ≈ 325 Mo), `voice: "af_heart"`, `defaultVoice` aligné sur `config.audio.tts.voice` (la chaîne amont n'utilise `settings.voice` que si `defaultVoice === config.voice` — sinon « alloy » → `Voice "alloy" not found`, d'où « Erreur après avoir choisi Kokoro ») ; engine déjà Kokoro → normalisation synchrone (voix invalide → `af_heart`, dtype manquant → q8) ; aucun forçage si voix système présentes, TTS serveur réglé ou config non chargée ; en mémoire seulement — sonde `p138_p139_test.py` (12 contrôles) — journal v0.0.78],
 
   [P140],
@@ -538,19 +538,19 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [ONNX Runtime Web conservé : Kokoro retrouve son backend — P13 supprimait `wasm/` (21 Mo, « ML navigateur inutile ») alors que le worker Kokoro force `wasmPaths: "/wasm/"` et importe dynamiquement `ort-wasm-simd-threaded.jsep.mjs` : sans eux, `browser-kokoro` lève « no available backend found. ERR: [webgpu] TypeError: Failed to fetch dynamically imported module … /wasm/ort-wasm-simd-threaded.jsep.mjs » (rétroaction utilisateur) ; `slim_frontend` ne supprime plus que les source maps ; MIME `.mjs → text/javascript` / `.wasm → application/wasm` vérifiés (table embarquée Python 3.13) ; garde-fou `check_wasm_ort` (présence + tailles + `wasmPaths` du worker) — journal v0.0.78],
 
   [P141],
-  [`chunks/BeEbX_lw.js` + `assets/call_polyfill.js` (frontend)],
+  [`chunks/BnHPywC-.js` + `assets/call_polyfill.js` (frontend)],
   [mode vocal : le SpeechRecognizer entend enfin le micro — le shim de dictée documente le conflit matériel (« le MediaRecorder monopolise le micro et le SpeechRecognizer natif n'entend rien ») ; or `Ge` démarrait le MediaRecorder sur le vrai micro exactement quand `__callDictation.start()` ouvrait la reconnaissance : le natif était sourd, `text()` vide, aucun énoncé dans le chat (rétroaction utilisateur) ; en STT « web » le MediaRecorder enregistre le flux silencieux (`__callSilent`, polyfill) — la détection de parole garde le vrai micro ; garde « blob < 100 o » réservée au chemin serveur ; repli sur les résultats partiels ; traces `Call STT:` + toast si transcription vide — sonde `p141_call_stt_test.py` (20 contrôles) — journal v0.0.78],
 
   [P142],
-  [`chunks/BeEbX_lw.js` + `assets/call_polyfill.js` (frontend)],
+  [`chunks/BnHPywC-.js` + `assets/call_polyfill.js` (frontend)],
   [mode vocal : micro libéré à l'ouverture de l'énoncé — l'analyseur WebAudio du VAD tenait lui aussi le micro réel (client AudioRecord actif) et maintenait le SpeechRecognizer natif en silence (comme le MediaRecorder avant P141) ; démultiplexage temporel : à l'ouverture de l'énoncé, pistes du micro stoppées et `z` réinitialisé (`Ge()` reprend un micro frais à la fermeture), le recognizer étant démarré avant la libération ; « la parole continue » est désormais détectée par l'activité du recognizer (`__callVadHit()` : résultat reçu depuis moins de 800 ms) ; le toast de transcription vide porte la dernière erreur moteur (`moteur : no-speech`) — sonde `p142_call_vad_test.py` (11 contrôles) — journal v0.0.78],
 
   [P143],
-  [`chunks/BeEbX_lw.js` + `assets/call_polyfill.js` + `MainActivity.java`],
+  [`chunks/BnHPywC-.js` + `assets/call_polyfill.js` + `MainActivity.java`],
   [mode vocal : préchauffage du recognizer + console JS journalisée — `moteur : no-speech` persistait malgré la libération du micro : le SpeechRecognizer au démarrage froid (liaison du service, 1-2 s) n'écoutait pas encore quand l'énoncé était écoulé ; `__callDictation.warm()` lie le service dès l'ouverture de l'appel, grâce d'activité portée à 2,5 s (le prêt du moteur entretient l'activité), télémétrie du toast (code d'erreur brut + latence de démarrage) ; console JS captée dans `data/logs/exec.log` (`onConsoleMessage`) : traces `[call-dict]` / `Call STT:` consultables dans `/fm` → Journaux et à distance via `/fm/logs/tail` — sonde `p143_call_warm_test.py` (10 contrôles) — journal v0.0.78],
 
   [P144],
-  [`chunks/BeEbX_lw.js` + `assets/call_polyfill.js` (frontend)],
+  [`chunks/BnHPywC-.js` + `assets/call_polyfill.js` (frontend)],
   [mode vocal : écoute permanente, fin de la troncature de début — le début de phrase était tronqué (pas en dictée, où le recognizer démarre avant la parole) : en mode vocal il démarrait au début de la parole, les ~300-500 premiers ms (latence de démarrage) étaient perdus ; le recognizer écoute désormais en permanence dès l'ouverture de l'appel et les énoncés sont découpés par marqueurs (`mark()` garde l'hypothèse en cours = la phrase complète, efface l'ambiance) ; micro réel réservé au recognizer (VAD + MediaRecorder sur flux silencieux), libération de micro P142b retirée ; silenciation TTS à chaque image (voix de l'assistant exclue) ; `stop()` à la fermeture — sonde `p144_call_test.py` (5 contrôles) — journal v0.0.78],
 
   [P145],
@@ -562,8 +562,12 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [mode vocal : « la conversation continue toute seule » — après chaque réponse lue à voix haute, la conversation repartait d'elle-même : le recognizer livre des résultats *tardifs* (émis pendant la lecture, arrivés après l'extinction) ; `__callSpeechGate(muted=true)` arme une *fenêtre de grâce de 2,5 s* (`graceUntil`) ; pendant la grâce : `onresult` ignore les résultats tardifs (trace), `__callVadHit()` renvoie `false`, `onstart` n'entretient pas le VAD, `mark()` refuse d'ouvrir un énoncé (trace) ; `stop()` remet `graceUntil = 0` (réouverture d'appel propre) — sonde `p146_call_grace_test.py` (9 scénarios device) — journal v0.0.78],
 
   [P147],
-  [`chunks/BeEbX_lw.js` (frontend)],
+  [`chunks/BnHPywC-.js` (frontend)],
   [mode vocal : le silence normal n'est plus un message d'erreur — « aucun son entendu » s'affichait (`transcription vide (moteur : aucun résultat …)`) alors que le reconnaissant n'avait rien à transcrire (silence de l'utilisateur, cas normal) ; en mode local, `st.error` vide / `no-speech` / `aborted` / `aucun résultat` → trace console seulement (`Call STT: silence normal, ignoré (…)`, journalisée dans `exec.log`), aucun toast ; les vraies erreurs moteur (network, service-not-allowed…, `st=null`) gardent leur toast ; chaîné sur P142c (`patch_appel_silence`) — contrôle P147 dans `check_patches.py` + 4 scénarios dans la sonde p141 — journal v0.0.78],
+
+  [P148],
+  [`routers/auths.py` + `utils/oauth.py`],
+  [`encode_basic_auth` : repli RFC 7617 pour aiohttp épinglé — nouveau besoin de 0.13.4 : l'introspection OAuth2 (`auths.py`) et le refresh de token (`oauth.py`) appellent `encode_basic_auth`, absent d'aiohttp 3.10.10 (ajouté en 3.11) ; le pin `aiohttp==3.10.10` est une décision de dépôt (`[PIN-REPO]`) qu'on ne touche pas — repli fidèle `BasicAuth(login, password, encoding).encode()` (RFC 7617, équivalence vérifiée) ; `oauth.py` expose la fonction par garde `hasattr` (les appels amont `aiohttp.encode_basic_auth(...)` restent intacts) — découvert par le smoke test 8090 (`ImportError` au chargement de `main.py`) — contrôle `check_p148_aiohttp` — journal v0.0.79_beta],
 )
 
 == Performances de démarrage
@@ -604,34 +608,52 @@ sinon, vérifier `adb logcat | grep python`.
 
 = Mise à jour d'Open WebUI
 
+Procédure éprouvée sur la migration *0.13.0 → 0.13.4* (2026-11-19/20,
+journal v0.0.79_beta). Chaque étape a un contrôle associé.
+
 #table(
   columns: (0.5fr, 2.5fr),
   [1.],
-  [Récupérer la nouvelle version : `tools/python312/bin/python3.12 -m pip download open-webui --no-deps -d vendor/wheel` puis décompresser le wheel dans `vendor/unpacked/` (écraser l'ancien *pristine*).],
+  [Baser la version dans `scripts/fetch_src.sh` (`OPEN_WEBUI_VERSION=x.y.z`) puis `bash scripts/fetch_src.sh` : le wheel est téléchargé sur PyPI et extrait dans `vendor/unpacked/` (écrase l'ancien *pristine*). Le CI lit la version à cet endroit exact → la bascule locale et CI se fait en un seul fichier.],
 
   [2.],
   [Examiner le nouveau `requirements-slim.txt` et le `METADATA` : nouvelles dépendances ? natives ? versions Python ?],
 
   [3.],
-  [Rejouer `scripts/prepare_src.py` : chaque patch qui échoue signale un changement amont à intégrer à la main. Mettre à jour `PATCHES.md`.],
+  [*Relocaliser les fichiers frontend hashés* : la minification renomme les `chunks/*.js` et `nodes/*.js` à chaque version — mettre à jour les chemins dans `scripts/prepare_src.py`, `scripts/check_patches.py` et les sondes (migration 0.13.4 : 5 fichiers renommés, ex. `BeEbX_lw.js` → `BnHPywC-.js`).],
 
   [4.],
-  [Adapter `requirements-min.txt` : tout nouveau paquet *natif* doit être (a) présent dans le dépôt de wheels Chaquopy (`https://chaquo.com/pypi-13.1/`), ou (b) cross-buildé via `build-wheels.sh`, ou (c) remplacé par un repli documenté. Vérifier les plafonds connus : `numpy≤1.26.2`, `cryptography≤42.0.8`, `bcrypt≤3.2.2`, `argon2-cffi` = 23.1.0, `authlib≤1.6.4`, `joserfc≤1.5.0`.],
+  [Rejouer `.venv313/bin/python3 scripts/prepare_src.py` : chaque patch qui échoue signale un changement amont (motif renommé ou logique changée) à intégrer à la main — 0.13.4 : 153 opérations, 0 échec. Mettre à jour `PATCHES.md`.],
 
   [5.],
-  [Test de fumée hôte : `scripts/smoke.sh` puis vérifier `/health`, la connexion, la recherche web et SearXNG (`/search?q=test&format=json`).],
+  [*Réaligner `check_patches.py`* : les motifs de contrôle suivent la minification et se désalignent en faux positifs (0.13.4 : 25 contrôles réalignés). Chaque réalignement doit être *justifié au journal* (aucun contrôle n'est affaibli sans raison écrite).],
 
   [6.],
-  [Build : `bash scripts/build.sh` → `dist/app-debug.apk`, contrôle de taille (écart zip < 10 Ko) et du `badging`.],
+  [Adapter `requirements-min.txt` : tout nouveau paquet *natif* doit être (a) présent dans le dépôt de wheels Chaquopy (`https://chaquo.com/pypi-13.1/`), ou (b) cross-buildé via `build-wheels.sh`, ou (c) remplacé par un repli documenté. Vérifier les plafonds connus : `numpy≤1.26.2`, `cryptography≤42.0.8`, `bcrypt≤3.2.2`, `argon2-cffi` = 23.1.0, `authlib≤1.6.4`, `joserfc≤1.5.0`, `aiohttp==3.10.10` (pin `[PIN-REPO]` — ne pas bouger).],
 
   [7.],
-  [Test appareil (chat, dictée, recherche, upload document avec embeddings, Typst) puis mise à jour de `journal.md`, `PATCHES.md`, `todo.md`, et du `versionName`.],
+  [Scan d'imports : vérifier que chaque nom importé de chaque paquet existe bien dans la version épinglée (0.13.4 : `aiohttp.encode_basic_auth`, ajouté en aiohttp 3.11 → repli P148).],
+
+  [8.],
+  [Test de fumée hôte : `scripts/smoke.sh` (port *8090*) puis vérifier `/`, `/health`, `/api/config`, la recherche web et SearXNG (`/search?q=test&format=json`).],
+
+  [9.],
+  [Chaîne de validation : `check_patches.py` vert → `node --check` des polyfills et chunks patchés → `javac` des classes Java autonomes (`AndroidSpeech`/`AndroidTTS`/`AndroidAudio`, classpath `android-sdk/platforms/android-34/android.jar`) → sonde globale de non-régression.],
+
+  [10.],
+  [Build : `bash scripts/build.sh` → `dist/app-debug.apk`, contrôle de taille (écart zip < 10 Ko) et du `badging`.],
+
+  [11.],
+  [Test appareil (chat, dictée, recherche, upload document avec embeddings, Typst) puis mise à jour de `journal.md`, `PATCHES.md`, `todo.md`, des documents Typst (recompilés) et du `versionName`.],
 )
 
 #alert-box[
-  Ne jamais sauter l'étape 5 : la majorité des régressions (imports supprimés,
+  Ne jamais sauter l'étape 8 : la majorité des régressions (imports supprimés,
   signatures changées, nouvelles dépendances natives) se voient au démarrage du
   serveur bien avant le build Android — et coûtent 45 minutes de build en moins.
+  Exemple réel : le smoke test 8090 de la migration 0.13.4 a attrapé
+  `ImportError: encode_basic_auth` (P148) qui aurait cassé l'APK au premier
+  démarrage.
 ]
 
 = Mise à jour des composants <sec-composants>
@@ -892,7 +914,7 @@ d'entrée unique.
 #table(
   columns: (1.2fr, 1fr),
   [*Composant*], [*Version*],
-  [Open WebUI], [0.13.0],
+  [Open WebUI], [0.13.4],
   [Python cible (Chaquopy)], [3.13],
   [Chaquopy / AGP / Gradle], [17.2.0 / 8.7.3 / 8.10.2],
   [SearXNG], [commit `a30b2d4749` (2026-08-28)],

@@ -207,3 +207,35 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       multimédias refusé »), micro refusé = message amont exact ; sans voix
       système, « Default » doit parler en Kokoro (af_heart, q8) ; journaux
       activés par l'utilisateur = preuve de la bonne traçabilité
+
+## Migration Open WebUI 0.13.0 → 0.13.4 (v0.0.79_beta)
+
+- [x] Bascule de version : `scripts/fetch_src.sh` `OPEN_WEBUI_VERSION=0.13.4`
+      (le CI lit la version à cet endroit → bascule locale+CI en un fichier)
+- [x] Wheel PyPI 0.13.4 vérifié (200, `py3-none-any`, cap `<3.13` identique)
+      + `vendor/unpacked/` réextrait
+- [x] Relocalisation des 5 chunks hashés (minification renommée) :
+      `BeEbX_lw`→`BnHPywC-`, `DRZDe0Yd`→`AZSCJQb3`, `2.DwSK4ZlF`→`2.Dki0jDRo`,
+      `55.s0_1KP7y`→`56.DyQrwVL7`, `wN8N8j40`→`wCZlPA5v`
+- [x] `prepare_src.py` : **153 opérations, 0 échec** (fix `Pk` P46c/P107 inclus)
+- [x] `check_patches.py` : 25 contrôles réalignés sur les motifs 0.13.4
+      (faux positifs — justification au journal 2026-11-20) + P148 — **0 erreur**
+- [x] Audit tolérant : 133 patchs appliqués / 0 échec
+- [x] `node --check` : polyfills + worker + `BnHPywC-.js` verts
+- [x] `javac` 25 (android.jar API 34) : `AndroidSpeech`/`AndroidTTS`/
+      `AndroidAudio` **0 erreur** (1ʳᵉ validation locale du Java P145)
+- [x] Sonde globale `probe_migration_0134.py` : **74/74 verts**
+- [x] P148 : `encode_basic_auth` (aiohttp ≥ 3.11 requis, pin 3.10.10
+      `[PIN-REPO]` conservé) → repli `BasicAuth.encode()` RFC 7617 vérifié ;
+      découvert par le smoke test 8090 (`ImportError` au chargement)
+- [x] Smoke test **8090** : `/`, `/health`, `/api/config`, `/api/version`,
+      `/favicon.ico`, SearXNG 8888 → 200, aucun traceback, ports/processus
+      libérés
+- [x] Doc : `PATCHES.md` (+P148, chunks renommés), `maintenance.typ`
+      (procédure de mise à jour réécrite en 11 étapes + P148) et `audio.typ`
+      (chunks) — PDFs recompilés 0 warning
+- [ ] Livrer **0.0.79_beta** : `versionName`, commit, push `origin master`,
+      tag `v0.0.79_beta` poussé nommément (jamais `--tags`), CI `gh run watch`
+- [ ] Test appareil v0.0.79_beta : migration 0.13.4 + P148 (login OAuth si
+      configuré) + rétroactions ouvertes P145 (bip tiling), P146 (relance
+      conversation), P147 (faux « aucun son »)

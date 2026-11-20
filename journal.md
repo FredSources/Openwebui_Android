@@ -3797,3 +3797,136 @@ la plus patchée : 8 fonctions sur le chunk `BeEbX_lw.js`).
   vertes ; `check_patches.py` vert (150 opérations `prepare_src.py`).
 - **En attente utilisateur** : validation device P145 (aucun `javac`
   local), P146 et P147 (traces lisibles via `/fm/logs/tail`).
+
+## 2026-11-19 — migration Open WebUI 0.13.0 → 0.13.4 (en cours)
+
+Demande utilisateur : « se maintenir sur la last release » de
+github.com/open-webui/open-webui. Dernière release = **v0.13.4** (17 nov
+2026) ; projet épinglé sur 0.13.0 (décision D6).
+
+- **Bascule de version** : `scripts/fetch_src.sh` `OPEN_WEBUI_VERSION` →
+  0.13.4 ; `vendor/unpacked` réextrait (wheel PyPI 0.13.4 vérifié : 200,
+  `py3-none-any`, cap Python `<3.13` identique — neutralisé par P5).
+  Le CI lit la version à cet endroit exact → bascule locale+CI ensemble.
+- **Relocalisation des 5 fichiers frontend hashés** (minification
+  entièrement renommée en 0.13.4) :
+  | ancien | nouveau |
+  |---|---|
+  | `chunks/BeEbX_lw.js` | `chunks/BnHPywC-.js` |
+  | `chunks/DRZDe0Yd.js` (TTS) | `chunks/AZSCJQb3.js` |
+  | `nodes/2.DwSK4ZlF.js` | `nodes/2.Dki0jDRo.js` |
+  | `nodes/55.s0_1KP7y.js` | `nodes/56.DyQrwVL7.js` |
+  | `chunks/wN8N8j40.js` (sprite) | `chunks/wCZlPA5v.js` |
+- **Audit d'échecs** (`/tmp/opencode/mig_audit.py`, `replace_once`
+  tolérant) : **44 patchs appliqués, 28 en échec** — backend Python
+  100 % vert (0 échec), tous les échecs sont frontend :
+  - `BnHPywC-.js` : 18 (P134 #3/#4/#5, P136 ×3, P137 ×3, P141a/b,
+    P142a/c, P143, P144a/b/d, P147, P138a) ;
+  - `2.Dki0jDRo.js` : 7 (P131 ×2, P132 ×3, P139a, P10) ;
+  - `AZSCJQb3.js` : 1 (P138b) ; `56.DyQrwVL7.js` : 1 (P139b).
+- **Correspondances du chunk d'appel** relevées : `De`→`ot` (STT fin
+  d'énoncé), `Qe`→`et`, `Ge`→`lt` (stream+MediaRecorder), `Ke`→`Ae`
+  (fermeture), boucle VAD `cr`→`Wt`, `V0`→`Zk` (blob), `rb`→`Px` (API
+  STT), `jt`→`xr`, `n()`→`i()` (settings), `e(P)`→`e(O)` (énoncé),
+  `e(Q)`→`e(N)` (mute), `e(q)`→`e(Z)` (parle), `J`→`X` (MediaRecorder),
+  `z`→`W` (stream), `ee`→`de` (chunks), `G`→`ce` (fin d'énoncé),
+  `Mt`→`Tt`.
+
+## 2026-11-20 — migration 0.13.0 → 0.13.4 validée + P148 (nouveau besoin)
+
+Suite du 2026-11-19. Chaîne de validation complète, puis livraison
+0.0.79_beta.
+
+### P148 — `encode_basic_auth` (repli RFC 7617, aiohttp épinglé)
+
+- **Découverte par le smoke test 8090** (étape jamais sautée, comme
+  l'alerte du doc l'impose) : `ImportError: cannot import name
+  'encode_basic_auth' from 'aiohttp'` au chargement de `open_webui.main`
+  → `routers/auths.py` (introspection OAuth2) et `utils/oauth.py`
+  (refresh de token, 2 sites) l'utilisent.
+- **Cause** : la fonction n'existe que depuis aiohttp **3.11** ; le
+  dépôt épinglle `aiohttp==3.10.10` (`[PIN-REPO] slim: 3.14.5 — « do not
+  update to 3.13.3 »`) — **le pin n'est pas bougé**.
+- **Repli fidèle** : `BasicAuth(login, password, encoding).encode()`
+  (déjà présent en 3.10.10) — équivalence RFC 7617 **vérifiée en
+  exécution** : `BasicAuth('id','secret',encoding='latin1').encode()` →
+  `'Basic aWQ6c2VjcmV0'`, identique au format attendu.
+- **Implémentation** (2 sites, `prepare_src.py` → 153 opérations) :
+  (a) `auths.py` : import en `try/except ImportError` + définition de
+  repli ; (b) `oauth.py` : garde `if not hasattr(aiohttp,
+  "encode_basic_auth")` qui expose la fonction sur le module — les 2
+  appels amont `aiohttp.encode_basic_auth(...)` restent **intacts**
+  (aucune signature amont modifiée).
+- **Contrôle** : `check_p148_aiohttp` dans `check_patches.py` — échec
+  si l'import direct est rétabli, si le repli manque, ou si
+  l'équivalence `BasicAuth.encode` disparaît.
+- **Justification charte** : ajout d'un contrôle dans
+  `check_patches.py` → motivé ici (nouveau patch P148, aucun contrôle
+  existant affaibli).
+
+### Réalignement des 25 contrôles de `check_patches.py` (motifs 0.13.4)
+
+- **Justification (charte)** : les 25 motifs réalignés (P131/P132,
+  P136, P137, P138a/b, P139, P141a/b, P142a, P143, P144b/c, P41b,
+  P46c, P106, P107 + marqueurs `node --check`) pointaient sur les
+  **noms minifiés de 0.13.0** ; la minification de 0.13.4 renomme les
+  identifiants, ce qui produisait de **faux positifs** (« patch mal
+  appliqué » alors que le patch est bien présent). Aucun contrôle n'a été
+  supprimé ni affaibli : chaque motif a été **relocalisé** sur la
+  variable/fonction correspondante de 0.13.4 (cartographie détaillée
+  dans l'entrée du 2026-11-19), et la structure logique contrôlée est
+  identique.
+- **Bug réel trouvé au passage** (P46c/P107) : le 5e paramètre ajouté
+  `X=[]` entrait en collision avec le handler `onerror` `X` de `rt()` en
+  0.13.4 → `SyntaxError: Identifier 'X' has already been declared` ;
+  paramètre renommé **`Pk=[]`** (3 sites : signature, fusion
+  `[..._e,...Pk]`, contrôle P46d) — sans ce fix, le bac à sable
+  `execute_code` aurait cassé au premier appel.
+- **P41b** : seuls les callbacks *message* portent les fichiers
+  (`files:W.files||[]`, `W` = données du message, `ge` = worker) ;
+  callbacks timeout/erreur sans `files:` (comportement amont préservé).
+- **P87** : ancrage court `'6e4);const ce=se=>{'` remplacé par
+  `'Math.max(5,TO||120)*1e3);const ce=se=>{'` (le motif à parenthèses
+  était trop fragile).
+
+### Validation complète — chaîne VERT
+
+- `prepare_src.py` : **153 opérations, 0 échec** ;
+  `check_patches.py` : **0 erreur** (« tous les patchs sont
+  correctement appliqués ✓ ») ;
+  audit tolérant `mig_audit.py` : **133 appliqués / 0 échec**.
+- **`node --check`** : `call_polyfill.js`, `tts_polyfill.js`,
+  `pyodide.worker-*.js`, `chunks/BnHPywC-.js` — tous verts.
+- **`javac` 25 (OpenJDK 25, classpath `android-sdk/platforms/
+  android-34/android.jar`)** : `AndroidSpeech.java`, `AndroidTTS.java`,
+  `AndroidAudio.java` compilent **0 erreur** — première validation
+  locale du code Java P145/P128/P130 (jusqu'ici « aucun javac local ») ;
+  `MainActivity.java` exige Chaquopy + `R` générés (jar Chaquopy 17.2.0
+  repéré dans `.gradle-cache`) — non compilable seule, hors périmètre du
+  patch.
+- **Sonde globale de non-régression** `/tmp/opencode/
+  probe_migration_0134.py` (consolide les 7 sondes purgées) :
+  **74/74 contrôles verts** — chunks 0.13.4, P131-P147, bac à sable,
+  worker, motifs amont interdits (non-régressions), Java, javac.
+- **Smoke test 8090** (jamais 8080) après P148 : `/` 200, `/health`
+  200, `/api/config` 200, `/api/version` 200, `/favicon.ico` 200,
+  SearXNG 8888 → 200 ; erreurs searx bénignes (engines `ahmia`/`torch`
+  absents du slim, wikidata 403 externe) ; **aucun traceback
+  applicatif** ; processus et ports libérés proprement après test
+  (`pgrep` vide, 8080/8090/8888 libres).
+- **Version backend `0.0.0`** : non-régression — `env.py` lit
+  `package.json` (absent du wheel → repli `{'version': '0.0.0'}`),
+  mécanisme identique en 0.13.0.
+
+### Documentation
+
+- `PATCHES.md` : titre → 0.13.4, 5 chunks renommés, **P148** ajouté.
+- `docs/maintenance.typ` : version → 0.13.4 (architecture, sources,
+  annexe), section « Mise à jour d'Open WebUI » **réécrite en 11
+  étapes** avec la leçon de cette migration (bascule via `fetch_src.sh`,
+  relocalisation des chunks hashés, réalignement justifié des contrôles,
+  scan d'imports contre les pins, smoke test qui a attrapé P148),
+  ligne **P148** au tableau des patchs — `maintenance.pdf` recompilé
+  (0 warning).
+- `docs/audio.typ` : 5 chunks renommés — `audio.pdf` recompilé (0
+  warning).

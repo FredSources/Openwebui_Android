@@ -1,0 +1,2 @@
+import{b as t}from"./GOT-FpkN.js";import{g as a,aE as r,aF as g}from"./C21BfNWO.js";import{p as n}from"./NagFHB_G.js";import{g as s}from"./BAlDmMOB.js";function i(){const e=a("page");return{tab:e,active:e?.active??g(!0),url:e?.url??r(n,o=>o.url),goto:e?.goto??s}}function b(e){const{tab:o}=i();o?.beforeLeave.add(e),t(()=>o?.beforeLeave.delete(e))}export{i as g,b as o};
+//# sourceMappingURL=WFV07iAt.js.map

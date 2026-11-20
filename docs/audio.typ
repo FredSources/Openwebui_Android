@@ -220,7 +220,7 @@ démarrage sont mises en file (`initDone`) au lieu de lever une erreur
 prématurée, `tts`/`ready` sont `volatile` (lus depuis le thread JavaScript),
 et une voix par défaut est fournie si la liste reste vide.
 
-*Garde-fou amont (P136, `BeEbX_lw.js`)* : même avec le moteur correctement
+*Garde-fou amont (P136, `BnHPywC-.js`)* : même avec le moteur correctement
 initialisé, la boucle d'attente des voix de l'amont n'avait *aucune borne* :
 sans voix, `nt()` — la file de lecture des réponses de l'appel — restait
 bloqué sur `await Y(st)` et plus rien n'était lu. Trois micro-remplacements
@@ -259,7 +259,7 @@ le bouton n'apparaît pas et l'overlay affiche « Call feature is not supported
 when using Web STT engine ». Le build l'apporte ainsi :
 
 + les *3 refus amont* (affichage du bouton, lancement, ouverture de l'overlay)
-  sont neutralisés dans le chunk d'appel (`BeEbX_lw.js`, sept
+  sont neutralisés dans le chunk d'appel (`BnHPywC-.js`, sept
   micro-remplacements — structure amont intacte) ;
 + la *détection de parole amont* est réutilisée telle quelle : au début de
   l'énoncé, `window.__callDictation.start()` ouvre une écoute
@@ -444,7 +444,7 @@ toastée).
 refusé » s'affichait alors que le micro était autorisé — message trompeur
 cachant une tout autre cause.
 
-*Cause racine (a, `BeEbX_lw.js`)* : le bouton « Mode vocal » du bandeau
+*Cause racine (a, `BnHPywC-.js`)* : le bouton « Mode vocal » du bandeau
 enveloppait dans un *seul et même* `try` la demande `getUserMedia` ET
 l'initialisation du worker Kokoro (`Ip` + `D().init()`) : *toute* exception
 Kokoro (modèle injoignable, worker en échec, `Voice "alloy" not found`)
@@ -459,7 +459,7 @@ consécutifs :
   l'appel s'ouvre quand même (dictée locale utilisable, lecture muette
   assumée et tracée).
 
-*Cause racine (b, `DRZDe0Yd.js`)* : dans la file de lecture TTS, l'init
+*Cause racine (b, `AZSCJQb3.js`)* : dans la file de lecture TTS, l'init
 `he()||(…await he().init())` n'était dans *aucun* `try` : un échec rejetait
 la promesse en silence — aucun son, aucun sous-titre, aucune erreur nulle
 part. Interceptée : journal `Kokoro TTS: …`, états « ne parle pas »
@@ -479,9 +479,9 @@ téléphone*, il est muet — alors que le worker Kokoro embarqué, lui, parle
 toujours.
 
 *Mécanisme (IIFE unique insérée dans les deux chargeurs de `$settings`)* :
-`ne` du layout (`nodes/2.DwSK4ZlF.js`, après le chargement des réglages
+`ne` du layout (`nodes/2.Dki0jDRo.js`, après le chargement des réglages
 serveur — couvre toutes les routes) et `de` de la page `/s/[id]`
-(`nodes/55.s0_1KP7y.js`, entrées directes). La séquence :
+(`nodes/56.DyQrwVL7.js`, entrées directes). La séquence :
 
 + engine du compte *vide* → *sonde de voix* ≤ 2 s (polling 150 ms, priorité à
   `window.AndroidTTS.voicesJson()` puis `speechSynthesis.getVoices()`,

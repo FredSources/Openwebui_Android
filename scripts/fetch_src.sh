@@ -5,7 +5,7 @@
 set -euo pipefail
 PROJ="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJ"
-VERSION="${OPEN_WEBUI_VERSION:-0.13.0}"
+VERSION="${OPEN_WEBUI_VERSION:-0.13.4}"
 DEST="$PROJ/vendor/unpacked"
 WHL_DIR="$PROJ/downloads"
 WHL="$WHL_DIR/open_webui-$VERSION.whl"

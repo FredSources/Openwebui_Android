@@ -4469,3 +4469,23 @@ final : **0 occurrence de `i().audio?.stt?.engine` seule** dans le chunk
 
 Re-test : parler dans l'appel → `Call STT: local -> N car.` (N > 0) dans les
 journaux puis le message dans le chat.
+
+## 2026-11-21 18:50 UTC — v0.0.79 : sortie de bêta, bêta supprimée
+
+Demande : « pass en release 0.0.79 » + « efface la beta ».
+
+- `verifier_tag.py` (P93) : `✓ tag v0.0.79 == versionName 0.0.79` ;
+- `versionName '0.0.79_beta'` → `'0.0.79'` (commit `bb3b3b0`) ;
+- tag **`v0.0.79`** créé sur `bb3b3b0` et poussé **nommément** (jamais
+  `--tags`) ;
+- **bêta effacée** : release GitHub `v0.0.79_beta` supprimée
+  (`gh release delete --yes`), tag distant supprimé
+  (`git push origin --delete`), tag local supprimé (`git tag -d`) — aucun
+  `v0.0.79*` résiduel vérifié ;
+- CI **run 44937062867 → success** (build debug + release) ;
+- release **`0.0.79` marquée Latest** : titre « fournisseur realtime Android
+  (P149+P150) », note complète (P149, P150, corrections, audit de fidélité,
+  base 0.13.4), 2 APK (`-debug` + `-release`), `prerelease=false`.
+
+Les mentions `0.0.79_beta` du journal et de `todo.md` sont des références
+historiques (récit des livraisons) : volontairement inchangées.

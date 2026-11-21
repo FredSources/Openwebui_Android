@@ -4457,3 +4457,15 @@ final : **0 occurrence de `i().audio?.stt?.engine` seule** dans le chunk
   vide (le silence reste ignoré, P147) ;
 - **Bouton micro (dictée)** : le texte va dans le **champ de saisie** → il
   faut envoyer (comportement normal d'une dictée).
+
+## 2026-11-21 20:30 UTC — v0.0.79_beta régénérée (v6, micro de l'appel)
+
+- commit `5cf60a8` (9 fichiers) poussé sur `origin master` ;
+- tag `v0.0.79_beta` **re-forcé** `eb71cc8` → `5cf60a8` (poussé nommément) ;
+- CI **run 44934845243 → success** ;
+- release : titre « … (P149+P150) — v6 », note avec la cause + le rappel de
+  fonctionnement (appel = envoi automatique si non vide ; bouton micro =
+  champ puis envoi manuel), 2 APK, `prerelease=false`.
+
+Re-test : parler dans l'appel → `Call STT: local -> N car.` (N > 0) dans les
+journaux puis le message dans le chat.

@@ -4305,3 +4305,19 @@ interrompait `prepare_src` en milieu de parcours (laissait `src/` incomplet).
 Reste ouvert : confirmation appareil (le message doit disparaître) ; si le
 message persiste, capturer la trace `Call STT:` dans `/fm` → Journaux — elle
 dira si le chemin est `local` ou `serveur`.
+
+## 2026-11-21 11:55 UTC — v0.0.79_beta régénérée (v3, garde Bug B)
+
+- commit `777fdf1` (8 fichiers : garde `ot` + ordre de `main()` + docs)
+  poussé sur `origin master` ;
+- tag `v0.0.79_beta` **re-forcé** `130a48e` → `777fdf1` (poussé nommément) ;
+- CI **run 44924089637 → success** (build debug + release, release mise à
+  jour) ;
+- release : titre « … — v3 », note listant la suppression du message de
+  transcription en mode appel + procédure de vérification (`/fm` → Journaux →
+  `Call STT:`), 2 APK remplacés, `prerelease=false`.
+
+À confirmer sur appareil : le message « La dictée native (moteur « web ») ne
+transcrit pas les fichiers joints… » doit avoir disparu avec le voice call
+activé. S'il persiste, la trace `Call STT:` (`local`/`serveur`) dira quel
+chemin reste emprunté.

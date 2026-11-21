@@ -656,7 +656,9 @@ def patch_realtime_android() -> None:
         chunk,
         'const at=Rt&&Rt.size>=100?Zk(Rt,"recording.wav"):null,st=await(_w?window.__callDictation.text()',
         'const at=Rt&&Rt.size>=100?Zk(Rt,"recording.wav"):null;'
-        'if(!_w&&d().audio?.stt?.engine==="web")'
+        # même condition que _w (les deux stores, style VoiceRecording) :
+        # la garde ne se déclenche que si le polyfill est réellement absent
+        'if(!window.__callDictation&&(d().audio?.stt?.engine==="web"||i().audio?.stt?.engine==="web"))'
         '{console.warn("Call STT: énoncé d\'appel ignoré (moteur web, dictée locale absente)");return}'
         'const st=await(_w?window.__callDictation.text()',
         "P149 appel : pas d'envoi serveur d'un artefact d'appel en moteur web",
@@ -863,7 +865,9 @@ def patch_appel_stt_local() -> None:
         # moteur STT vit dans $config (`d`) — avec `i`, `_w` était toujours
         # faux → la transcription partait vers le serveur malgré le polyfill
         # (trace device « Call STT: serveur » alors que [call-dict] tourne).
-        '&&d().audio?.stt?.engine==="web";'
+        # Fidélité au style de VoiceRecording.svelte : les DEUX stores
+        # (`$config` ou `$settings` = web), pas l'un seulement.
+        '&&(d().audio?.stt?.engine==="web"||i().audio?.stt?.engine==="web");'
         "if((!Rt||Rt.size<100)&&!_w)return;await xr();"
         'const at=Rt&&Rt.size>=100?Zk(Rt,"recording.wav"):null,'
         "st=await(_w?window.__callDictation.text()"
@@ -1048,6 +1052,111 @@ def patch_appel_ecoute_permanente() -> None:
         "window.__callDictation&&window.__callDictation.stop"
         "&&window.__callDictation.stop();",
         "P144d appel : arrêt de l'écoute permanente à la fermeture",
+    )
+
+
+def patch_appel_pause_dictation() -> None:
+    """P150 — la dictée fonctionne pendant l'appel (pause du recognizer).
+
+    Le SpeechRecognizer Android n'accepte qu'**une session à la fois** : avec
+    l'écoute permanente de l'appel (P144) active, le recognizer de la dictée
+    échoue — trace device : `[call-dict] erreur moteur : network` en boucle et
+    démarrages à 5-22 s, transcription toujours vide (« jamais prêt »).
+
+    Correctif : quand la dictée démarre sa reconnaissance, l'écoute de l'appel
+    est **mise en pause** (le service est libéré), puis elle **reprend** à la
+    fin de la dictée (fin normale ou annulation/erreur). Les deux opérations
+    ne s'appliquent que si l'appel écoutait réellement (flag interne du
+    polyfill) : dicter sans appel ne lance jamais d'écoute permanente, et la
+    fermeture de l'appel (`stop`, P144) réinitialise le flag — aucune
+    réécoute orpheline.
+
+    Cibles : `call_polyfill.js` (état + les deux méthodes) et le composant
+    de dictée `DLUiU9_Q.js` ( VoiceRecording — `c` = le recognizer)."""
+    poly = PROJ / "app" / "src" / "main" / "assets" / "call_polyfill.js"
+    chunk = DST / "frontend" / "_app" / "immutable" / "chunks" / "DLUiU9_Q.js"
+
+    # 1) polyfill : état de pause + dernière langue (pour la réécoute)
+    replace_once(
+        poly,
+        "var graceUntil = 0;",
+        "var graceUntil = 0;\n"
+        "  var pausedForDictation = false;\n"
+        "  var lastLang = '';",
+        "P150 polyfill : état de pause (dictée) + langue mémorisée",
+    )
+    replace_once(
+        poly,
+        "    start: function (lang) {\n      if (listening) {",
+        "    start: function (lang) {\n"
+        "      lastLang = lang || lastLang;\n"
+        "      if (listening) {",
+        "P150 polyfill : start() mémorise la langue pour la réécoute",
+    )
+    replace_once(
+        poly,
+        "    stop: function () {\n      listening = false;",
+        "    stop: function () {\n"
+        "      pausedForDictation = false;  // fermeture d'appel : plus de reprise\n"
+        "      listening = false;",
+        "P150 polyfill : stop() annule toute réécoute différée",
+    )
+    # 2) polyfill : les deux méthodes (entre stop() et text())
+    replace_once(
+        poly,
+        "    // Fige l'énoncé puis rend la transcription",
+        "    // P150 — la dictée démarre SON recognizer : le service Android\n"
+        "    // n'en accepte qu'un à la fois (erreurs `network`, démarrages à\n"
+        "    // 5-22 s en plein appel). On libère l'écoute de l'appel le temps de\n"
+        "    // la dictée, puis on la reprend — seulement si elle tournait.\n"
+        "    pauseForDictation: function () {\n"
+        "      this.pausedForDictation = listening;\n"
+        "      if (listening) {\n"
+        "        this.stop();\n"
+        "        trace('écoute mise en pause (dictée)');\n"
+        "      }\n"
+        "    },\n"
+        "\n"
+        "    resumeAfterDictation: function () {\n"
+        "      if (this.pausedForDictation) {\n"
+        "        this.pausedForDictation = false;\n"
+        "        this.start(lastLang);\n"
+        "        trace('écoute reprise (fin dictée)');\n"
+        "      }\n"
+        "    },\n"
+        "\n"
+        "    // Fige l'énoncé puis rend la transcription",
+        "P150 polyfill : pauseForDictation / resumeAfterDictation",
+    )
+    # 3) dictée : pause juste avant le démarrage du recognizer
+    replace_once(
+        chunk,
+        "c.start(),c.onresult=async a=>",
+        "window.__callDictation&&window.__callDictation.pauseForDictation"
+        "&&window.__callDictation.pauseForDictation(),"
+        "c.start(),c.onresult=async a=>",
+        "P150 dictée : pause de l'écoute de l'appel au démarrage",
+    )
+    # 4) dictée : réécoute à la fin normale (onend n'appelle pas N)
+    replace_once(
+        chunk,
+        "c.onend=function(){ae(),z()({text:D}),R=!1,n(s,!1)}",
+        "c.onend=function(){window.__callDictation"
+        "&&window.__callDictation.resumeAfterDictation"
+        "&&window.__callDictation.resumeAfterDictation(),"
+        "ae(),z()({text:D}),R=!1,n(s,!1)}",
+        "P150 dictée : réécoute de l'appel à la fin normale",
+    )
+    # 5) dictée : réécoute à l'annulation (N couvre onerror + annulation
+    #    manuelle ; le flag rend une double reprise inerte)
+    replace_once(
+        chunk,
+        "N=async()=>{c&&(c.onend=null),await U()}",
+        "N=async()=>{window.__callDictation"
+        "&&window.__callDictation.resumeAfterDictation"
+        "&&window.__callDictation.resumeAfterDictation(),"
+        "c&&(c.onend=null),await U()}",
+        "P150 dictée : réécoute de l'appel à l'annulation/erreur",
     )
 
 
@@ -5641,6 +5750,7 @@ def main() -> int:
     # P149 après les patchs d'appel : sa garde de transcription cible le
     # motif `const _w=window.__callDictation…` créé par P141b
     patch_realtime_android()
+    patch_appel_pause_dictation()
     patch_erreur_tts()
     patch_default_kokoro()
     patch_web_search()

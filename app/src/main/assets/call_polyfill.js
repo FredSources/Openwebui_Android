@@ -51,6 +51,8 @@
   // l'extinction) n'ouvrent jamais d'énoncé et n'entretiennent pas la
   // détection de parole. Armée à chaque image « muette », court 2,5 s.
   var graceUntil = 0;
+  var pausedForDictation = false;
+  var lastLang = '';
 
   function trace(msg) {
     try { console.warn('[call-dict] ' + msg); } catch (e) {}
@@ -182,6 +184,7 @@
 
   window.__callDictation = {
     start: function (lang) {
+      lastLang = lang || lastLang;
       if (listening) {
         mark();
         return;
@@ -211,6 +214,7 @@
     },
 
     stop: function () {
+      pausedForDictation = false;  // fermeture d'appel : plus de reprise
       listening = false;
       utterance = false;
       graceUntil = 0;   // P146 : une réouverture d'appel n'hérite pas de la grâce
@@ -220,6 +224,26 @@
       if (r) {
         r.onend = null;
         try { r.stop(); } catch (e) { try { r.abort(); } catch (e2) {} }
+      }
+    },
+
+    // P150 — la dictée démarre SON recognizer : le service Android
+    // n'en accepte qu'un à la fois (erreurs `network`, démarrages à
+    // 5-22 s en plein appel). On libère l'écoute de l'appel le temps de
+    // la dictée, puis on la reprend — seulement si elle tournait.
+    pauseForDictation: function () {
+      this.pausedForDictation = listening;
+      if (listening) {
+        this.stop();
+        trace('écoute mise en pause (dictée)');
+      }
+    },
+
+    resumeAfterDictation: function () {
+      if (this.pausedForDictation) {
+        this.pausedForDictation = false;
+        this.start(lastLang);
+        trace('écoute reprise (fin dictée)');
       }
     },
 

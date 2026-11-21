@@ -4362,3 +4362,54 @@ doit passer à `Call STT: local -> N car.`).
 
 Re-test appareil attendu : la trace doit passer de `Call STT: serveur -> vide`
 à `Call STT: local -> N car.` et le message doit disparaître.
+
+## 2026-11-21 19:10 UTC — P150 (dictée pendant l'appel) + audit de fidélité aux sources
+
+### Contexte — accès direct aux logs de l'app
+
+L'app tourne sur l'appareil de test (127.0.0.1:8080) : les journaux sont
+lisibles en direct via `/fm/logs/tail`. Dernière trace reçue :
+`Call STT: local -> vide` (**le message P127 a disparu** — v3/v4 confirmées),
+mais `[call-dict] erreur moteur : network` en boucle et démarrages à
+5-22 s : le SpeechRecognizer Android n'acceptant qu'une **session à la
+ fois**, l'écoute permanente de l'appel (P144) et le recognizer de la dictée
+se le disputent.
+
+### P150 — la dictée pendant l'appel
+
+- `call_polyfill.js` : état `pausedForDictation` + `lastLang` mémorisé par
+  `start()`, `stop()` réinitialise l'état (fermeture d'appel = jamais de
+  réécoute orpheline), deux méthodes `pauseForDictation()` /
+  `resumeAfterDictation()` ;
+- `chunks/DLUiU9_Q.js` (VoiceRecording) : pause avant `c.start()` de la
+  dictée, réécoute dans `onend` (fin normale) et dans `cancelRecording`
+  (couvre `onerror` + annulation — le flag rend la double reprise inerte) ;
+- dictée sans appel : le flag ne se lève pas → aucune réécoute ;
+- contrôle `check_appel_pause_dictation` (5 motifs polyfill + 3 chunk).
+
+### Audit de fidélité aux sources (demande utilisateur)
+
+Source OpenWebUI **v0.13.4 clonée** (`/tmp/opencode/owui-src`) et comparée à
+l'ensemble des remplacements de `prepare_src.py` :
+
+| catégorie | n | verdict |
+|---|---|---|
+| insertions pures | 39 | **0 ligne amont modifiée** |
+| réécritures légères | 70 | code amont conservé |
+| réécritures | 8 | toutes nécessaires (cœur P39a/P48b/P141b, contraintes P1/P21/P96, lazy-import P14e, P134) |
+
+Lectures de store vérifiées une à une contre le source : langue d'appel et
+`transcribeHandler` → `$settings` (conforme) ; bifurcation et refus →
+`$config` (conforme à `CallPanel.svelte`). **Anomalie trouvée puis
+corrigée** : `_w` (P141b) ne lisait qu'un store — désormais les deux
+(`$config || $settings`), le style exact de `VoiceRecording.svelte` ; la
+garde P149 suit la même condition. P134 (corps du refus remplacé par `{}`) :
+choix assumé et livré, non modifié (risque > gain).
+
+`prepare_src` : **168 opérations / 0 échec** · `check_patches` OK (nouveau
+contrôle P150).
+
+### Livraison
+
+Régénération de 0.0.79_beta (v5) demandée pour tester la dictée pendant
+l'appel.

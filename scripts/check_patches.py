@@ -363,9 +363,9 @@ def check_realtime_android() -> None:
     if "énoncé d'appel ignoré (moteur web, dictée locale absente)" not in ct:
         err("P149 : garde de transcription d'appel absente "
             "(l'artefact d'appel repartirait vers l'API → message P127)")
-    if "_w=window.__callDictation&&d().audio?.stt?.engine" not in ct:
-        err("P149 : _w lit $settings (i) au lieu de $config (d) — "
-            "le chemin serveur serait pris malgré le polyfill (trace « Call STT: serveur »)")
+    if "_w=window.__callDictation&&(d().audio?.stt?.engine===\"web\"||i().audio?.stt?.engine" not in ct:
+        err("P149 : _w ne lit pas les deux stores ($config + $settings, style "
+            "VoiceRecording) — le chemin serveur serait pris (trace « Call STT: serveur »)")
     # backend : Literal + garde WS + provider exposé à /api/config
     ai = (SRC / "open_webui" / "routers" / "audio" / "__init__.py").read_text(encoding="utf-8", errors="ignore")
     if "Literal['openai', 'azure', 'android']" not in ai:
@@ -457,6 +457,34 @@ def check_appel_vad() -> None:
     ):
         if motif not in pt:
             err(f"P142 : call_polyfill.js — {lib}")
+
+
+def check_appel_pause_dictation() -> None:
+    """P150 — la dictée doit pouvoir fonctionner pendant l'appel."""
+    poly = PROJ / "app" / "src" / "main" / "assets" / "call_polyfill.js"
+    if not poly.exists():
+        err("P150 : call_polyfill.js absent")
+        return
+    pt = poly.read_text(encoding="utf-8", errors="ignore")
+    for motif, msg in (
+        ("pauseForDictation: function", "méthode de pause absente"),
+        ("resumeAfterDictation: function", "méthode de réécoute absente"),
+        ("var pausedForDictation = false", "état de pause absent"),
+        ("pausedForDictation = false;  // fermeture d'appel",
+         "stop() n'annule pas la réécoute (réécoute orpheline possible)"),
+        ("lastLang = lang || lastLang", "langue non mémorisée (réécoute sans langue)"),
+    ):
+        if motif not in pt:
+            err(f"P150 : polyfill — {msg}")
+    chunk = PROJ / "src-assets" / "frontend" / "_app" / "immutable" / "chunks" / "DLUiU9_Q.js"
+    if not chunk.exists():
+        err("P150 : chunk DLUiU9_Q.js absent")
+        return
+    ct = chunk.read_text(encoding="utf-8", errors="ignore")
+    if "pauseForDictation(),c.start()" not in ct:
+        err("P150 : la dictée ne met pas l'appel en pause au démarrage")
+    if ct.count("resumeAfterDictation()") < 2:
+        err("P150 : réécoute absente (fin normale ou annulation)")
 
 
 def check_appel_diag() -> None:
@@ -1123,6 +1151,7 @@ def main() -> int:
     check_audio_locale()
     check_mode_vocal()
     check_realtime_android()
+    check_appel_pause_dictation()
     check_tts_lecture()
     check_appel_lecture()
     check_erreur_tts()

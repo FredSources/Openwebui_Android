@@ -264,6 +264,12 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
         inputs au 1ᵉʳ passage de l'effet, aucun retry) → retry borné à 40
         frames tant que 6 conteneurs ne sont pas traités — validé : 7 champs
         masqués + réactivité ;
+      - [x] **P150** : la dictée pendant l'appel — pause du recognizer de l'appel
+        (`pauseForDictation`) à l'ouverture de la dictée, réécoute en fin
+        normale/annulation ; contrôle `check_appel_pause_dictation` ;
+      - [x] **audit de fidélité** aux sources v0.13.4 (clonées) :39 insertions sans
+        aucune ligne amont modifiée,8 réécritures nécessaires, stores vérifiés —
+        `_w` (P141b) corrigé pour lire `$config || $settings` (style VoiceRecording) ;
       - [x] garde P139 (préexistant, bloquait le banc) : `snap()` sur store non
         prêt + `try/catch` du `tick` (setTimeout hors de l'IIFE) — sans elle,
         `/admin/settings` renvoyait vers `/` ;      - [x] message de transcription en mode appel (Bug B) : la fin d'enregistrement

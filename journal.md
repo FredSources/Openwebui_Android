@@ -4413,3 +4413,16 @@ contrôle P150).
 
 Régénération de 0.0.79_beta (v5) demandée pour tester la dictée pendant
 l'appel.
+
+## 2026-11-21 19:35 UTC — v0.0.79_beta régénérée (v5, P150 + audit)
+
+- commit `eb71cc8` (10 fichiers) poussé sur `origin master` ;
+- tag `v0.0.79_beta` **re-forcé** `020d7f7` → `eb71cc8` (poussé nommément) ;
+- CI **run 44930608281 → success** ;
+- release : titre « … (P149+P150) — v5 », note P150 + audit, 2 APK
+  remplacés, `prerelease=false`.
+
+Re-test appareil attendu : avec l'appel (Android) ouvert, dicter → le texte
+doit entrer dans le champ, l'écoute de l'appel doit se mettre en pause puis
+reprendre (traces `[call-dict] écoute mise en pause (dictée)` puis
+`écoute reprise (fin dictée)`).

@@ -4321,3 +4321,32 @@ dira si le chemin est `local` ou `serveur`.
 transcrit pas les fichiers joints… » doit avoir disparu avec le voice call
 activé. S'il persiste, la trace `Call STT:` (`local`/`serveur`) dira quel
 chemin reste emprunté.
+
+## 2026-11-21 17:40 UTC — Bug B : cause racine trouvée via la trace device
+
+L'utilisateur fournit la trace `exec.log` :
+`[call-dict] énoncé ouvert…` (polyfill actif) puis **`Call STT: serveur -> vide`**
+et côté serveur `pydub indisponible` sur le POST — donc `_w` était faux alors
+que `__callDictation` tournait.
+
+**Racine** : dans le composant d'appel `SB` (chunk `BnHPywC-.js`), le store
+minifié `i` est **`$settings`** (réglages utilisateur) et non `$config` :
+```js
+i=()=>He(Gn,"$settings",m),  // utilisé par _w (P141b) et ma garde
+d=()=>He(ko,"$config",m),    // le vrai store config
+```
+`i().audio?.stt?.engine` n'est jamais `web` → `_w` toujours faux → la
+transcription partait vers le serveur malgré le polyfill ; ma garde P149,
+lisant le même mauvais store, ne se déclenchait jamais (d'où `Call STT:
+serveur` et pas `énoncé d'appel ignoré`). **Bug d'origine dans P141b** (mauvaise
+variable minifiée retenue lors du port 0.13.4).
+
+**Correctifs** :
+- P141b : `_w` lit désormais `d().audio?.stt?.engine` ($config) ;
+- P149 : la garde lit aussi `d()` (elle reste utile si le polyfill est
+  réellement absent) ;
+- contrôle `check_realtime_android` : exige `_w=window.__callDictation&&d()`.
+
+Validations : `prepare_src` **161 op / 0 échec**, `check_patches` OK, chunk
+servi avec `d().audio?.stt?.engine`. Attente : re-test appareil (la trace
+doit passer à `Call STT: local -> N car.`).

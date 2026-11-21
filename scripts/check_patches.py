@@ -363,6 +363,9 @@ def check_realtime_android() -> None:
     if "énoncé d'appel ignoré (moteur web, dictée locale absente)" not in ct:
         err("P149 : garde de transcription d'appel absente "
             "(l'artefact d'appel repartirait vers l'API → message P127)")
+    if "_w=window.__callDictation&&d().audio?.stt?.engine" not in ct:
+        err("P149 : _w lit $settings (i) au lieu de $config (d) — "
+            "le chemin serveur serait pris malgré le polyfill (trace « Call STT: serveur »)")
     # backend : Literal + garde WS + provider exposé à /api/config
     ai = (SRC / "open_webui" / "routers" / "audio" / "__init__.py").read_text(encoding="utf-8", errors="ignore")
     if "Literal['openai', 'azure', 'android']" not in ai:

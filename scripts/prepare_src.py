@@ -656,7 +656,7 @@ def patch_realtime_android() -> None:
         chunk,
         'const at=Rt&&Rt.size>=100?Zk(Rt,"recording.wav"):null,st=await(_w?window.__callDictation.text()',
         'const at=Rt&&Rt.size>=100?Zk(Rt,"recording.wav"):null;'
-        'if(!_w&&i()?.audio?.stt?.engine==="web")'
+        'if(!_w&&d().audio?.stt?.engine==="web")'
         '{console.warn("Call STT: énoncé d\'appel ignoré (moteur web, dictée locale absente)");return}'
         'const st=await(_w?window.__callDictation.text()',
         "P149 appel : pas d'envoi serveur d'un artefact d'appel en moteur web",
@@ -859,7 +859,11 @@ def patch_appel_stt_local() -> None:
         "i()?.audio?.stt?.language).catch(Et=>(Mt.error(`${Et}`),null));"
         'if(ut&&(ut.text,ut.text!=="")){const Et=await R()(ut.text,{_raw:!0})}}',
         'ot=async Rt=>{const _w=window.__callDictation'
-        '&&i().audio?.stt?.engine==="web";'
+        # [2026-11-21] `i` = $settings (réglages utilisateur) dans SB : le
+        # moteur STT vit dans $config (`d`) — avec `i`, `_w` était toujours
+        # faux → la transcription partait vers le serveur malgré le polyfill
+        # (trace device « Call STT: serveur » alors que [call-dict] tourne).
+        '&&d().audio?.stt?.engine==="web";'
         "if((!Rt||Rt.size<100)&&!_w)return;await xr();"
         'const at=Rt&&Rt.size>=100?Zk(Rt,"recording.wav"):null,'
         "st=await(_w?window.__callDictation.text()"

@@ -651,13 +651,22 @@ def patch_realtime_android() -> None:
     #    racine (premier ancêtre ayant un `<label>` enfant direct) et on le
     #    masque (label + champ + description d'un coup) ; l'API Key
     #    (SensitiveInput, id généré) est le frère suivant du champ URL.
-    #    Un seul effet, inséré avant l'effet de grille du formulaire.
+    #    Au MOUNT, les labels sont montés par des branches `y()` postérieures
+    #    à l'effet : le conteneur est introuvable au 1ᵉʳ passage (rétroaction
+    #    appareil — « à l'ouverture les champs ne sont pas cachés ») →
+    #    retry borné au prochain frame ; le provider ne changeant plus, sans
+    #    retry l'effet ne se rejouerait jamais.
     replace_once(
         js,
         'g(()=>he=P($e,1,"grid grid-cols-1 gap-2",null,he,{',
         """g(()=>{const droid=(e(u),a(()=>e(u).PROVIDER==="android")),fc=x=>{for(let p=x;p;p=p.parentElement)if(p.querySelector(":scope>label"))return p;return null};
-for(const id of ["realtime-api-base-url","realtime-model","realtime-call-voice","realtime-transcription-model","realtime-input-params","realtime-prompt-template"]){const el=document.getElementById(id),c=el&&fc(el);c&&(c.style.display=droid?"none":"")}
-const u0=document.getElementById("realtime-api-base-url"),c0=u0&&fc(u0),kk=c0&&c0.nextElementSibling;kk&&kk.querySelector('input[id^="password-input"]')&&(kk.style.display=droid?"none":"")}),
+const appl=n=>{let tv=0;
+for(const id of ["realtime-api-base-url","realtime-model","realtime-call-voice","realtime-transcription-model","realtime-input-params","realtime-prompt-template"]){const el=document.getElementById(id),c=el&&fc(el);if(c){c.style.display=droid?"none":"";tv++}}
+const u0=document.getElementById("realtime-api-base-url"),c0=u0&&fc(u0),kk=c0&&c0.nextElementSibling;
+const kv=!!(kk&&kk.querySelector('input[id^="password-input"]'));if(kv)kk.style.display=droid?"none":"";
+if(n===0)console.warn("P149 mount droid="+droid+" conteneurs="+tv+"/6");
+if(droid&&tv<6&&n<40)requestAnimationFrame(()=>appl(n+1))};
+appl(0)}),
 g(()=>he=P($e,1,"grid grid-cols-1 gap-2",null,he,{""",
         "P149 UI : 7 réglages cloud masqués en android (flag PROVIDER)",
     )
@@ -1103,7 +1112,8 @@ def _p139_iife(setter: str, config: str) -> str:
     return (
         "(()=>{try{"
         f"const S={setter},C={config};"
-        "const snap=x=>{let v=null;const u=x.subscribe(y=>{v=y});u();return v};"
+        "const snap=x=>{if(!x||typeof x.subscribe!==\"function\")return null;"
+        "let v=null;const u=x.subscribe(y=>{v=y});u();return v};"
         "const readV=()=>{try{if(window.AndroidTTS&&window.AndroidTTS.voicesJson)"
         '{const v=JSON.parse(window.AndroidTTS.voicesJson()||"[]");'
         "if(Array.isArray(v)&&v.length)return v}}catch(e){}"
@@ -1129,14 +1139,14 @@ def _p139_iife(setter: str, config: str) -> str:
         "if(window.__owuiSysTTS&&window.__owuiSysTTS.length)return;"
         "const v0=readV();"
         "if(v0.length){window.__owuiSysTTS=v0;return}"
-        "const t0=Date.now(),tick=()=>{const v=readV();"
+        "const t0=Date.now(),tick=()=>{try{const v=readV();"
         "if(v.length){window.__owuiSysTTS=v;return}"
         "if(Date.now()-t0<2e3){setTimeout(tick,150);return}"
         "window.__owuiSysTTS=[];"
         "const cf=snap(C),tt=cf&&cf.audio?cf.audio.tts:null;"
         "if(!tt)return;"
         'if((tt.engine??"")!=="")return;'
-        "fix(!0)};"
+        "fix(!0)}catch(e){}};"
         "setTimeout(tick,150)"
         "}catch(e){}})()"
     )

@@ -4175,3 +4175,63 @@ Corrections livrées (détail au 23:40) : template dédié `CoA` (plus d'option
 vide dans Call mode), masquage des 7 champs (au lieu de la désactivation),
 `audio.realtime.provider` exposé par `/api/config` (fin du WebSocket
 inopiné). Reste ouvert : test appareil de cette version.
+
+## 2026-11-21 10:20 UTC — P149 v2 : masquage au montage + garde du chargement réglages
+
+Retour appareil (suite) :
+1. « à l'ouverture, avec android déjà sélectionné, les champs qui devraient
+   être cachés ne le sont pas ; quand on sélectionne android ils disparaissent » ;
+2. message de transcription au moment de l'appel (« la dictée native (moteur
+   « web ») ne transcrit pas les fichiers joints… ») — l'utilisateur précise :
+   le bug avait lieu **car le voice call était activé**, sinon la dictée
+   fonctionnait, et « avec ta correction du voice, tout sera peut-être
+   fonctionnel » → à confirmer par un test de cette version.
+
+### 1) Bug A — masquage absent au montage (corrigé)
+
+Diagnostic au banc (trace ajoutée dans l'effet) :
+`P149 mount droid=true conteneurs=0/6` — au premier passage de l'effet, ni les
+`<label>` ni les inputs n'existent encore (les champs sont montés par des
+brances `y()` postérieures) → aucun conteneur trouvé ET `reste=false` (les
+éléments étaient absents, pas seulement les conteneurs) → **aucun retry**, et
+comme `PROVIDER` ne change plus ensuite, l'effet ne se rejouait jamais.
+Correctif : la condition de retry est désormais « tant que moins de 6
+conteneurs sont traités » (borné à 40 frames), avec trace `P149 mount` au
+montage (diagnostic device). Validé au banc : `conteneurs=0/6` puis **7 champs
+masqués**, réactivité openai → visible → android → masqué.
+
+### 2) Garde du chargement des réglages (préexistant, bloquant)
+
+Pendant les tests, `/admin/settings` (et `/admin/settings/audio`) renvoyait
+vers `/` : le patch **P139** lançait `TypeError: x.subscribe is not a function`
+dans son `tick` — exécuté via `setTimeout(+150 ms)`, donc **hors** du `try` de
+l'IIFE : l'exception n'était jamais avalée et cassait le chargement de la page.
+Le pristine ne la déclenchait pas (0/4 contre 3/4 pour le livré, puis
+« base avant P149 » également touchée → bug préexistant, pas de P149).
+Correctifs dans `patch_default_kokoro` : `snap()` refuse un store non prêt
+(`subscribe` absent → `null`) et le corps de `tick` est enveloppé dans son
+propre `try/catch`. Le contrôle P139 de `check_patches.py` est aligné (motif
+`fix(!0)}catch(e){}};` + exigences des deux nouvelles gardes).
+
+### 3) Note de banc — routage admin
+
+La bonne URL de test est `/admin/settings/audio` (l'overlay s'ouvre ensuite
+sur `/` mais la section Audio — et le select Call mode — est bien affichée) ;
+`/admin/settings` nu affiche une autre section (sans Call mode), ce qui a fait
+perdre du temps en diagnostics. `__callDictation` n'existe **jamais** sur un
+banc hôte (c'est `MainActivity` qui injecte `call_polyfill.js`) : les tests
+d'appel doivent injecter le polyfill (`Page.addScriptToEvaluateOnNewDocument`)
+pour se rapprocher de l'appareil.
+
+### Validations
+
+`prepare_src` **160 opérations / 0 échec** · `check_patches` OK (contrôles
+P149 + P139 réalignés) · smoke 8090 (health/racine/signin 200, frontend servi
+avec la trace) · harnais Bug A **VERT** (7 champs masqués au montage,
+réactivité).
+
+### Livraison
+
+Régénération de **0.0.79_beta** demandée par l'utilisateur pour confirmer sur
+l'appareil si la correction du voice call suffit à faire disparaître le message
+de transcription (Bug B non corrigé en attente de ce retour).

@@ -260,6 +260,13 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
         `/api/config`** (sinon la bifurcation choisissait « bridge » → WS
         ouvert → garde) — revalidé : clic « Voice mode » sans aucune
         requête WS + overlay Listening ;
+      - [x] retour appareil 2 : masquage absent **au montage** (ni labels ni
+        inputs au 1ᵉʳ passage de l'effet, aucun retry) → retry borné à 40
+        frames tant que 6 conteneurs ne sont pas traités — validé : 7 champs
+        masqués + réactivité ;
+      - [x] garde P139 (préexistant, bloquait le banc) : `snap()` sur store non
+        prêt + `try/catch` du `tick` (setTimeout hors de l'IIFE) — sans elle,
+        `/admin/settings` renvoyait vers `/` ;
       - [x] piège corrigé en route : template à 2 options →
         `Illegal invocation` au montage (détecté uniquement en Chromium)
       - [x] `PATCHES.md` (+P149, ligne P134 corrigée) et `journal.md`

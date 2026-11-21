@@ -4350,3 +4350,15 @@ variable minifiée retenue lors du port 0.13.4).
 Validations : `prepare_src` **161 op / 0 échec**, `check_patches` OK, chunk
 servi avec `d().audio?.stt?.engine`. Attente : re-test appareil (la trace
 doit passer à `Call STT: local -> N car.`).
+
+## 2026-11-21 17:55 UTC — v0.0.79_beta régénérée (v4, racine Bug B)
+
+- commit `020d7f7` (7 fichiers) poussé sur `origin master` ;
+- tag `v0.0.79_beta` **re-forcé** `777fdf1` → `020d7f7` (poussé nommément) ;
+- CI **run 44925830124 → success** ;
+- release : titre « … — v4 », note expliquant la cause racine ($settings vs
+  $config) et la procédure de vérification (trace `Call STT: local -> N car.`),
+  2 APK remplacés, `prerelease=false`.
+
+Re-test appareil attendu : la trace doit passer de `Call STT: serveur -> vide`
+à `Call STT: local -> N car.` et le message doit disparaître.

@@ -4159,3 +4159,19 @@ Rétroaction utilisateur sur l'APK v0.0.79_beta :
 
 `PATCHES.md` (ligne P149 réécrite), `maintenance.typ`/`audio.typ` (PDF),
 `todo.md`, commit, push, tag `v0.0.79_beta` **re-forcé**, CI.
+
+## 2026-11-21 00:05 UTC — v0.0.79_beta re-livrée (3 corrections appareil)
+
+- commit `faf6f60` (10 fichiers) poussé sur `origin master` ;
+- tag `v0.0.79_beta` **re-forcé** `7c200f1` → `faf6f60` (poussé nommément,
+  jamais `--tags`) — `origin master` et le tag alignés ;
+- CI **run 44840579175 → success** (build debug + release, release mise à
+  jour) ;
+- release : titre « fournisseur realtime Android (P149) + retours appareil »,
+  note P149 réécrite, 2 APK remplacés, `prerelease` remis à `false`
+  (l'action l'avait basculé en suivant le tag « _beta »).
+
+Corrections livrées (détail au 23:40) : template dédié `CoA` (plus d'option
+vide dans Call mode), masquage des 7 champs (au lieu de la désactivation),
+`audio.realtime.provider` exposé par `/api/config` (fin du WebSocket
+inopiné). Reste ouvert : test appareil de cette version.

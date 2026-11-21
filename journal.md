@@ -4235,3 +4235,21 @@ réactivité).
 Régénération de **0.0.79_beta** demandée par l'utilisateur pour confirmer sur
 l'appareil si la correction du voice call suffit à faire disparaître le message
 de transcription (Bug B non corrigé en attente de ce retour).
+
+## 2026-11-21 10:45 UTC — v0.0.79_beta régénérée (v2, P149 + gardes P139)
+
+- commits `0e4773d` (P149 v2 + P139) et `130a48e` (gardes P139 dans le
+  chargeur `/s/[id]`, `nodes/56` — oublié du premier add) poussés sur
+  `origin master` ;
+- tag `v0.0.79_beta` **re-forcé** `faf6f60` → `130a48e` (poussé nommément) —
+  tag et master alignés ;
+- CI **run 44912321275 → success** (build debug + release, release mise à
+  jour) ;
+- release : titre « fournisseur realtime Android (P149) — v2 », note listant
+  les deux corrections + la procédure de test appareil, 2 APK remplacés,
+  `prerelease=false`.
+
+À vérifier sur appareil : (1) champs masqués à l'ouverture avec Android déjà
+sélectionné ; (2) disparition éventuelle du message de transcription à la
+dictée quand l'appel est activé (Bug B — non corrigé, hypothèse : il venait
+du mode bridge/WS désormais abandonné).

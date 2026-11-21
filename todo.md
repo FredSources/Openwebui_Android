@@ -267,6 +267,10 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       - [x] **P150** : la dictée pendant l'appel — pause du recognizer de l'appel
         (`pauseForDictation`) à l'ouverture de la dictée, réécoute en fin
         normale/annulation ; contrôle `check_appel_pause_dictation` ;
+      - [x] **même bug de store sur le micro** (P141a/P144b) : les conditions de flux
+        silencieux lisaient `$settings` seul → vrai micro pris → recognizer sourd →
+        transcriptions `local -> vide` → **rien dans le chat** ; les deux stores partout
+        (0 occurrence seule restante) ;
       - [x] **audit de fidélité** aux sources v0.13.4 (clonées) :39 insertions sans
         aucune ligne amont modifiée,8 réécritures nécessaires, stores vérifiés —
         `_w` (P141b) corrigé pour lire `$config || $settings` (style VoiceRecording) ;

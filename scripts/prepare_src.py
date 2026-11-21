@@ -843,9 +843,14 @@ def patch_appel_stt_local() -> None:
     replace_once(
         js,
         # [0.13.4] J→X, z→W, ee→de, o()→i()
+        # [2026-11-21] `i` = $settings dans SB : le moteur vit dans $config —
+        # avec `i`, la condition était toujours fausse → vrai micro pris par
+        # le MediaRecorder → recognizer sourd (no-speech, transcriptions
+        # vides, rien dans le chat). Les deux stores, style VoiceRecording.
         "X=new MediaRecorder(W),X.onstart=()=>{de=[]}",
         "X=new MediaRecorder(window.__callDictation"
-        '&&i().audio?.stt?.engine==="web"&&window.__callSilent'
+        '&&(d().audio?.stt?.engine==="web"||i().audio?.stt?.engine==="web")'
+        '&&window.__callSilent'
         "?window.__callSilent():W),X.onstart=()=>{de=[]}",
         "P141a appel : MediaRecorder sur flux silencieux en STT local "
         "(le natif retrouve le micro)",
@@ -1031,9 +1036,13 @@ def patch_appel_ecoute_permanente() -> None:
         js,
         # entrée = code amont BRUT (P134#7 — vrai micro — a été fusionné
         # ici : cette fonction fait le choix du flux silencieux par-dessus)
+        # [2026-11-21] les deux stores (style VoiceRecording) : avec `i`
+        # ($settings) seul, le vrai micro était pris (conflit sourd du
+        # recognizer — cf. P141a).
         "W=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:!0,"
         "noiseSuppression:!0,autoGainControl:!0}})",
-        "W=window.__callDictation&&i().audio?.stt?.engine===\"web\""
+        "W=window.__callDictation"
+        '&&(d().audio?.stt?.engine==="web"||i().audio?.stt?.engine==="web")'
         "&&window.__callSilent?window.__callSilent()"
         ":await(window.__realMic||navigator.mediaDevices.getUserMedia"
         ".bind(navigator.mediaDevices))({audio:{echoCancellation:!0,"

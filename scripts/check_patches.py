@@ -395,8 +395,10 @@ def check_appel_stt_local() -> None:
     ct = chunk.read_text(encoding="utf-8", errors="ignore")
     # [0.13.4] correspondances : J→X, z→W, o()→i(), Je→Rt, jt→xr
     if ("X=new MediaRecorder(window.__callDictation"
-            '&&i().audio?.stt?.engine==="web"&&window.__callSilent') not in ct:
-        err("P141a : MediaRecorder non déporté sur le flux silencieux (STT local)")
+            '&&(d().audio?.stt?.engine==="web"||i().audio?.stt?.engine==="web")'
+            '&&window.__callSilent') not in ct:
+        err("P141a : MediaRecorder non déporté sur le flux silencieux "
+            "(les deux stores — $settings seul = vrai micro = natif sourd)")
     if "X=new MediaRecorder(W),X.onstart" in ct:
         err("P141a : MediaRecorder sur le vrai micro revenu (le natif sera sourd)")
     if "if((!Rt||Rt.size<100)&&!_w)return;" not in ct:
@@ -527,9 +529,11 @@ def check_appel_permanente() -> None:
     ct = chunk.read_text(encoding="utf-8", errors="ignore")
     if "window.__callSpeechGate&&window.__callSpeechGate(" not in ct:
         err("P144a : silenciation TTS absente du VAD")
-    if ("W=window.__callDictation&&i().audio?.stt?.engine===\"web\""
+    if ("W=window.__callDictation"
+            "&&(d().audio?.stt?.engine===\"web\"||i().audio?.stt?.engine===\"web\")"
             "&&window.__callSilent?window.__callSilent()") not in ct:
-        err("P144b : micro réel non réservé au recognizer (détection sur flux silencieux)")
+        err("P144b : micro réel non réservé au recognizer "
+            "(les deux stores — $settings seul = vrai micro = natif sourd)")
     if "window.__callDictation.stop&&window.__callDictation.stop();" not in ct:
         err("P144d : arrêt de l'écoute permanente absent de la fermeture")
     poly = PROJ / "app" / "src" / "main" / "assets" / "call_polyfill.js"

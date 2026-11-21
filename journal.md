@@ -4426,3 +4426,34 @@ Re-test appareil attendu : avec l'appel (Android) ouvert, dicter → le texte
 doit entrer dans le champ, l'écoute de l'appel doit se mettre en pause puis
 reprendre (traces `[call-dict] écoute mise en pause (dictée)` puis
 `écoute reprise (fin dictée)`).
+
+## 2026-11-21 20:05 UTC — même bug de store sur le flux silencieux (P141a/P144b)
+
+Retour utilisateur : « pas le rendu de ce que je dis dans le chat » (synthèse
+et dictée pourtant fonctionnelles). Diagnostic par les logs en direct :
+**toutes** les transcriptions d'appel sont `local -> vide` (8/8) — jamais un
+caractère → `R()` (submitPrompt) n'est jamais appelé → rien n'arrive au chat.
+
+**Racine (même classe que `_w`)** : les conditions du choix du micro dans
+`SB` lisaient `i()` = **$settings** :
+- P141a : `X=new MediaRecorder(window.__callDictation && i()… === "web" && __callSilent …)`
+- P144b : `W = … ? __callSilent() : getUserMedia(…)` (la même `i()`)
+
+Or `$settings.audio.stt.engine` n'est jamais `web` → condition **toujours
+fausse** → le MediaRecorder de l'appel prenait le **vrai micro** → le
+SpeechRecognizer natif restait sourd (`no-speech` / `jamais prêt`) →
+transcription vide. Correctif : les **deux stores** (`$config || $settings`,
+style `VoiceRecording.svelte`) dans les deux patchs + contrôles
+`check_appel_stt_local` / `check_appel_permanente` réalignés. Inventaire
+final : **0 occurrence de `i().audio?.stt?.engine` seule** dans le chunk
+(les4 conditions `__callSilent` sont en deux stores).
+
+`prepare_src` **168 op / 0 échec** · `check_patches` OK.
+
+### Fonctionnement rappelé à l'utilisateur
+
+- **Appel** (sans bouton) : ce que tu dis est transcrit **et envoyé
+  automatiquement** comme message — mais seulement si la transcription est non
+  vide (le silence reste ignoré, P147) ;
+- **Bouton micro (dictée)** : le texte va dans le **champ de saisie** → il
+  faut envoyer (comportement normal d'une dictée).

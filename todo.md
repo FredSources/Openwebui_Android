@@ -266,7 +266,11 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
         masqués + réactivité ;
       - [x] garde P139 (préexistant, bloquait le banc) : `snap()` sur store non
         prêt + `try/catch` du `tick` (setTimeout hors de l'IIFE) — sans elle,
-        `/admin/settings` renvoyait vers `/` ;
+        `/admin/settings` renvoyait vers `/` ;      - [x] message de transcription en mode appel (Bug B) : la fin d'enregistrement
+        de l'appel envoyait l'artefact vers l'API quand la dictée locale était
+        absente (moteur `web`) → garde `Call STT: énoncé d'appel ignoré` (chemin
+        amont intact hors `web`) ; `patch_realtime_android()` déplacé APRÈS les
+        patchs d'appel (motif créé par P141b) — *confirmation appareil en attente* ;
       - [x] piège corrigé en route : template à 2 options →
         `Illegal invocation` au montage (détecté uniquement en Chromium)
       - [x] `PATCHES.md` (+P149, ligne P134 corrigée) et `journal.md`

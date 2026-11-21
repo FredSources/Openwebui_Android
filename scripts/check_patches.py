@@ -360,6 +360,9 @@ def check_realtime_android() -> None:
     ct = chunk.read_text(encoding="utf-8", errors="ignore")
     if 'r()?.audio?.realtime?.provider!=="android"?"bridge":"current"' not in ct:
         err("P149 : bifurcation android→current absente")
+    if "énoncé d'appel ignoré (moteur web, dictée locale absente)" not in ct:
+        err("P149 : garde de transcription d'appel absente "
+            "(l'artefact d'appel repartirait vers l'API → message P127)")
     # backend : Literal + garde WS + provider exposé à /api/config
     ai = (SRC / "open_webui" / "routers" / "audio" / "__init__.py").read_text(encoding="utf-8", errors="ignore")
     if "Literal['openai', 'azure', 'android']" not in ai:

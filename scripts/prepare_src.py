@@ -644,6 +644,23 @@ def patch_realtime_android() -> None:
         'm(h()?.connected||h()?.connecting||r()?.audio?.realtime?.enabled&&r()?.audio?.realtime?.provider!=="android"?"bridge":"current")',
         "P149 appel : android force la boucle locale current (jamais WS)",
     )
+    # 3b) fin d'enregistrement de l'appel : sans dictée locale
+    #     (`__callDictation` absent), l'énoncé partait vers l'API de
+    #     transcription → le serveur répond (moteur « web ») le message P127
+    #     « La dictée native ne transcrit pas les fichiers joints… » alors
+    #     que ce fichier n'est qu'un artefact de l'appel (rétroaction
+    #     appareil : message avec le voice call activé). La garde renvoie
+    #     silencieusement avec une trace ; le chemin amont (API) reste
+    #     intact dès que le moteur n'est pas « web ».
+    replace_once(
+        chunk,
+        'const at=Rt&&Rt.size>=100?Zk(Rt,"recording.wav"):null,st=await(_w?window.__callDictation.text()',
+        'const at=Rt&&Rt.size>=100?Zk(Rt,"recording.wav"):null;'
+        'if(!_w&&i()?.audio?.stt?.engine==="web")'
+        '{console.warn("Call STT: énoncé d\'appel ignoré (moteur web, dictée locale absente)");return}'
+        'const st=await(_w?window.__callDictation.text()',
+        "P149 appel : pas d'envoi serveur d'un artefact d'appel en moteur web",
+    )
     # 4) flag `PROVIDER === "android"` → les 7 réglages cloud deviennent
     #    INVISIBLES (décision 2026-11-20 : masquage, pas désactivation).
     #    Chaque champ est un `AdminSettingField` : template
@@ -5610,7 +5627,6 @@ def main() -> int:
     patch_ui_moteurs_locaux()
     patch_ui_moteurs_rag()
     patch_mode_vocal()
-    patch_realtime_android()
     patch_tts_lecture()
     patch_appel_lecture()
     patch_appel_stt_local()
@@ -5618,6 +5634,9 @@ def main() -> int:
     patch_appel_warm()
     patch_appel_ecoute_permanente()
     patch_appel_silence()
+    # P149 après les patchs d'appel : sa garde de transcription cible le
+    # motif `const _w=window.__callDictation…` créé par P141b
+    patch_realtime_android()
     patch_erreur_tts()
     patch_default_kokoro()
     patch_web_search()

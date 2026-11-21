@@ -4253,3 +4253,55 @@ de transcription (Bug B non corrigé en attente de ce retour).
 sélectionné ; (2) disparition éventuelle du message de transcription à la
 dictée quand l'appel est activé (Bug B — non corrigé, hypothèse : il venait
 du mode bridge/WS désormais abandonné).
+
+## 2026-11-21 11:30 UTC — P149 : message de transcription en mode appel (Bug B)
+
+Retour appareil : le masquage est OK, mais le message « La dictée native
+(moteur « web ») ne transcrit pas les fichiers joints… » persiste — seulement
+avec le voice call activé (la dictée marche sinon).
+
+### Analyse (code + banc)
+
+- le message est la réponse **HTTP 400 du serveur** (P127) à un
+  `POST /api/v1/audio/transcriptions` avec un **fichier**, moteur `web` ;
+- recensement des chemins frontend vers cette API :
+  1. `De` (composant de dictée `DLUiU9_Q.js`) : **déjà protégé**
+     (`if (engine === "web") return;`) → jamais source ;
+  2. `ye` (bouton « Transcribe » d'une pièce jointe) : message *voulu* (P127) ;
+  3. **`ot` (fin d'enregistrement de l'APPEL, chunk `BnHPywC-.js`)** :
+     `_w = __callDictation && engine==="web"` — si la dictée locale est
+     **absente**, l'artefact d'enregistrement part vers `Px(fichier)` → le
+     serveur rejette avec le message. **C'est ce chemin** (cohérent avec
+     « seulement avec le voice call activé ») ;
+- banc : non reproductible (pas de micro → pas d'enregistrement d'appel ;
+  avec le polyfill injecté, `_w` est vrai et le chemin local est pris —
+  preuve indirecte que l'absence de `__callDictation` est bien le
+  déclencheur) ;
+- note de banc : `SpeechRecognition` vient de la constante Java
+  `SPEECH_POLYFILL` (injectée avant) alors que `__callDictation` vient de
+  `call_polyfill.js` — les deux peuvent donc être désynchronisés si ce
+  dernier échoue à l'init.
+
+### Correctif (dans P149)
+
+Garde dans `ot` : si le moteur est `web` **et** que la dictée locale est
+absente, renvoyer silencieusement avec une trace
+`Call STT: énoncé d'appel ignoré (moteur web, dictée locale absente)` au lieu
+d'envoyer un artefact au serveur ; le chemin amont (`Px`) reste intact dès
+que le moteur n'est pas `web`. Contrôle ajouté à `check_realtime_android`.
+
+### Ordre de `main()` corrigé
+
+`patch_realtime_android()` a été déplacé **après** les patchs d'appel : sa
+garde cible le motif `const _w=window.__callDictation…` créé par P141b
+(`patch_appel_stt_local`) — l'ancien ordre levait « motif introuvable » et
+interrompait `prepare_src` en milieu de parcours (laissait `src/` incomplet).
+
+### Validations
+
+`prepare_src` **161 opérations / 0 échec** · `check_patches` OK · smoke 8090
+(health/racine 200, chunk servi avec la garde) · maintenance.typ recompilé.
+
+Reste ouvert : confirmation appareil (le message doit disparaître) ; si le
+message persiste, capturer la trace `Call STT:` dans `/fm` → Journaux — elle
+dira si le chemin est `local` ou `serveur`.

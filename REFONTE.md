@@ -1,7 +1,7 @@
 # REFONTE.md — Architecture v2 : submodule + patchs en diff
 
 Branche : `master` (v2 ; ex-`v2/submodule-patches`). Objectif : **le même livrable**
-que l'ancienne `master` (0.0.79, conservée sous le nom `main`), mais construit
+que l'ancienne `master` (0.0.79, conservée sous le nom `old`), mais construit
 depuis la **source d'origine** (`submodule Open WebUI v0.13.4`) et une **liste de
 patchs en diff** versionné, au lieu de l'ancien mode v1 (wheel PyPI +
 `prepare_src.py`, remplacements par motifs minifiés — supprimé).
@@ -49,7 +49,7 @@ scripts/apply_patches.sh   applique tout (idempotent) — reconstruit src/
 | 45019541354 | versionCode **régressif** (v2 = 10006 < v1 = 10122 → Android refuse d'installer par-dessus la v1) : les deux workflows dérivaient le code de leur **propre** `GITHUB_RUN_NUMBER` (compteur indépendant) | versionCode **daté** : `(année 2 c. + jour de l'année) × 1000 + run_number` (`$(date -u +%y%j)`), strictement croissant entre releases, indépendant du workflow, < 2 100 000 000 |
 
 `build-apk.yml` (v1) a été **supprimé** sur `master` (v2) pour éviter un double
-build et un conflit de release sur le même tag ; il reste intact sur `main`
+build et un conflit de release sur le même tag ; il reste intact sur `old`
 (ex-`master`, historique v1).
 
 ## Reste à faire (prochaine session)

@@ -4727,3 +4727,16 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   `__callSpeechGate` ×3, `provider!=="android"` ×1 → le portage vocal est bien
   embarqué dans l'APK taggé. Le tag pointe sur `9df0b44` (le code exact compilé
   et vérifié) ; la présente ligne de journal est documentaire, postérieure au tag.
+
+## 2026-11-22 22:32 UTC — branche v1 `main` → `old` (demande utilisateur)
+
+- La branche v1 (ex-`master`, conservée sous `main`) est renommée **`old`**
+  (locale + distante + suivi) : `git branch -m main old`, `git push origin old`,
+  `git push origin :main`, puis suivi `old` → `origin/old`. La branche par défaut
+  GitHub reste **`master`** (v2) — aucune bascule de défaut nécessaire.
+- Alignement des docs vivantes : `REFONTE.md` (l.4 « conservée sous le nom `old` »
+  et l.52 « il reste intact sur `old` »), `PATCHES.md` (bandeau), `docs/maintenance.typ`
+  (l.980) → `old` ; `maintenance.pdf` recompilé (695 219 octets). Les lignes de
+  journal décrivant le renommage initial main/master restent historiques.
+- Branches finales : **`master`** (v2, active, par défaut GitHub) + **`old`**
+  (v1, historique).

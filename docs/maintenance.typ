@@ -977,7 +977,7 @@ APK _debug_ et _release_ uniquement au push d'un tag `v*`, et publie la Release
 GitHub avec les APK attachés (même chaîne APK ; l'amont est reconstruit par
 `apply_patches.sh` depuis les submodules — voir `REFONTE.md`).
 Le workflow v1 (`build-apk.yml`) a été **supprimé** sur `master` (v2) lors du
-nettoyage v0.0.80_beta ; il reste sur `main` (`workflow_dispatch` uniquement).
+nettoyage v0.0.80_beta ; il reste sur `old` (`workflow_dispatch` uniquement).
 Adaptations automatiques du runner x86_64 : retrait de la surcharge
 `aapt2FromMavenOverride` (qemu), JDK système accepté si `tools/jdk` (aarch64) est
 absent, `.venv313` recréé en CPython 3.13, SearXNG cloné au commit figé. En v1,

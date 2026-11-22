@@ -7,7 +7,7 @@
 > (`backend/`, `frontend/`, `complements/`, `searx/`) et appliquées par
 > `scripts/apply_patches.sh` sur le submodule `vendor/open-webui` (v0.13.4).
 > Ce tableau reste la référence de l'**intention** de chaque patch ; la branche
-> `main` (ex-`master`, historique v1) conserve l'ancienne chaîne.
+> `old` (ex-`master`, historique v1) conserve l'ancienne chaîne.
 
 Tous les patchs sont générés par `scripts/prepare_src.py` (idempotent, rejouable)
 à partir de `vendor/unpacked/open_webui` (wheel PyPI pristine). Objectif unique :

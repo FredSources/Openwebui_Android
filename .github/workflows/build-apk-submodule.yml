@@ -80,11 +80,22 @@ jobs:
       - name: Frontend (npm ci + build dans le submodule)
         run: |
           # swap : le script de build d'Open WebUI tourne avec
-          # --max-old-space-size=12288 alors que le runner a 7 Go de RAM
-          sudo fallocate -l 8G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile >/dev/null
-          sudo swapon /swapfile
+          # --max-old-space-size=12288 alors que le runner a 7 Go de RAM.
+          # Le runner peut déjà avoir un swap actif sur /swapfile (fallocate
+          # dessus = « Text file busy ») : on n'ajoute un swap à nous que si
+          # le total est insuffisant, sur un fichier distinct.
+          TOTAL=$(awk '/SwapTotal/ {print $2}' /proc/meminfo)
+          echo "swap actif : $((TOTAL / 1024)) Mo"
+          if [ "$TOTAL" -lt 8388608 ]; then
+            F=/swapfile-openwebui
+            if ! swapon --show=NAME --noheadings | grep -q "$F"; then
+              sudo fallocate -l 8G "$F"
+              sudo chmod 600 "$F"
+              sudo mkswap "$F" >/dev/null
+              sudo swapon "$F"
+            fi
+          fi
+          swapon --show
           cd vendor/open-webui
           npm ci --no-audit --no-fund
           npm run build

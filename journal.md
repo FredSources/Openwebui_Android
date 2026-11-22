@@ -4489,3 +4489,68 @@ Demande : « pass en release 0.0.79 » + « efface la beta ».
 
 Les mentions `0.0.79_beta` du journal et de `todo.md` sont des références
 historiques (récit des livraisons) : volontairement inchangées.
+
+## 2026-11-22 10:29 UTC — v2 : premier build CI (tag bêta v0.0.80_beta)
+
+Demande : « essai de faire un build sur cette nouvelle version tag
+v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
+
+- **Workflow v2 réécrit** (`build-apk-submodule.yml`, 19 étapes) : il reprend
+  la chaîne APK v1 réelle (setup-java/python, SDK+Gradle dans le projet,
+  versionCode, keystore, `build.sh`, vérification `_app/` > 500, `check_apk.py`,
+  release) — l'amont seul change : `submodules: recursive` +
+  `apply_patches.sh` + frontend recompilé (`npm ci` + `npm run build` avec
+  **swap 8 Go** : le build impose `--max-old-space-size=12288` pour 7 Go de
+  RAM sur le runner) ;
+  gardes-fous : `src/open_webui` + `searx` + shims présents, patch
+  `Audio.svelte` appliqué dans le submodule ;
+  corps de release : version OW lue via `git describe` du submodule (plus de
+  `fetch_src.sh`) ;
+- **`build-apk.yml` (v1) neutralisé sur cette branche** (`workflow_dispatch`
+  uniquement) : sinon les deux workflows se déclencheraient sur le même tag et
+  se disputeraient la release — sur `master`, son déclencheur `push: tags`
+  reste intact ;
+- `versionName '0.0.79'` → `'0.0.80_beta'` — `verifier_tag.py` ✓
+  (`tag v0.0.80_beta == versionName 0.0.80_beta`) ;
+- `build.sh` : le repli « sources absentes » appelle désormais
+  `apply_patches.sh` si `patches/` existe (repli `prepare_src.py` réservé à
+  master) — évite une régénération silencieuse en chaîne v1 ;
+- commit `1765b23` poussé sur `origin v2/submodule-patches`, tag
+  **`v0.0.80_beta`** créé et poussé **nommément** (jamais `--tags`) ;
+- CI **run 45012666158** lancé — premier échec (`fallocate: Text file busy` :
+  swap déjà actif sur `/swapfile-openwebui`) → `build.sh` corrigé : swap
+  seulement si `SwapTotal < 8 Go` ; **run 45012886148** → échec `npm ci`
+  (postinstall `onnxruntime-node` télécharge des binaires CUDA, 404 GitHub)
+  → `ONNXRUNTIME_NODE_INSTALL_CUDA=skip` (variable vérifiée dans
+  `install.js` du tarball npm) ; **run 45013208945** → échec tardif :
+  frontend buildé, **2 APK produits** (259.5 / 249.0 Mo), mais `check_apk.py`
+  10 erreurs sur 3 familles : wheels pyodide `statsmodels-`/`pymupdf-`/
+  `patsy-` absentes (P47 → `wheels-extra/`), bouton `/fm` absent de
+  `index.html` (P26b), `app.imy` sans `searx/version_frozen.py` (piège git
+  SearXNG).
+- **Correctifs v2 (3 familles)**, tous validés localement :
+  1. **P47 wheels** — CI : copie `wheels-extra/*.whl` dans
+     `src-assets/frontend/pyodide/` après `npm run build` ;
+  2. **P26b FAB /fm** — nouveau `patches/frontend/02-app.html.patch`
+     (généré depuis la chaîne v1 elle-même) : FAB + shim Notification +
+     capture Blob, libellés `a/app.html`/`b/app.html` relatifs à
+     `vendor/open-webui/src` ;
+  3. **P24b + piège git SearXNG** — nouvelle famille
+     `patches/searx/01-version.py.patch` (`searx/version.py` : gestion
+     OSError quand `git` est absent d'Android) appliquée dans `src/searx`
+     APRÈS la copie du vendor (la boucle `searx/` est ajoutée à
+     `apply_patches.sh`), et `patches/complements/searx/version_frozen.py`
+     (copie récursive des compléments, chemins relatifs préservés).
+- **Convergence v1/v2 : ZÉRO écart** sur `src/` régénéré (hors
+  `__pycache__`) après reconstruction `apply_patches.sh` : 34 appliqués /
+  2 déjà / 0 échec. Le patch `02-android_fm.py.patch` (module AJOUTÉ hors
+  amont, new-file mode) porte désormais `version 0.0.80_beta` et
+  `_FM_VERSION = "0.0.80_beta"` (la v1 lisait dynamiquement le
+  `versionName` dans `build.gradle` ; en v2 la valeur est figée par le
+  patch).
+- Constat : `app/src/main/assets/call_polyfill.js` porte en v1 (master) un
+  doublon P150 (2 blocs identiques, sans effet runtime) ; le HEAD v2 en a 3.
+  Un diff non commité en ajoutait un 4ᵉ (écarté — ne doit pas entrer dans
+  l'APK : le CI embarque l'état commité) ; sauvegarde
+  `/tmp/opencode/call_polyfill_worktree.diff`. À nettoyer plus tard (1 bloc
+  seulement) hors de la course au build.

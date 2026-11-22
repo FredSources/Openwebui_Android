@@ -109,6 +109,9 @@ jobs:
           rm -rf src-assets/frontend
           mkdir -p src-assets/frontend
           cp -a vendor/open-webui/build/. src-assets/frontend/
+          # P47 : wheels pyodide supplementaires versionnes (statsmodels,
+          # pymupdf, patsy) — l'amont n'en embarque que 53 pour l'APK leger
+          cp -a wheels-extra/*.whl src-assets/frontend/pyodide/
           echo "fichiers _app/ : $(find src-assets/frontend/_app -type f | wc -l)"
 
       # --- Chaîne APK (identique à v1) ---------------------------------------

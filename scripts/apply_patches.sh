@@ -75,13 +75,8 @@ done
 
 echo "=== complements (non issus d'Open WebUI) ==="
 if [ "$CHECK" = "0" ]; then
-  # shims (tiktoken natif absent, google-re2 absent) — fichiers versionnés
-  for f in "$PATCHES"/complements/*.py; do
-    [ -f "$f" ] || continue
-    cp -a "$f" "$PROJ/src/"
-    echo "  copié : $(basename "$f")"
-  done
-  # SearXNG embarqué (vendor séparé, commit figé)
+  # SearXNG embarqué (vendor séparé, commit figé) — AVANT les compléments :
+  # le rm -rf ci-dessous écraserait sinon src/searx/version_frozen.py
   if [ -d "$PROJ/vendor/searxng/searx" ]; then
     rm -rf "$PROJ/src/searx"
     cp -a "$PROJ/vendor/searxng/searx" "$PROJ/src/searx"
@@ -89,7 +84,22 @@ if [ "$CHECK" = "0" ]; then
   else
     echo "  ATTENTION : vendor/searxng/searx absent (SearXNG ne démarrera pas)"
   fi
+  # shims (tiktoken natif absent, google-re2 absent) + searx/version_frozen.py
+  # (piege git SearXNG) — fichiers versionnés, chemins relatifs preserves
+  ( cd "$PATCHES/complements" && find . -type f | sort ) | while read -r f; do
+    f="${f#./}"
+    [ -n "$f" ] || continue
+    mkdir -p "$PROJ/src/$(dirname "$f")"
+    cp -a "$PATCHES/complements/$f" "$PROJ/src/$f"
+    echo "  copié : $f"
+  done
 fi
+
+echo "=== patchs searx (sources SearXNG embarquées, dans src/searx) ==="
+for p in "$PATCHES"/searx/*.patch; do
+  [ -f "$p" ] || continue
+  appliquer "$p" "$PROJ/src/searx"
+done
 
 echo "=== bilan : $n_app appliqué(s), $n_deja déjà, $n_ech échec(s) ==="
 [ "$n_ech" -gt 0 ] && exit 1

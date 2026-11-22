@@ -1,7 +1,5 @@
-diff --git a/android_fm.py b/android_fm.py
+--- a/android_fm.py
 new file mode 100644
-index 0000000..eda7c55
---- /dev/null
 +++ b/android_fm.py
 @@ -0,0 +1,1354 @@
 +"""OpenWebUI Android — navigateur de fichiers /fm + maintenance (P27/P31/P36).
@@ -25,11 +23,11 @@ index 0000000..eda7c55
 +        from open_webui import android_logs as _allog
 +        _allog.install()
 +        import os as _osv
-+        _allog.journal_exec("P101 version=0.0.79_beta ping_timeout=%s" % _osv.environ.get('WEBSOCKET_SERVER_PING_TIMEOUT', '?'))
++        _allog.journal_exec("P101 version=0.0.80_beta ping_timeout=%s" % _osv.environ.get('WEBSOCKET_SERVER_PING_TIMEOUT', '?'))
 +    except Exception:
 +        pass
 +
-+    _FM_VERSION = "0.0.79_beta"
++    _FM_VERSION = "0.0.80_beta"
 +    import html as _html
 +    import os as _osj
 +    import re as _re

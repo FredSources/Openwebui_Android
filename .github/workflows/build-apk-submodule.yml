@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -46,7 +46,7 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
 
@@ -70,7 +70,7 @@ jobs:
           grep -q "PROVIDER === 'android'" \
             vendor/open-webui/src/lib/components/admin/Settings/Audio.svelte
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -140,7 +140,7 @@ jobs:
           unzip -t downloads/gradle.zip >/dev/null && echo "gradle.zip valide"
 
       - name: Cache Gradle + SDK
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             .gradle-cache
@@ -196,7 +196,7 @@ jobs:
       - name: Vérification de la chaîne APK
         run: python3 scripts/check_apk.py dist/*.apk
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: openwebui-android-apk-${{ github.sha }}
           path: dist/*.apk

@@ -4760,3 +4760,20 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   setup-python `v7.1.0`, upload-artifact `v7.0.2`, cache `v6.1.0` — mise à jour
   possible en saut minimal d'une major ou vers les dernières (décision
   utilisateur, non appliquée ce jour).
+
+## 2026-11-22 23:04 UTC — actions runtime : dernières versions, annotation Node 20 levée
+
+- **Décision utilisateur « dernières versions »** → `.github/workflows/build-apk-submodule.yml` :
+  `actions/checkout@v4`→**`v7`**, `actions/setup-node@v4`→**`v7`**,
+  `actions/setup-python@v5`→**`v7`**, `actions/upload-artifact@v4`→**`v7`**,
+  `actions/cache@v4`→**`v6`** (checkout v7.0.1, setup-node v7.1.0,
+  setup-python v7.1.0, upload-artifact v7.0.2, cache v6.1.0). Paramètres
+  inchangés (submodules, python-version 3.13, cache npm...) — commit `b5b3a35`.
+- **Validation** : `workflow_dispatch` run **45080528838 VERT** (headSha
+  `b5b3a35`), étapes clés passées (Frontend npm ci + build, `_app/` = 1 813
+  fichiers, `check_apk.py`), `versionCode=26326012` ; **plus aucune annotation
+  « Node.js 20 is deprecated »** dans les logs (seuls restent des `npm warn
+  deprecated` de dépendances npm amont du frontend — hors de notre contrôle).
+- Dette CI d'outillage soldée : setup-java v5 + Node 22 + 5 actions runtime
+  actualisées. Le prochain build de tag (release) utilisera cet outillage ;
+  le tag `v0.0.80_beta` livré reste sur `9df0b44` (inchangé).

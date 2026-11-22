@@ -17,9 +17,12 @@
 
 name: Build APK
 
+# v1 (wheel PyPI + prepare_src.py) — INACTIF sur la branche v2/submodule-patches :
+# la chaîne v2 (build-apk-submodule.yml) prend le relais sur les tags, sinon les
+# deux workflows se déclencheraient sur le même tag et se disputeraient la release.
+# Sur master, ce workflow reprend son déclencheur `push: tags: ['v*']` intact.
 on:
-  push:
-    tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write

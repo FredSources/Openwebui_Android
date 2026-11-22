@@ -1,0 +1,39 @@
+diff --git a/lib/components/chat/MessageInput/VoiceRecording.svelte b/lib/components/chat/MessageInput/VoiceRecording.svelte
+index e4344f9..428d7b4 100644
+--- a/lib/components/chat/MessageInput/VoiceRecording.svelte
++++ b/lib/components/chat/MessageInput/VoiceRecording.svelte
+@@ -321,6 +321,11 @@
+ 
+ 					let timeoutId;
+ 					// Start recognition
++					// P150 : le SpeechRecognizer n'accepte qu'UNE session à la
++					// fois — la dictée met l'écoute permanente de l'appel en
++					// pause (le service est libéré) avant de démarrer ; reprise
++					// à la fin normale (onend) ou à l'annulation.
++					(window as any).__callDictation?.pauseForDictation?.();
+ 					speechRecognition.start();
+ 
+ 					// Event triggered when speech is recognized
+@@ -348,6 +353,11 @@
+ 
+ 					// Event triggered when recognition is ended
+ 					speechRecognition.onend = function () {
++						// P150 : l'écoute de l'appel reprend à la fin normale
++						// de la dictée (le flag du polyfill rend une éventuelle
++						// reprise double ou inexistante inerte).
++						(window as any).__callDictation?.resumeAfterDictation?.();
++
+ 						// Restart recognition after it ends
+ 						console.log('recognition ended');
+ 
+@@ -373,6 +383,10 @@
+ 	};
+ 
+ 	const cancelRecording = async () => {
++		// P150 : l'écoute de l'appel reprend aussi à l'annulation / erreur
++		// (onerror + annulation manuelle ; le flag du polyfill rend une
++		// double reprise inerte).
++		(window as any).__callDictation?.resumeAfterDictation?.();
+ 		if (speechRecognition) {
+ 			// detach onend so cancelling does not confirm the transcription
+ 			speechRecognition.onend = null;

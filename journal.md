@@ -4599,3 +4599,49 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   commit + suppression de la release existante (elle embarque les APK au
   mauvais versionCode ; le tag reste) + relance du workflow + re-vérification
   du versionCode des nouveaux APK.
+
+## 2026-11-22 13:47 UTC — patchs vocaux portés sur les sources Svelte (v2)
+
+- **Signalement utilisateur** (v2, build 0.0.80_beta initial) : « Realtime
+  calls are handled locally on Android » — le frontend recompilé depuis les
+  sources **vierges** du submodule ouvrait le WebSocket réel (garde backend
+  P149d `src/open_webui/routers/audio/realtime.py:395` levée), car
+  `CallPanel.svelte` n'avait pas la bifurcation `provider !== "android"` que
+  la v1 portait sur le chunk minifié `BnHPywC-.js`.
+- **Correctif** : les micro-patchs v1 de la boucle vocale locale sont portés
+  sur les sources Svelte lisibles sous forme de diffs `patches/frontend/`
+  (convention de la chaîne v2, appliqués par `apply_patches.sh` sur
+  `vendor/open-webui/src/`, jamais sur le minifié) :
+  - `03-CallPanel.svelte.patch` : P149b (bifurcation `callMode` → `'current'`
+    dès que `$config?.audio?.realtime?.provider === 'android'` : le WS n'est
+    plus ouvert — correctif de l'erreur) + P134 (refus d'ouverture en STT
+    « web » neutralisé via `else if(false)`, branche éliminée par le bundler,
+    imports toast/i18n conservés) ;
+  - `04-CallOverlay.svelte.patch` : P141a/P144b (`startRecording` : en STT
+    « web », MediaRecorder et VAD sur le flux SILENCIEUX `__callSilent`, le
+    micro réel restant réservé au recognizer via `__realMic`) ; P141b
+    (`transcribeHandler` : transcription locale `__callDictation.text()`
+    affranchie de la garde `blob < 100`, garde P149-3b sans polyfill, traces
+    `Call STT: local/serveur`, toasts P142c/P147 — silence normal =
+    console.warn seul) ; P142a/P144a (`analyseAudio` : `hasSound` OR
+    `__callVadHit()` + `__callSpeechGate` à chaque image pendant TTS) ;
+    P143 (`onMount` : `warm()` = écoute permanente dès l'ouverture) ;
+    P144d (`stopAudioStream` : `__callDictation.stop()` à la fermeture) ;
+  - `05-VoiceRecording.svelte.patch` : P150 (pause de l'écoute de l'appel
+    `pauseForDictation()` avant `speechRecognition.start()`, reprise
+    `resumeAfterDictation()` en fin normale `onend` et à l'annulation
+    `cancelRecording`).
+- Compatibilité : les deux stores `$config || $settings` pour le moteur STT
+  (fiabilité — bug racine `_w`/flux silencieux documenté en v1) ; accès aux
+  shims via `(window as any)` (le build vite ne type-check pas ; le polyfill
+  est embarqué dans `app/src/main/assets/call_polyfill.js`, hors submodule).
+- Validation : `bash scripts/apply_patches.sh --check` → 5 patchs frontend
+  « appliquerait », 0 échec ; puis application réelle → **bilan 39 appliqués,
+  0 déjà, 0 échec** ; submodule restauré à la source vierge avant application
+  (équivalent CI) ; les 3 fichiers modifiés vérifiés (équilibre des
+  accolades, motifs clés `provider !== 'android'`, `__callSilent`,
+  `__callVadHit`, `pauseForDictation`… présents). Le build frontend réel
+  reste à valider en CI (`npm ci + npm run build`, swap 8 Go) ;
+  compilation Typst de `docs/maintenance.typ` : rc=0 (PDF 690 970 octets,
+  entrée de tableau « P. vocaux v2 » ajoutée) ; `REFONTE.md` : reste-à-faire
+  point 1 « porter les patchs front au source » marqué FAIT.

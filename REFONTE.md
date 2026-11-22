@@ -45,26 +45,31 @@ scripts/apply_patches.sh   applique tout (idempotent) — reconstruit src/
 | 45012666158 | `fallocate: Text file busy` (swap déjà actif sur `/swapfile`) | swap créé seulement si `SwapTotal < 8 Go` (fichier `/swapfile-openwebui`) |
 | 45012886148 | `npm ci` : postinstall `onnxruntime-node` télécharge les binaires CUDA (404 GitHub) | `ONNXRUNTIME_NODE_INSTALL_CUDA=skip` (variable lue par `install.js`) |
 | 45013208945 | `check_apk.py` : 3 familles — wheels pyodide absentes, `/fm` absent, `version_frozen.py` absent | P47 : copie `wheels-extra/*.whl` → `src-assets/frontend/pyodide/` ; P26b : `patches/frontend/02-app.html.patch` ; P24b : `patches/searx/01-version.py.patch` |
+| 45019541354 | versionCode **régressif** (v2 = 10006 < v1 = 10122 → Android refuse d'installer par-dessus la v1) : les deux workflows dérivaient le code de leur **propre** `GITHUB_RUN_NUMBER` (compteur indépendant) | versionCode **daté** : `(année 2 c. + jour de l'année) × 1000 + run_number` (`$(date -u +%y%j)`), strictement croissant entre releases, indépendant du workflow, < 2 100 000 000 |
 
 `build-apk.yml` (v1) est neutralisé sur cette branche (`workflow_dispatch` uniquement)
 pour éviter un double build et un conflit de release sur le même tag ; intact sur `master`.
 
 ## Reste à faire (prochaine session)
 
-1. **Porter les patchs front au source** : les anciens (P134/P141/P144 sur les
-   chunks minifiés `BnHPywC-.js`, `DLUiU9_Q.js`) ont un équivalent **source lisible**
-   (`CallPanel.svelte`, `CallOverlay.svelte`, `VoiceRecording.svelte`). Écrire les
-   diffs correspondants dans `patches/frontend/` :
-   - P149a (dropdown + masquage) → **déjà fait** (`patches/frontend/01-Audio.svelte.patch`),
+1. **Porter les patchs front au source** — FAIT (v0.0.80_beta) : les anciens
+   patchs minifiés (P134/P141-P150 sur `BnHPywC-.js`, `DLUiU9_Q.js`) ont un
+   équivalent **source lisible**, écrits dans `patches/frontend/` :
+   - P149a (dropdown + masquage) → `01-Audio.svelte.patch`,
      l'option `android` et le `{#if realtime.PROVIDER === 'android'}` remplacent
      l'approche par `display:none` du minifié ;
-   - P26b (FAB /fm + shim Notification + capture Blob) → **déjà fait**
-     (`patches/frontend/02-app.html.patch`, généré depuis la chaîne v1 elle-même) ;
-   - P149b (bifurcation `current`) → `CallPanel.svelte` (l. 28-29) ;
-   - P141a/P144b (flux silencieux, les deux stores) + `_w` (transcription locale)
-     → `CallOverlay.svelte` ;
-   - P150 (pause dictée) → `VoiceRecording.svelte` (l. 305-340, `speechRecognition.start()`) ;
-   - P134 (refus overlay) → `CallPanel.svelte` (l. 31-38) ;
+   - P26b (FAB /fm + shim Notification + capture Blob) → `02-app.html.patch`,
+     généré depuis la chaîne v1 elle-même ;
+   - P149b (bifurcation `current` dès que `provider === "android"`, correctif de
+     l'erreur « Realtime calls are handled locally on Android ») + P134 (refus
+     d'ouverture en STT « web » neutralisé) → `03-CallPanel.svelte.patch` ;
+   - P141a/P141b/P142a/P142c/P143/P144a/P144b/P144d/P147 (transcription locale
+     `__callDictation`, flux silencieux `__callSilent` + micro réel `__realMic`,
+     VAD piloté par `__callVadHit` + silenciation TTS `__callSpeechGate`, warm à
+     l'ouverture, stop à la fermeture, toasts d'erreur moteur / silence normal)
+     → `04-CallOverlay.svelte.patch` ;
+   - P150 (pause/reprise de l'écoute de l'appel autour de la dictée :
+     `pauseForDictation` / `resumeAfterDictation`) → `05-VoiceRecording.svelte.patch` ;
    - les shims `call_polyfill.js` / `tts_polyfill.js` sont dans `app/src/main/assets/`
      (hors submodule, pas de diff à faire).
 2. **P24b documenté** : `patches/searx/01-version.py.patch` (le fichier

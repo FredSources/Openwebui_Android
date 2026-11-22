@@ -576,6 +576,9 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [P150],
   [`assets/call_polyfill.js` + `chunks/DLUiU9_Q.js` (frontend)],
   [la dictée pendant l'appel : pause du recognizer — le SpeechRecognizer Android n'accepte qu'une session à la fois : l'écoute permanente de l'appel (P144) et le recognizer de la dictée se le disputaient (trace `[call-dict] erreur moteur : network`, démarrages à 5-22 s, transcription vide) ; à l'ouverture de la dictée l'écoute de l'appel est mise en pause (`pauseForDictation`, service libéré) puis reprend en fin normale (`onend`) ou à l'annulation (`cancelRecording`) — le flag interne rend la double reprise inerte ; dictée sans appel = aucune réécoute, fermeture d'appel = plus de reprise ; langue mémorisée par `start()` — journal v0.0.79_beta],
+  [P. vocaux v2],
+  [`patches/frontend/03-CallPanel.svelte.patch` + `04-CallOverlay.svelte.patch` + `05-VoiceRecording.svelte.patch`],
+  [portage v2 des patchs vocaux sur les *sources Svelte* (le frontend est recompilé depuis le submodule : les micro-patchs minifiés n'ont plus d'effet) — correctif de l'erreur « Realtime calls are handled locally on Android » ; P149b : bifurcation `callMode` neutre dès que `provider === "android"` (le WebSocket n'est plus ouvert) ; P134 : refus d'ouverture en STT « web » neutralisé (`else if(false)`, branche éliminée par le bundler, imports conservés) ; P141a/P144b : MediaRecorder et VAD branchés sur le flux silencieux `__callSilent`, le micro réel réservé au recognizer (`__realMic`) ; P141b : transcription locale `__callDictation.text()` affranchie de la garde `blob < 100` (garde P149-3b, traces `Call STT: local/serveur`, toasts P142c/P147) ; P142a/P144a : la parole continue pilotée par `__callVadHit` (partiel/final < 500 ms) + silenciation TTS `__callSpeechGate` à chaque image ; P143 : préchauffage `warm()` à l'ouverture de l'appel ; P144d : `stop()` à la fermeture ; P150 : pause/reprise de l'écoute autour de la dictée (`pauseForDictation` / `resumeAfterDictation`) ; idempotent (`apply_patches.sh` : 39 patchs, 0 échec) — journal v0.0.80_beta],
 )
 
 == Performances de démarrage
@@ -964,12 +967,22 @@ Numérotation : le projet est en étape pré-stable — les versions historiques
 APK conservés) ; les mentions `1.0.x` de ce document renvoient donc à `0.0.x`.
 Depuis `0.0.6`, le `versionName` de l'APK suit la numérotation du tag.
 
-`.github/workflows/build-apk.yml` build les APK _debug_ et _release_ uniquement
-au push d'un tag `v*`, et publie la Release GitHub avec les APK attachés.
+`.github/workflows/build-apk.yml` (v1, branche `master`) build les APK _debug_
+et _release_ uniquement au push d'un tag `v*`, et publie la Release GitHub
+avec les APK attachés. Sur `v2/submodule-patches`, c'est
+`build-apk-submodule.yml` qui prend le relais (même chaîne APK ; l'amont est
+reconstruit par `apply_patches.sh` depuis les submodules — voir `REFONTE.md`),
+le workflow v1 y étant neutralisé (`workflow_dispatch` uniquement).
 Adaptations automatiques du runner x86_64 : retrait de la surcharge
 `aapt2FromMavenOverride` (qemu), JDK système accepté si `tools/jdk` (aarch64) est
-absent, `.venv313` recréé en CPython 3.13, SearXNG cloné au commit figé. Le
-`versionCode` CI vaut `10000 + numéro d'exécution`. Signature release : secrets
+absent, `.venv313` recréé en CPython 3.13, SearXNG cloné au commit figé. En v1,
+le `versionCode` CI vaut `10000 + numéro d'exécution` *du workflow v1* ;
+depuis v0.0.80_beta (v2), il vaut `(année 2 chiffres + jour de l'année) × 1000
++ numéro d'exécution` (`$(date -u +%y%j)`) — schéma strictement croissant entre
+releases, indépendant du workflow émetteur, qui garantit l'installation par-dessus
+les versions précédentes (le compteur `GITHUB_RUN_NUMBER` est propre à chaque
+workflow : v1 ≈ 10122 quand v2 repartait ≈ 10006 → Android refusait la mise à
+jour). Signature release : secrets
 GitHub `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` — sans
 eux, l'APK release est signé avec la clé debug (installable, pour tests).
 

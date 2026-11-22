@@ -1,0 +1,163 @@
+diff --git a/lib/components/chat/MessageInput/CallOverlay.svelte b/lib/components/chat/MessageInput/CallOverlay.svelte
+index f6cdfd1..88676dd 100644
+--- a/lib/components/chat/MessageInput/CallOverlay.svelte
++++ b/lib/components/chat/MessageInput/CallOverlay.svelte
+@@ -248,31 +248,61 @@
+ 	const VISUALIZER_BUFFER_LENGTH = 300;
+ 
+ 	const transcribeHandler = async (audioBlob) => {
+-		// Create a blob from the audio chunks
+-		if (!audioBlob || audioBlob.size < 100) {
++		// P141b : en STT « web », la transcription passe par la dictée locale
++		// (`window.__callDictation`, call_polyfill.js / SpeechRecognition
++		// natif) — l'API serveur ne traite pas les fichiers avec ce moteur
++		// (message P127). Les DEUX stores, style VoiceRecording : le moteur
++		// vit dans $config.
++		const callDictation = (window as any).__callDictation;
++		const isWebStt =
++			$config?.audio?.stt?.engine === 'web' || $settings?.audio?.stt?.engine === 'web';
++		const _w = callDictation && isWebStt;
++
++		// P149 (garde 3b) : sans polyfill en moteur « web », l'artefact
++		// d'enregistrement n'est jamais envoyé au serveur (il répondrait
++		// P127) — retour silencieux + trace pour le diagnostic (exec.log).
++		if (!_w && isWebStt) {
++			console.warn('Call STT: énoncé d\'appel ignoré (moteur web, dictée locale absente)');
++			return;
++		}
++
++		// la garde blob < 100 ne s'applique qu'au chemin serveur (P141b)
++		if ((!audioBlob || audioBlob.size < 100) && !_w) {
+ 			console.log('Audio blob too small or empty, skipping transcription');
+ 			return;
+ 		}
+ 
+ 		await tick();
+-		const file = blobToFile(audioBlob, 'recording.wav');
++		const file = !_w && audioBlob && audioBlob.size >= 100 ? blobToFile(audioBlob, 'recording.wav') : null;
+ 
+-		const res = await transcribeAudio(
+-			localStorage.token,
+-			file,
+-			$settings?.audio?.stt?.language
++		const res = await (_w
++			? callDictation.text()
++			: transcribeAudio(localStorage.token, file, $settings?.audio?.stt?.language)
+ 		).catch((error) => {
+ 			toast.error(`${error}`);
+ 			return null;
+ 		});
+ 
+-		if (res) {
+-			console.log(res.text);
+-
+-			if (res.text !== '') {
+-				const _responses = await submitPrompt(res.text, { _raw: true });
+-				console.log(_responses);
+-			}
++		console.warn(
++			`Call STT: ${_w ? 'local' : 'serveur'} -> ${res && res.text ? res.text.length + ' car.' : 'vide'}`
++		);
++
++		if (res && res.text !== '') {
++			const _responses = await submitPrompt(res.text, { _raw: true });
++			console.log(_responses);
++		} else if (_w) {
++			// P142c : le toast porte la dernière erreur du moteur — P147 : le
++			// silence normal (no-speech / aborted / aucun résultat) est une
++			// console.warn seulement, pas un toast d'erreur bloquant.
++			const ce = res && res.error ? res.error : '';
++			const sil = /no-speech|aborted|aucun r(?:é|e)sultat/i.test(ce);
++			sil
++				? console.warn(`Call STT: silence normal, ignoré (${ce || 'aucun résultat'})`)
++				: toast.error(
++						ce
++							? `Call STT: transcription vide (moteur : ${ce})`
++							: 'Call STT: transcription vide (micro non entendu ?)'
++					);
+ 		}
+ 	};
+ 
+@@ -327,13 +357,28 @@
+ 	const startRecording = async () => {
+ 		if ($voiceCall && !destroyed) {
+ 			if (!audioStream) {
+-				audioStream = await navigator.mediaDevices.getUserMedia({
+-					audio: {
+-						echoCancellation: true,
+-						noiseSuppression: true,
+-						autoGainControl: true
+-					}
+-				});
++				// P141a/P144b : en STT « web », le micro réel reste réservé au
++				// recognizer natif (toute capture web concurrente le rend sourd
++				// — conflit documenté par le shim de dictée) : la détection de
++				// parole et le MediaRecorder sont branchés sur le flux
++				// SILENCIEUX du polyfill, dont la vie n'est arrêtée qu'à la
++				// fermeture (il doit rester vivant pendant l'appel).
++				const callDictation = (window as any).__callDictation;
++				const isWebStt =
++					$config?.audio?.stt?.engine === 'web' || $settings?.audio?.stt?.engine === 'web';
++				const gUM =
++					(window as any).__realMic ||
++					navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
++				audioStream =
++					callDictation && isWebStt && (window as any).__callSilent
++						? (window as any).__callSilent()
++						: await gUM({
++								audio: {
++									echoCancellation: true,
++									noiseSuppression: true,
++									autoGainControl: true
++								}
++							});
+ 			}
+ 
+ 			if (audioStream) {
+@@ -377,6 +422,10 @@
+ 			console.log('Error stopping audio stream:', error);
+ 		}
+ 
++		// P144d : fin de l'écoute permanente à la fermeture de l'appel (le
++		// SpeechRecognizer est libéré ; une réouverture n'hérite de rien).
++		(window as any).__callDictation?.stop?.();
++
+ 		closeAudioContext();
+ 
+ 		if (!audioStream) return;
+@@ -442,8 +491,20 @@
+ 					rmsLevel = 0;
+ 				}
+ 
+-				// Check if initial speech/noise has started
+-				const hasSound = domainData.some((value) => value > 0);
++				// P142a/P144a : la parole continue est pilotée par l'activité
++				// du recognizer lui-même (`__callVadHit`, partiel/final reçu
++				// depuis < 500 ms) — le VAD WebAudio, branché sur le flux
++				// silencieux (P144b), ne peut plus entretenir la détection ;
++				// pendant la lecture TTS, `__callSpeechGate` vide les tampons
++				// à chaque image (la voix de l'assistant n'entre jamais dans
++				// la transcription, aucune activité résiduelle ne rouvre un
++				// faux énoncé).
++				const hasSound =
++					domainData.some((value) => value > 0) ||
++					((window as any).__callSpeechGate?.(
++						muted || (assistantSpeaking && !($settings?.voiceInterruption ?? false))
++					),
++					(window as any).__callVadHit?.());
+ 				if (hasSound) {
+ 					// Big red text
+ 					console.log('%c%s', 'color: red; font-size: 20px;', '🔊 Sound detected');
+@@ -857,6 +918,12 @@
+ 
+ 		startRecording();
+ 
++		// P143 : préchauffage du recognizer dès l'ouverture de l'appel —
++		// l'écoute PERMANENTE lie le service avant la première parole (plus
++		// jamais de démarrage froid qui tronque le début de phrase) ; les
++		// énoncés sont découpés par marqueurs côté polyfill.
++		(window as any).__callDictation?.warm?.($settings?.audio?.stt?.language);
++
+ 		eventTarget.addEventListener('chat:start', chatStartHandler);
+ 		eventTarget.addEventListener('chat', chatEventHandler);
+ 		eventTarget.addEventListener('chat:finish', chatFinishHandler);

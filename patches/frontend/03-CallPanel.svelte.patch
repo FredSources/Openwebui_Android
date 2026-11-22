@@ -1,0 +1,26 @@
+diff --git a/lib/components/chat/MessageInput/CallPanel.svelte b/lib/components/chat/MessageInput/CallPanel.svelte
+index d9a0224..7aad481 100644
+--- a/lib/components/chat/MessageInput/CallPanel.svelte
++++ b/lib/components/chat/MessageInput/CallPanel.svelte
+@@ -25,12 +25,19 @@
+ 
+ 	onMount(() => {
+ 		callMode =
+-			bridge?.connected || bridge?.connecting || $config?.audio?.realtime?.enabled
++			bridge?.connected ||
++			bridge?.connecting ||
++			($config?.audio?.realtime?.enabled && $config?.audio?.realtime?.provider !== 'android')
+ 				? 'bridge'
+ 				: 'current';
+ 		if (callMode === 'bridge') {
+ 			void bridge.connect(localStorage.token);
+-		} else if ($config?.audio?.stt?.engine === 'web') {
++		} else if (false) {
++			// P134 : refus d'appel en STT « web » neutralisé — le mode vocal
++			// passe par la boucle locale Android (call_polyfill.js) ; la
++			// branche morte est éliminée par le bundler (effet identique au
++			// patch v1 `else if(!1){}`), les imports toast / i18n restent
++			// référencés (P149b : en android, callMode = 'current').
+ 			toast.error($i18n.t('Call feature is not supported when using Web STT engine'));
+ 			close();
+ 			return;

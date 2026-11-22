@@ -4701,3 +4701,29 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
 - **Suite** : renommage des branches (`master`→`main`, `v2/submodule-patches`→`master`),
   déplacement du tag `v0.0.80_beta` sur le commit de nettoyage, CI verte + versionCode
   daté, vérification des marqueurs vocaux dans l'APK.
+
+## 2026-11-22 22:22 UTC — purge v1 finalisée : branches renommées, tag déplacé, CI vert
+
+- **Renommage des branches** (demande utilisateur) : l'ancienne branche v1 `master`
+  (`fd36a3f`, journal v0.0.79) → **`main`** ; la branche v2 `v2/submodule-patches`
+  (`9df0b44`, purge) → **`master`**. Séquence sûre : push de `main` (v1) → branche
+  par défaut GitHub pointée sur `main` → suppression d'`origin/master` (v1) →
+  `git push -u origin master` (v2) → branche par défaut re-pointée sur `master` →
+  suppression d'`origin/v2/submodule-patches`. Suivi local de `main` recalé sur
+  `origin/main`. Distant final : `main` (v1, historique) + `master` (v2, active,
+  par défaut). Aucune protection de branche n'entravait le renommage.
+- **Tag `v0.0.80_beta` déplacé** : release supprimée (`gh release delete --yes`),
+  tag re-créé sur le commit de nettoyage `9df0b44` (`git tag -f` + push force du
+  tag seul, jamais `--tags`) → workflow Actions déclenché (push tag).
+- **CI vert** : run **45076541107 VERT** (~7 min, job `build` success, headSha
+  `9df0b44` = commit taggé) ; `versionCode=26326010` (base `$(date -u +%y%j)`
+  26 326 × 1000 + run #10 > 26 326 009 précédent → pas de régression,
+  installable par-dessus). Dette CI notée : `actions/setup-java@v4` déprécié
+  (migrer vers v5, idem Node 20).
+- **Livrable vérifié** : release recréée (debug 284,8 Mo + release 274,3 Mo) ;
+  marqueurs vocaux présents dans le JS compilé de l'APK de release téléchargé
+  (870 fichiers JS) : `__callDictation` ×15, `__callSilent` ×7, `Call STT` ×5,
+  `resumeAfterDictation` ×5, `pauseForDictation` ×4, `__callVadHit` ×3,
+  `__callSpeechGate` ×3, `provider!=="android"` ×1 → le portage vocal est bien
+  embarqué dans l'APK taggé. Le tag pointe sur `9df0b44` (le code exact compilé
+  et vérifié) ; la présente ligne de journal est documentaire, postérieure au tag.

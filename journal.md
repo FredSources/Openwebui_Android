@@ -4640,8 +4640,25 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   0 déjà, 0 échec** ; submodule restauré à la source vierge avant application
   (équivalent CI) ; les 3 fichiers modifiés vérifiés (équilibre des
   accolades, motifs clés `provider !== 'android'`, `__callSilent`,
-  `__callVadHit`, `pauseForDictation`… présents). Le build frontend réel
-  reste à valider en CI (`npm ci + npm run build`, swap 8 Go) ;
+  `__callVadHit`, `pauseForDictation`… présents).
   compilation Typst de `docs/maintenance.typ` : rc=0 (PDF 690 970 octets,
   entrée de tableau « P. vocaux v2 » ajoutée) ; `REFONTE.md` : reste-à-faire
   point 1 « porter les patchs front au source » marqué FAIT.
+- **Rebuild CI vert et release recréée** (14:02 UTC) : branche poussée
+  (`ac9e838..5e33a5f`), release `v0.0.80_beta` ancienne supprimée (APK au
+  mauvais versionCode), tag déplacé nommément sur `5e33a5f` et poussé en
+  force (jamais `--tags`) → workflow déclenché : **run 45029469731 VERT en
+  7m7s**, dont l'étape critique « Frontend (npm ci + build dans le submodule) »
+  → **les sources Svelte patchées compilent** (validation réelle du portage).
+- **Vérification du livrable** : `versionCode=26326009` (log CI de l'étape
+  « versionCode » : base `$(date -u +%y%j)` = 26 326 × 1000 + 9 → strictement
+  > 26 326 008 du run précédent, pas de régression) ; marqueurs des patchs
+  retrouvés dans le **JS compilé de l'APK de release téléchargé** (274 Mo) :
+  `__callDictation` (×4), `__callVadHit` (×2), `__callSpeechGate` (×2),
+  `__callSilent` (×2), `pauseForDictation`/`resumeAfterDictation` (×2),
+  `provider!=="android"` (×1), traces `Call STT` (×2) → le correctif est bien
+  embarqué dans l'APK livré ; `check_apk.py` vert en CI (`_app/` > 500).
+- Release `v0.0.80_beta` recréée par le workflow (2 APK debug + release du
+  build corrigé, commit `5e33a5f`). Le correctif sera vérifié fonctionnellement
+  sur appareil (appel vocal réel : plus d'erreur « Realtime calls are handled
+  locally on Android », dictée/TTS pendant l'appel).

@@ -4740,3 +4740,23 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   journal décrivant le renommage initial main/master restent historiques.
 - Branches finales : **`master`** (v2, active, par défaut GitHub) + **`old`**
   (v1, historique).
+
+## 2026-11-22 22:39 UTC — CI : `actions/setup-java@v5` + Node 22, validation verte
+
+- **Mise à jour** (demande utilisateur, dette dépréciations GitHub) dans
+  `.github/workflows/build-apk-submodule.yml` : `actions/setup-java@v4` → **`@v5`**
+  (temurin 21 inchangé) et `node-version: '20'` → **`'22'`** (Node 20 EOL depuis
+  avril 2026 ; 22 = LTS stable, compat max avec le build SvelteKit/Vite
+  d'OWUI 0.13.4, `npm ci` sur le package-lock inchangé). YAML validé — commit
+  `d88c7dc`, poussé sur `master`.
+- **Validation réelle** : `workflow_dispatch` sur `master` → run **45078175686
+  VERT** (headSha `d88c7dc`), toutes les étapes passées (dont Frontend npm ci +
+  build dans le submodule et `check_apk.py`) ; `versionCode=26326011` (base datée +
+  run #11). Pas de release créée (run hors tag).
+- **Annotation Node 20 restante** : les actions runtime elles-mêmes ciblent Node 20
+  et sont forcées sur les runners Node 24 — `actions/checkout@v4`,
+  `setup-node@v4`, `setup-python@v5`, `upload-artifact@v4`, `cache@v4`.
+  Dernières versions dispo (gh api) : checkout `v7.0.1`, setup-node `v7.1.0`,
+  setup-python `v7.1.0`, upload-artifact `v7.0.2`, cache `v6.1.0` — mise à jour
+  possible en saut minimal d'une major ou vers les dernières (décision
+  utilisateur, non appliquée ce jour).

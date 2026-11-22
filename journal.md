@@ -4578,3 +4578,24 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
 - Le build 0.0.80_beta v2 livre le **même résultat fonctionnel que la v1**
   (mêmes sources régénérées à l'identique, même chaîne APK) — objectif de la
   refonte atteint pour cette release.
+
+## 2026-11-22 11:40 UTC — versionCode : régression v2 (10006) vs v1 (10122)
+
+- **Signalement utilisateur** : « il v1 est en 10122 et v2 en 10006, je ne
+  peux pas installer la v2 sur la v1 ». Cause : les deux workflows dérivaient
+  le versionCode de leur **propre** `GITHUB_RUN_NUMBER`
+  (`10000 + run_number`) — compteur **indépendant par workflow** : v1
+  (`build-apk.yml`) en est à ~122 (→ 10122), v2 (`build-apk-submodule.yml`)
+  à ~6 (→ 10006). Android refuse d'installer un APK dont le versionCode est
+  inférieur à celui de la version installée (moins, pas de mise à jour).
+- **Correctif** (workflow v2 uniquement) : versionCode = **année sur 2
+  chiffres + jour de l'année, × 1000, + numéro d'exécution**
+  (`$(( $(date -u +%y%j) * 1000 + GITHUB_RUN_NUMBER ))`) — base datée
+  strictement croissante entre releases (26 326 000 aujourd'hui + run),
+  indépendante du workflow émetteur, < 2 100 000 000 ; `build.sh` fait déjà
+  `+1` par build ; master (v1) garde son schéma `10000 + run_number`
+  (intact sur `master`, neutralisé ici).
+- Procédure : commit + déplacement du tag `v0.0.80_beta` sur le nouveau
+  commit + suppression de la release existante (elle embarque les APK au
+  mauvais versionCode ; le tag reste) + relance du workflow + re-vérification
+  du versionCode des nouveaux APK.

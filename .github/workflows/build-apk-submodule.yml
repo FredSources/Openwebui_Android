@@ -152,8 +152,15 @@ jobs:
       - name: SDK + Gradle (installés dans le projet)
         run: bash scripts/setup-sdk.sh
 
-      - name: versionCode (numéro d'exécution)
-        run: echo $((10000 + GITHUB_RUN_NUMBER)) > version_code
+      - name: versionCode (année + jour calendaire, jamais de régression)
+        run: |
+          # v1 : versionCode = 10000 + numéro d'exécution DU WORKFLOW v1
+          # (compteur indépendant : v1 ≈ 10122 ; le workflow v2 repartait
+          # de ~10006 → Android refusait l'installation par-dessus la v1).
+          # Base datée (année sur 2 chiffres + jour de l'année) : le code est
+          # strictement croissant entre releases, quel que soit le workflow ;
+          # le numéro d'exécution départage les builds du même jour.
+          echo $(( $(date -u +%y%j) * 1000 + GITHUB_RUN_NUMBER )) > version_code
 
       - name: Keystore de release (si secrets présents)
         env:

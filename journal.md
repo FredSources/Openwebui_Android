@@ -4554,3 +4554,27 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   l'APK : le CI embarque l'état commité) ; sauvegarde
   `/tmp/opencode/call_polyfill_worktree.diff`. À nettoyer plus tard (1 bloc
   seulement) hors de la course au build.
+
+## 2026-11-22 11:25 UTC — v2 : run 45016312150 VERT — build 0.0.80_beta OK
+
+- **Run 4 `45016312150` réussi en 7m42s** (workflow `build-apk-submodule.yml`)
+  sur le tag `v0.0.80_beta` (commit `84aa9d7` — convergence v1/v2 zéro écart,
+  patchs P26b/P24b/P47 + version figée 0.0.80_beta) : frontend buildé (swap +
+  skip CUDA), APK debug + release produits, `_app/` > 500, **`check_apk.py`
+  vert**, artifacts uploadés, **release `v0.0.80_beta` créée** (nommément, pas
+  de `--tags`) avec les 2 APK et le corps « composants embarqués » (Open WebUI
+  v0.13.4 submodule, SearXNG a30b2d4, chaîne v2).
+- **Dette technique CI signalée par GitHub** (non bloquant, à migrer plus
+  tard) : Node 20 déprécié sur les actions (`actions/checkout@v4`,
+  `setup-java@v4`, `setup-node@v4`, `setup-python@v5`, `upload-artifact@v4`,
+  `cache@v4` forcés sur Node 24) et `actions/setup-java@v4` déprécié
+  (migrer vers v5).
+- Convergence v1/v2 : `diff -r` v1 vs v2 → **zéro écart** hors `__pycache__`
+  (les 2 derniers écarts — `android_fm.py` version figée et P24b
+  `searx/version.py` — corrigés, voir entrée 10:29 UTC).
+- Docs : `REFONTE.md` mis à jour (architecture avec `patches/searx/`, tableau
+  des correctifs CI par run, reste-à-faire). `PATCHES.md` inchangé (catalogue
+  P1-P150, la chaîne v2 est documentée dans REFONTE.md).
+- Le build 0.0.80_beta v2 livre le **même résultat fonctionnel que la v1**
+  (mêmes sources régénérées à l'identique, même chaîne APK) — objectif de la
+  refonte atteint pour cette release.

@@ -78,6 +78,11 @@ jobs:
 
       # --- Amont v2 : frontend recompilé depuis les sources Svelte -----------
       - name: Frontend (npm ci + build dans le submodule)
+        env:
+          # onnxruntime-node tente de télécharger les binaires CUDA EP au
+          # postinstall (URL GitHub en 404, runner sans GPU) — skip inoffensif
+          # pour un build de frontend (vérifié : lu via env var par install.js)
+          ONNXRUNTIME_NODE_INSTALL_CUDA: skip
         run: |
           # swap : le script de build d'Open WebUI tourne avec
           # --max-old-space-size=12288 alors que le runner a 7 Go de RAM.

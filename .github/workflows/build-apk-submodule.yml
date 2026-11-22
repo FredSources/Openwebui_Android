@@ -1,0 +1,61 @@
+name: Build APK (submodule + patches)
+
+# v2 — chaîne « source d'origine + diffs » :
+#   1. submodule Open WebUI (v0.13.4) au lieu du wheel PyPI ;
+#   2. patches/ appliqués par scripts/apply_patches.sh (patchs en diff) ;
+#   3. frontend recompilé depuis les sources (npm run build) ;
+#   4. APK (même chaîne Gradle/Chaquopy que la v1).
+# Objectif : résultat fonctionnellement identique, patchs lisibles et
+# versionnés, plus de minifié à cibler.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Sources patchées (submodule + diffs)
+        run: |
+          bash scripts/apply_patches.sh
+          echo "COCHEBACK : $(find src/open_weui -name '*.py' | wc -l) fichiers backend patchés"
+
+      - name: Frontend (build depuis les sources)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: npm ci + build
+        run: |
+          cd vendor/open-webui
+          npm ci --no-audit --no-fund
+          npm run build
+          # sortie : vendor/open-webui/build -> assets Android (src-assets/frontend)
+          cd ../..
+          rm -rf src-assets/frontend && mkdir -p src-assets/frontend
+          cp -a vendor/open-webui/build/. src-assets/frontend/
+
+      - name: Environnement Python du projet
+        run: |
+          bash scripts/env.sh || echo "env.sh optionnel"
+
+      # reprise de la chaîne APK v1 (SDK, Gradle, Chaquopy, signature)
+      - name: SDK + Gradle + build APK
+        run: |
+          bash scripts/prepare-apk.sh 2>/dev/null || bash scripts/build-apk.sh
+
+      - name: Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: dist/*.apk
+
+      - name: Release GitHub (tags v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.apk

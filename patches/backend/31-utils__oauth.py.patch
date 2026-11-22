@@ -1,0 +1,20 @@
+diff --git a/utils/oauth.py b/utils/oauth.py
+index 36db31b..70c13aa 100644
+--- a/utils/oauth.py
++++ b/utils/oauth.py
+@@ -16,6 +16,15 @@ from typing import Literal, Optional
+ 
+ import aiohttp
+ import jwt
++# P148 : aiohttp 3.10 épinglé (PIN-REPO) n'expose pas encode_basic_auth
++# (ajouté en 3.11) — repli strictement équivalent via BasicAuth.encode().
++if not hasattr(aiohttp, "encode_basic_auth"):
++    from aiohttp import BasicAuth as _BasicAuth
++
++    def _encode_basic_auth(login, password, encoding="latin1"):
++        return _BasicAuth(login, password, encoding).encode()
++
++    aiohttp.encode_basic_auth = _encode_basic_auth
+ from authlib.integrations.starlette_client import OAuth
+ from authlib.oauth2.rfc6749.errors import OAuth2Error
+ from authlib.oidc.core import UserInfo

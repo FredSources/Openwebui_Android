@@ -1,0 +1,17 @@
+diff --git a/retrieval/web/utils.py b/retrieval/web/utils.py
+index 2ad713d..d66504f 100644
+--- a/retrieval/web/utils.py
++++ b/retrieval/web/utils.py
+@@ -1174,6 +1174,12 @@ class SafeWebBaseLoader(BaseLoader):
+ 
+         parser = 'xml' if url.endswith('.xml') else self.default_parser
+         soup = BeautifulSoup(html, parser, **self.bs_kwargs)
++        # P74 : contenu principal quand la page est balisée sémantiquement
++        for _sel in ('main', 'article', '[role="main"]'):
++            _bloc = soup.select_one(_sel)
++            if _bloc and len(_bloc.get_text(strip=True)) > 50:
++                soup = _bloc
++                break
+         return Document(
+             page_content=soup.get_text(**self.bs_get_text_kwargs),
+             metadata=extract_metadata(soup, url),

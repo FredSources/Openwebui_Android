@@ -1,0 +1,14 @@
+diff --git a/utils/recurrence.py b/utils/recurrence.py
+index 54efe0e..54c92df 100644
+--- a/utils/recurrence.py
++++ b/utils/recurrence.py
+@@ -104,7 +104,8 @@ async def _get_next_occurrences(s: str, now: datetime, n: int) -> list[datetime]
+     # A result-count or date limit cannot bound work before the first match.
+     try:
+         with fail_after(RRULE_TIMEOUT_SECONDS):
+-            return await to_process.run_sync(_next_occurrences, s, now, n, cancellable=True)
++            # P21 : to_process (sous-processus) interdit sur Android — thread local.
++            return await to_thread.run_sync(_next_occurrences, s, now, n)
+     except TimeoutError as e:
+         raise RecurrenceEvaluationTimeout('Schedule took too long to evaluate; simplify its recurrence rule.') from e
+     except NotImplementedError:

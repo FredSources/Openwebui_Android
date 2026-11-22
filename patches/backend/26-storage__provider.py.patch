@@ -1,0 +1,63 @@
+diff --git a/storage/provider.py b/storage/provider.py
+index 5242469..cbfc65c 100644
+--- a/storage/provider.py
++++ b/storage/provider.py
+@@ -32,12 +32,42 @@ from open_webui.utils.json_codec import JSONCodec
+ 
+ from open_webui.env import USE_SLIM
+ 
+-if not USE_SLIM:
+-    from azure.core.exceptions import ResourceNotFoundError
+-    from azure.identity import DefaultAzureCredential
+-    from azure.storage.blob import BlobServiceClient
+-    from google.cloud import storage
+-    from google.cloud.exceptions import GoogleCloudError, NotFound
++# patch Android : SDK de stockage distant optionnels (google-cloud-storage tire
++# protobuf/grpcio, natifs absents du dépôt Android). Sans eux, seuls les
++# fournisseurs Azure/GCS sont indisponibles ; le stockage local fonctionne.
++try:
++    if not USE_SLIM:
++        from azure.core.exceptions import ResourceNotFoundError
++        from azure.identity import DefaultAzureCredential
++        from azure.storage.blob import BlobServiceClient
++        from google.cloud import storage
++        from google.cloud.exceptions import GoogleCloudError, NotFound
++except Exception:
++
++    class _StorageSdkUnavailable:
++        _MSG = (
++            "SDK de stockage distant indisponible sur cet appareil : "
++            "utiliser STORAGE_PROVIDER=local"
++        )
++
++        def __getattr__(self, name):
++            raise RuntimeError(self._MSG)
++
++        def __call__(self, *args, **kwargs):
++            raise RuntimeError(self._MSG)
++
++    class ResourceNotFoundError(Exception):
++        pass
++
++    class GoogleCloudError(Exception):
++        pass
++
++    class NotFound(Exception):
++        pass
++
++    DefaultAzureCredential = _StorageSdkUnavailable()
++    BlobServiceClient = _StorageSdkUnavailable()
++    storage = _StorageSdkUnavailable()
+ 
+ log = logging.getLogger(__name__)
+ 
+@@ -74,6 +104,9 @@ class LocalStorageProvider(StorageProvider):
+     @staticmethod
+     def get_file(file_path: str) -> str:
+         """Handles downloading of the file from local storage."""
++        # P30 : convention Docker /mnt/uploads/ → dossier uploads réel
++        if str(file_path).startswith("/mnt/uploads/"):
++            file_path = os.path.join(UPLOAD_DIR, os.path.basename(file_path))
+         return file_path
+ 
+     @staticmethod

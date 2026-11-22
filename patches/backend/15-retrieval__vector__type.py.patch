@@ -1,0 +1,10 @@
+diff --git a/retrieval/vector/type.py b/retrieval/vector/type.py
+index 15e6da0..0c1ee50 100644
+--- a/retrieval/vector/type.py
++++ b/retrieval/vector/type.py
+@@ -15,3 +15,5 @@ class VectorType(StrEnum):
+     WEAVIATE = 'weaviate'
+     OPENGAUSS = 'opengauss'
+     VALKEY = 'valkey'
++    NONE = 'none'
++    LOCAL = 'local'

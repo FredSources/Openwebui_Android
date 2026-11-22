@@ -1,0 +1,34 @@
+diff --git a/lib/components/admin/Settings/Audio.svelte b/lib/components/admin/Settings/Audio.svelte
+index e4f8c57..46f1e9f 100644
+--- a/lib/components/admin/Settings/Audio.svelte
++++ b/lib/components/admin/Settings/Audio.svelte
+@@ -431,6 +431,8 @@
+ 					>
+ 						<option value="openai">{$i18n.t('settings.audio.realtime.openai')}</option>
+ 						<option value="azure">{$i18n.t('Azure OpenAI')}</option>
++						<!-- P149 : boucle vocale locale Android (reconnaissance + voix systeme) -->
++						<option value="android">{$i18n.t('Android')}</option>
+ 					</SettingsSelect>
+ 				</AdminSettingRow>
+ 				{#if realtime.PROVIDER === 'azure'}
+@@ -446,6 +448,12 @@
+ 						</SettingsSelect>
+ 					</AdminSettingRow>
+ 				{/if}
++				<!-- P149 : android = boucle locale, aucun reglage cloud -->
++				{#if realtime.PROVIDER === 'android'}
++					<p class="text-xs text-gray-500">
++						{$i18n.t('Android uses the local speech loop (device recognition and voice). No cloud settings needed.')}
++					</p>
++				{:else}
+ 				<div class="grid grid-cols-1 gap-2" class:sm:grid-cols-2={realtime.AUTH_TYPE === 'api_key'}>
+ 					<AdminSettingField
+ 						label={$i18n.t(
+@@ -521,6 +529,7 @@
+ 						placeholder={$i18n.t('Enter additional parameters in JSON format')}
+ 					/>
+ 				</AdminSettingField>
++				{/if}
+ 				<AdminSettingField label={$i18n.t('Prompt Template')} forId="realtime-prompt-template">
+ 					<Textarea
+ 						id="realtime-prompt-template"

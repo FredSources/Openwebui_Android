@@ -1,0 +1,16 @@
+diff --git a/tools/knowledge_fs.py b/tools/knowledge_fs.py
+index 0e01bba..1fc63c7 100644
+--- a/tools/knowledge_fs.py
++++ b/tools/knowledge_fs.py
+@@ -17,7 +17,10 @@ from collections.abc import Callable
+ from contextlib import contextmanager
+ from typing import Optional
+ 
+-import re2
++try:
++    import re2  # google-re2 (natif non dispo sur Android)
++except ImportError:
++    import re as re2  # repli : sémantique proche, non bornée
+ from fastapi import Request
+ 
+ from open_webui.env import (

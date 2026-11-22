@@ -1,0 +1,12 @@
+diff --git a/retrieval/web/searxng.py b/retrieval/web/searxng.py
+index a4b3139..58afc4c 100644
+--- a/retrieval/web/searxng.py
++++ b/retrieval/web/searxng.py
+@@ -72,6 +72,7 @@ async def search_searxng(
+         headers=_SEARXNG_HEADERS,
+         params=params,
+         ssl=_get_ssl_context(),
++        timeout=30,
+     ) as response:
+         response.raise_for_status()
+         payload = await response.json()

@@ -1,0 +1,438 @@
+diff --git a/tools/builtin.py b/tools/builtin.py
+index 0dfa235..ec544de 100644
+--- a/tools/builtin.py
++++ b/tools/builtin.py
+@@ -71,6 +71,14 @@ from open_webui.tools.knowledge_fs import kb_exec  # noqa: F401 — re-exported
+ from open_webui.utils.access_control.files import has_access_to_note_files
+ from open_webui.utils.chat_id import is_saved_chat_id
+ from open_webui.utils.json_codec import JSONCodec
++# P0 : code ajouté Android isolé dans un module hors amont (audit de
++# divergence 2026-11-09) — importé ici pour les appels internes et les
++# enregistrements d'outils.
++from open_webui.tools.android_tools import (  # noqa: F401
++    SANDBOX_NET_BOOTSTRAP, _probe_fetch_url, _pyodide_packages, _uploads_pour_sable,
++    compile_typst, delete_file, delete_note, delete_skill, delete_tool, list_files, list_tools,
++    journal_exec_appel, journal_exec_exception, journal_exec_ligne, remonte_fichiers_sable,
++)
+ from open_webui.utils.notifications import notify_target
+ from open_webui.utils.sanitize import sanitize_code
+ from open_webui.utils.skill_files import SkillFile, SkillFileOperation, skill_content_page, skill_overview
+@@ -329,7 +337,17 @@ async def search_web(
+         )
+     except Exception as e:
+         log.exception(f'search_web error: {e}')
+-        return JSONCodec.dumps({'error': str(e)})
++        detail = str(e)
++        try:
++            import os as _os
++            from open_webui.config import DATA_DIR as _DD
++            _lp = _os.path.join(str(_DD), 'searxng.log')
++            if _os.path.exists(_lp):
++                with open(_lp, encoding='utf-8', errors='replace') as _f:
++                    detail += '\n--- journal SearXNG ---\n' + _f.read()[-600:]
++        except Exception:
++            pass
++        return JSONCodec.dumps({'error': detail})
+ 
+ 
+ async def fetch_url(
+@@ -347,7 +365,26 @@ async def fetch_url(
+         return JSONCodec.dumps({'error': 'Request context not available'})
+ 
+     try:
+-        content, _ = await get_content_from_url(__request__, url)
++        # P33 : sonde HTTP préalable — sans statut visible, fetch_url renvoyait
++        # du contenu faux sans le signaler (404 → page d'accueil ou vide,
++        # 302 → corps de la redirection, anti-bot → « Just a moment... »).
++        verify_ssl = await Config.get('web.loader.ssl_verification')
++        statut, url_finale, chaine = await asyncio.to_thread(
++            _probe_fetch_url, url, verify_ssl)
++        if statut in (301, 302, 303, 307, 308):
++            return JSONCodec.dumps({
++                'error': f'Redirection HTTP {statut} non suivie (trop de sauts) : {url_finale}',
++                'status_code': statut,
++                'chain': chaine,
++            }, ensure_ascii=False)
++        if statut == 0 or statut >= 400:
++            return JSONCodec.dumps({
++                'error': f'Échec HTTP {statut if statut else "réseau"} pour {url}',
++                'status_code': statut,
++                'chain': chaine,
++            }, ensure_ascii=False)
++
++        content, _ = await get_content_from_url(__request__, url_finale)
+ 
+         # Truncate if configured (WEB_FETCH_MAX_CONTENT_LENGTH)
+         # Guard: content may be None if the web loader silently failed
+@@ -358,7 +395,17 @@ async def fetch_url(
+         else:
+             content = ''
+ 
+-        return content
++        # P33 : provenance exacte + signalement des pages anti-bot
++        content = __import__('re').sub(r'\n{3,}', '\n\n', content or '')
++        entete = f'[HTTP {statut} — {url_finale}]'
++        if len(chaine) > 1:
++            entete += f' (redirections : {" -> ".join(chaine)})'
++        bas = (content or '').lower()
++        if any(m in bas for m in ('just a moment', 'cf-browser-verification',
++                                  'checking your browser', 'attention required',
++                                  'enable javascript and cookies', 'g-recaptcha')):
++            entete += '\n[AVERTISSEMENT : page anti-bot / interstitielle — contenu probablement incomplet]'
++        return f'{entete}\n\n{content or ""}'
+     except Exception as e:
+         log.warning(f'fetch_url error: {e}')
+         return JSONCodec.dumps({'error': str(e)})
+@@ -762,6 +809,7 @@ async def ask_user(
+ 
+ async def execute_code(
+     code: str,
++    timeout: int = None,
+     __request__: Request = None,
+     __user__: dict = None,
+     __event_emitter__: callable = None,
+@@ -787,6 +835,16 @@ async def execute_code(
+         # Sanitize code (strips ANSI codes and markdown fences)
+         code = sanitize_code(code)
+ 
++        # P52 : vérité réseau (bootstrap placé en tête de code)
++        code = SANDBOX_NET_BOOTSTRAP + code
++
++        # P87 : délai d'exécution paramétrable (défaut 120 s, plafond 600 s)
++        try:
++            delai_exec = max(10, min(int(timeout or 120), 600))
++        except Exception:
++            delai_exec = 120
++        journal_exec_ligne("DEBUT execute_code delai=%ss" % delai_exec)
++
+         # Import blocked modules from config (same as middleware)
+         from open_webui.config import CODE_INTERPRETER_BLOCKED_MODULES
+ 
+@@ -816,6 +874,7 @@ async def execute_code(
+             code = blocking_code + '\n' + code
+ 
+         engine = await Config.get('code_interpreter.engine', 'pyodide')
++        journal_exec_ligne("P97 engine=%s" % engine)
+         if engine == 'pyodide':
+             # Execute via frontend pyodide using bidirectional event call
+             if __event_call__ is None:
+@@ -823,17 +882,33 @@ async def execute_code(
+                     {'error': 'Event call not available. WebSocket connection required for pyodide execution.'}
+                 )
+ 
+-            output = await __event_call__(
++            # P65 : délai garanti — sans réponse du bac à sable, cet outil ne
++            # rendait JAMAIS la main et la génération restait suspendue.
++            # P95 : reprise après « Client session disconnected » (le réaper de
++            # session, ex. WebView en arrière-plan, ne doit pas tuer l'exécution
++            # — le code n'avait même pas tourné) : on ré-essaie jusqu'au retour
++            # du client, dans la fenêtre garantie de 320 s.
++            from open_webui.tools.android_tools import appel_avec_reprise as _appel_reprise
++            try:
++                output = await asyncio.wait_for(_appel_reprise(__event_call__,
+                 {
+                     'type': 'execute:python',
+                     'data': {
+                         'id': str(uuid4()),
+                         'code': code,
++                        'packages': _pyodide_packages(code),
++                        'exec_timeout': delai_exec,
+                         'session_id': (__metadata__.get('session_id') if __metadata__ else None),
+-                        'files': (__metadata__.get('files', []) if __metadata__ else []),
++                        'files': ((__metadata__.get('files') or []) if __metadata__ else []) + _uploads_pour_sable(code),
+                     },
+                 }
+-            )
++            ), timeout=320)
++            except asyncio.TimeoutError:
++                journal_exec_ligne("TIMEOUT 320s : bac a sable muet")
++                return JSONCodec.dumps(
++                    {'error': "Délai dépassé (320 s) : le bac à sable n'a pas répondu "
++                              "(démarrage ou session perdue) — réessayez, le noyau se relance."},
++                    ensure_ascii=False)
+ 
+             # Parse the output - pyodide returns dict with stdout, stderr, result
+             if isinstance(output, dict):
+@@ -871,6 +946,12 @@ async def execute_code(
+         else:
+             return JSONCodec.dumps({'error': f'Unknown code interpreter engine: {engine}'})
+ 
++        # P41/P108 : remontée des fichiers écrits dans /mnt/uploads — stockés
++        # et ENREGISTRÉS (visibles au gestionnaire /fm, display_file, API).
++        # Le prompt système promet « écrivez dans /mnt/uploads/ pour les
++        # retrouver dans le navigateur de fichiers ».
++        fichiers_sortie = await remonte_fichiers_sable(output, (__user__ or {}).get('id'))
++
+         # Handle image outputs (base64 encoded) - replace with uploaded URLs
+         # Get actual user object for image upload (upload_image requires user.id attribute)
+         if __user__ and __user__.get('id'):
+@@ -909,16 +990,29 @@ async def execute_code(
+                             result_lines[idx] = f'![Output Image]({image_url})'
+                 result = '\n'.join(result_lines)
+ 
++        # P34 : « success » codé en dur même sur exception (le traceback
++        # restait caché dans stderr) — refléter l'échec réel de l'exécution.
++        # P108 : les avertissements bénins du système de fichiers Emscripten
++        # (syncfs concurrents, « probably just doing extra work ») ne sont pas
++        # des échecs d'exécution — sans quoi chaque réussite affichait error.
++        stderr = '\n'.join(ligne for ligne in (stderr or '').splitlines()
++                           if 'FS.syncfs operations in flight' not in ligne) or None
++        echec = bool((stderr or '').strip())
+         response = {
+-            'status': 'success',
++            'status': 'error' if echec else 'success',
+             'stdout': stdout,
+             'stderr': stderr,
+             'result': result,
++            'files': fichiers_sortie,
+         }
+ 
++        # P94 : journal des exécutions — consultable/téléchargeable dans /fm →
++        # Journaux (analyse des erreurs execute_code et autres).
++        journal_exec_appel(engine, response, delai_exec, stdout, stderr, fichiers_sortie, echec)
+         return JSONCodec.dumps(response, ensure_ascii=False)
+     except Exception as e:
+         log.exception(f'execute_code error: {e}')
++        journal_exec_exception(e)
+         return JSONCodec.dumps({'error': str(e)})
+ 
+ 
+@@ -1447,6 +1541,11 @@ async def write_note(
+ 
+         user_id = __user__.get('id')
+ 
++        # P42 : \n littéraux → vrais sauts de ligne (uniquement si le texte
++        # n'en contient aucun : jamais de mélange contenu réel / échappements).
++        if '\n' not in content and '\\n' in content:
++            content = content.replace('\\n', '\n').replace('\\t', '\t')
++
+         form = NoteForm(
+             title=title,
+             data={'content': {'md': content}},
+@@ -1461,6 +1560,17 @@ async def write_note(
+         if not new_note:
+             return JSONCodec.dumps({'error': 'Failed to create note'})
+ 
++        # P57 : la note vient d'être écrite par l'agent — on enregistre la
++        # lecture de sa page pour permettre une édition immédiate (le garde-fou
++        # anti-conflit exigeait une relecture même juste après création).
++        try:
++            _page = get_page(new_note.data, None)
++            if not hasattr(__request__.state, 'note_page_revisions'):
++                __request__.state.note_page_revisions = {}
++            __request__.state.note_page_revisions[(user_id, new_note.id, _page['id'])] = _page.get('revision', 0)
++        except Exception:
++            pass
++
+         return JSONCodec.dumps(
+             {
+                 'status': 'success',
+@@ -1540,6 +1650,15 @@ async def replace_note_content(
+         current_content = page['content'].get('md') or ''
+         applied_operation_count = 0
+         range_operations = []
++        # P42 : idem write_note — \n littéraux → vrais sauts de ligne
++        if content is not None and '\n' not in content and '\\n' in content:
++            content = content.replace('\\n', '\n').replace('\\t', '\t')
++        if operations:
++            for _op in operations:
++                if isinstance(_op, dict):
++                    _c = _op.get('content')
++                    if isinstance(_c, str) and '\n' not in _c and '\\n' in _c:
++                        _op['content'] = _c.replace('\\n', '\n').replace('\\t', '\t')
+         if operations is not None:
+             if not isinstance(operations, list) or len(operations) == 0:
+                 return JSONCodec.dumps({'error': 'operations must be a non-empty list', 'code': 'invalid_operations'})
+@@ -2414,6 +2533,27 @@ async def search_knowledge_bases(
+                 }
+             )
+ 
++        # P54 : découverte par le CONTENU — une KB mal nommée était invisible
++        # (« sécurité IA open source » ne trouvait rien sur une KB « Test »).
++        if query and not knowledge_bases:
++            tous = await Knowledges.search_knowledge_bases(
++                user_id,
++                filter={'user_id': user_id, 'group_ids': user_group_ids},
++                skip=0,
++                limit=50,
++            )
++            for kb in tous.items:
++                r = await Knowledges.search_files_by_id(
++                    knowledge_id=kb.id, user_id=user_id,
++                    filter={'query': query, 'include_content': True}, skip=0, limit=5)
++                if r and r.items:
++                    knowledge_bases.append({
++                        'id': kb.id, 'name': kb.name,
++                        'description': kb.description or '',
++                        'file_count': len(r.items), 'updated_at': kb.updated_at,
++                        'matched_files': len(r.items), 'source': 'content',
++                    })
++
+         return JSONCodec.dumps(knowledge_bases, ensure_ascii=False)
+     except Exception as e:
+         log.exception(f'search_knowledge_bases error: {e}')
+@@ -2495,10 +2635,15 @@ async def search_knowledge_files(
+                 ):
+                     continue
+ 
++                # P48 : si la requête correspond au NOM de la base, toute sa
++                # liste est pertinente (la recherche ne visait que les noms de
++                # fichiers — audit 2026-11-08).
++                q_norm = ' '.join((query or '').lower().replace('-', ' ').replace('_', ' ').split())
++                k_norm = ' '.join((knowledge.name or '').lower().replace('-', ' ').replace('_', ' ').split())
+                 result = await Knowledges.search_files_by_id(
+                     knowledge_id=kb_id,
+                     user_id=user_id,
+-                    filter={'query': query},
++                    filter={'query': '' if (q_norm and q_norm in k_norm) else query, 'include_content': True},
+                     skip=0,
+                     limit=count + skip,
+                 )
+@@ -2552,7 +2697,7 @@ async def search_knowledge_files(
+             result = await Knowledges.search_files_by_id(
+                 knowledge_id=knowledge_id,
+                 user_id=user_id,
+-                filter={'query': query},
++                filter={'query': query, 'include_content': True},
+                 skip=skip,
+                 limit=count,
+             )
+@@ -2560,6 +2705,7 @@ async def search_knowledge_files(
+             result = await Knowledges.search_knowledge_files(
+                 filter={
+                     'query': query,
++                    'include_content': True,
+                     'user_id': user_id,
+                     'group_ids': user_group_ids,
+                 },
+@@ -3306,6 +3452,21 @@ async def display_file(
+     try:
+         from open_webui.models.files import Files
+ 
++        # P30 : fichiers ecrits via la convention /mnt/uploads → uploads reel
++        import os as _os
++        from urllib.parse import quote as _q
++        from open_webui.config import UPLOAD_DIR as _UP
++        if path.startswith('/mnt/uploads/'):
++            nom = _os.path.basename(path)
++            if (_UP / nom).is_file():
++                return JSONCodec.dumps({
++                    'type': 'file', 'source': 'open_webui', 'exists': True, 'displayed': True,
++                    'path': f'/fm/raw?name={_q(nom)}', 'full_path': f'/fm/raw?name={_q(nom)}',
++                    'name': nom, 'content_type': 'application/octet-stream',
++                    'mime_type': 'application/octet-stream',
++                }, ensure_ascii=False)
++            return JSONCodec.dumps(
++                {'error': f'Fichier introuvable : {nom} (attendu dans /mnt/uploads)', 'exists': False})
+         if '/' not in path:
+             path = f'/api/v1/files/{path}/content'
+         parts = path.split('/')
+@@ -3316,6 +3477,14 @@ async def display_file(
+ 
+         file = await Files.get_file_by_id(parts[4])
+         if not file:
++            try:
++                note = await Notes.get_note_by_id(parts[4])
++            except Exception:
++                note = None
++            if note is not None:
++                return JSONCodec.dumps({
++                    'error': "C'est une note : utilisez view_note (pas display_file).",
++                    'exists': False})
+             return JSONCodec.dumps({'error': 'File not found', 'exists': False})
+ 
+         if not await _has_read_access_to_file(file, __user__, __model_knowledge__):
+@@ -3774,6 +3943,22 @@ async def query_knowledge_bases(
+ 
+             accessible_ids = [kb.id for kb in accessible_knowledge_bases.items]
+ 
++            # P39b : réparer l'index sémantique des bases au fil des pages —
++            # toute base non indexée (créée pendant une panne d'embedding) le
++            # devient maintenant, puis la recherche sémantique s'applique.
++            from open_webui.routers.knowledge import embed_knowledge_base_metadata
++
++            try:
++                _existants = await ASYNC_VECTOR_DB_CLIENT.get(
++                    collection_name=KNOWLEDGE_BASES_COLLECTION)
++                _ids_indexees = set(_existants.ids[0]) if _existants and _existants.ids else set()
++            except Exception:
++                _ids_indexees = set()
++            for _kb in accessible_knowledge_bases.items:
++                if _kb.id not in _ids_indexees:
++                    await embed_knowledge_base_metadata(
++                        __request__, _kb.id, _kb.name, _kb.description or '')
++
+             search_results = await ASYNC_VECTOR_DB_CLIENT.search(
+                 collection_name=KNOWLEDGE_BASES_COLLECTION,
+                 vectors=[query_embedding],
+@@ -3817,6 +4002,27 @@ async def query_knowledge_bases(
+                     }
+                 )
+ 
++        # P54 : idem search_knowledge_bases — découverte par le contenu des
++        # fichiers quand l'index sémantique des noms/descriptions reste muet.
++        if query and not matching_knowledge_bases:
++            tous = await Knowledges.search_knowledge_bases(
++                user_id,
++                filter={'user_id': user_id, 'group_ids': user_group_ids},
++                skip=0,
++                limit=50,
++            )
++            for kb in tous.items:
++                r = await Knowledges.search_files_by_id(
++                    knowledge_id=kb.id, user_id=user_id,
++                    filter={'query': query, 'include_content': True}, skip=0, limit=5)
++                if r and r.items:
++                    matching_knowledge_bases.append({
++                        'id': kb.id, 'name': kb.name,
++                        'description': kb.description or '',
++                        'similarity': None, 'matched_files': len(r.items),
++                        'source': 'content',
++                    })
++
+         return JSONCodec.dumps(matching_knowledge_bases, ensure_ascii=False)
+ 
+     except Exception as e:
+@@ -4057,8 +4263,9 @@ async def create_tool(
+     """Create a private Python tool in the workspace.
+     Source must define a Tools class with public methods, type hints, and descriptive docstrings.
+     Use Valves or UserValves for credentials; do not embed secrets. Saving executes the Python module on the server.
++    Its functions become callable only where the tool is ATTACHED (chat or model tools) — attach it to this chat to invoke it now, or use a new chat.
+ 
+-    :param id: Unique lowercase Python identifier for the toolkit.
++    :param id: Unique identifier — lowercase letters, digits and underscores ONLY (a-z, 0-9, _), e.g. "diag_test_tool" NOT "diag-test-tool" (hyphens/spaces are rejected).
+     :param name: Display name.
+     :param description: Short description of what the tool does.
+     :param content: Complete Python source, without Markdown fences.
+@@ -4457,6 +4664,10 @@ async def create_automation(
+         except ValueError as e:
+             return JSONCodec.dumps({'error': str(e)})
+ 
++        # P45 : \n littéraux convertis (la docstring les montre ainsi — les
++        # LLM la copient ; le parseur RRULE exige de vrais sauts de ligne)
++        if rrule:
++            rrule = rrule.replace('\\r', '').replace('\\n', '\n').replace('\\t', ' ')
+         # Validate the RRULE
+         try:
+             await validate_rrule(rrule, tz=user.timezone)
+@@ -4553,6 +4764,9 @@ async def update_automation(
+         new_name = name if name is not None else automation.name
+         new_prompt = prompt if prompt is not None else automation.data.get('prompt', '')
+         new_model_id = model_id.strip() if model_id and model_id.strip() else automation.data.get('model_id', '')
++        # P45 : idem create_automation — \n littéraux convertis
++        if rrule is not None:
++            rrule = rrule.replace('\\r', '').replace('\\n', '\n').replace('\\t', ' ')
+         new_rrule = rrule if rrule is not None else automation.data.get('rrule', '')
+         if folder_id is None:
+             new_folder_id = None
+@@ -5068,7 +5282,9 @@ async def update_calendar_event(
+ ) -> str:
+     """
+     Update an existing calendar event. Only provided fields are changed;
+-    omitted fields stay the same.
++    omitted fields stay the same. To MOVE an event, pass BOTH start and end
++    together (changing only start leaves end unchanged, which can make the
++    interval incoherent).
+ 
+     :param event_id: The ID of the event to update
+     :param title: New event title (optional)

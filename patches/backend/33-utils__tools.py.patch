@@ -1,0 +1,55 @@
+diff --git a/utils/tools.py b/utils/tools.py
+index 999f77b..8137e48 100644
+--- a/utils/tools.py
++++ b/utils/tools.py
+@@ -49,10 +49,17 @@ from open_webui.tools.builtin import (
+     add_memory,
+     ask_user,
+     calculate_timestamp,
++    compile_typst,
+     create_automation,
+     create_calendar_event,
+     create_tasks,
+     create_tool,
++    delete_file,
++    delete_note,
++    delete_skill,
++    delete_tool,
++    list_files,
++    list_tools,
+     delegate_task,
+     delete_automation,
+     delete_calendar_event,
+@@ -916,7 +923,7 @@ async def get_builtin_tools(
+     if is_note_chat or (
+         is_builtin_tool_enabled('notes') and config.get('notes.enable') and await has_user_permission('notes')
+     ):
+-        builtin_functions.extend([search_notes, view_note, write_note, replace_note_content])
++        builtin_functions.extend([search_notes, view_note, write_note, replace_note_content, delete_note, delete_file, list_files])
+ 
+     # Channels tools - search channels and messages
+     if is_builtin_tool_enabled('channels') and config.get('channels.enable') and await has_user_permission('channels'):
+@@ -941,12 +948,23 @@ async def get_builtin_tools(
+             user.get('id', ''), 'workspace.skills', await Config.get('user.permissions')
+         ):
+             builtin_functions.append(create_skill)
++        builtin_functions.append(delete_skill)
+ 
+     if ENABLE_TOOLS and is_builtin_tool_enabled('tools'):
+         if user.get('role') == 'admin' or await has_permission(
+             user.get('id', ''), 'workspace.tools', await Config.get('user.permissions')
+         ):
+             builtin_functions.append(create_tool)
++            builtin_functions.append(delete_tool)
++            builtin_functions.append(list_tools)
++
++    # P28 : compile_typst — outil documentaire, indépendant de la permission
++    # de CRÉATION d'outils (workspace.tools) qui le faisait disparaître à
++    # tort (v0.0.11). P126 : soumis au toggle « Outils » du modèle —
++    # l'enregistrement inconditionnel de P28 laissait l'outil visible et
++    # actif même avec le toggle désactivé (signalement 2026-11-15).
++    if ENABLE_TOOLS and is_builtin_tool_enabled('tools'):
++        builtin_functions.append(compile_typst)
+ 
+     # Task management - break down complex work into trackable steps
+     # Task state is stored on the chats row; local/channel IDs do not have one.

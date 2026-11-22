@@ -1,0 +1,61 @@
+diff --git a/retrieval/vector/dbs/none.py b/retrieval/vector/dbs/none.py
+new file mode 100644
+index 0000000..f701521
+--- /dev/null
++++ b/retrieval/vector/dbs/none.py
+@@ -0,0 +1,55 @@
++"""NullVectorDB — backend vectoriel « no-RAG » (patch Android).
++
++Le RAG est volontairement désactivé sur cet appareil :
++- les insertions/upserts sont ignorés (avec avertissement au log) ;
++- les recherches retournent un résultat vide : la conversation continue
++  simplement sans contexte issu de documents ;
++- aucune dépendance lourde (chromadb, torch, sentence-transformers…).
++"""
++import logging
++from typing import Dict, List, Optional, Union
++
++from open_webui.retrieval.vector.main import (
++    GetResult,
++    SearchResult,
++    VectorDBBase,
++    VectorItem,
++)
++
++log = logging.getLogger(__name__)
++
++
++class NullVectorDB(VectorDBBase):
++    def has_collection(self, collection_name: str) -> bool:
++        return False
++
++    def delete_collection(self, collection_name: str) -> None:
++        return None
++
++    def insert(self, collection_name: str, items: List[VectorItem]) -> None:
++        log.warning("RAG désactivé : %d vecteur(s) ignoré(s) [%s]", len(items), collection_name)
++
++    def upsert(self, collection_name: str, items: List[VectorItem]) -> None:
++        self.insert(collection_name, items)
++
++    def search(
++        self,
++        collection_name: str,
++        vectors: List[List[Union[float, int]]],
++        filter: Optional[Dict] = None,
++        limit: int = 10,
++    ) -> Optional[SearchResult]:
++        return SearchResult(ids=[[] for _ in vectors], documents=[[] for _ in vectors],
++                            metadatas=[[] for _ in vectors], distances=[[] for _ in vectors])
++
++    def query(self, collection_name: str, filter: Dict, limit: Optional[int] = None) -> Optional[GetResult]:
++        return GetResult(ids=[[]], documents=[[]], metadatas=[[]])
++
++    def get(self, collection_name: str) -> Optional[GetResult]:
++        return GetResult(ids=[[]], documents=[[]], metadatas=[[]])
++
++    def delete(self, collection_name: str, ids: Optional[List[str]] = None, filter: Optional[Dict] = None) -> None:
++        return None
++
++    def reset(self) -> None:
++        return None

@@ -1,0 +1,43 @@
+diff --git a/routers/auths.py b/routers/auths.py
+index b26d785..50c47b7 100644
+--- a/routers/auths.py
++++ b/routers/auths.py
+@@ -10,12 +10,17 @@ import uuid
+ from ssl import CERT_NONE, CERT_REQUIRED, PROTOCOL_TLS
+ 
+ import jwt
+-from aiohttp import ClientSession, encode_basic_auth
++from aiohttp import ClientSession
++try:
++    from aiohttp import encode_basic_auth  # aiohttp >= 3.11
++except ImportError:  # P148 : aiohttp 3.10 épinglé (PIN-REPO) — repli RFC 7617
++    from aiohttp import BasicAuth
++
++    def encode_basic_auth(login, password, encoding="latin1"):
++        return BasicAuth(login, password, encoding).encode()
+ from fastapi import APIRouter, Depends, HTTPException, Request, status
+ from fastapi.responses import JSONResponse, Response
+-from ldap3 import NONE, Connection, Server, Tls
+-from ldap3.utils.conv import escape_filter_chars
+-from ldap3.utils.dn import parse_dn
++# P14 : ldap3 importé en lazy (authentification LDAP uniquement)
+ from open_webui.config import (
+     ENABLE_PASSWORD_AUTH,
+     OAUTH_PROVIDERS,
+@@ -399,6 +404,7 @@ def extract_group_cn_from_dn(group_dn: str) -> str | None:
+     name contains a comma) are handled correctly instead of naively splitting
+     on ``,``.
+     """
++    from ldap3.utils.dn import parse_dn  # P14 : import lazy
+     for attr_type, attr_value, _ in parse_dn(group_dn):
+         if attr_type.upper() == 'CN':
+             return _unescape_ldap_dn_value(attr_value)
+@@ -416,6 +422,8 @@ async def ldap_auth(
+     # Security checks FIRST - before loading any config
+     if not await Config.get('ldap.enable'):
+         raise HTTPException(400, detail='LDAP authentication is not enabled')
++    from ldap3 import NONE, Connection, Server, Tls  # P14 : imports lazy
++    from ldap3.utils.conv import escape_filter_chars
+ 
+     if not ENABLE_PASSWORD_AUTH:
+         raise HTTPException(

@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# apply_patches.sh — reconstruction de src/ (backend patché) depuis le SUBMODULE
+# open-webui (source vierge v0.13.4) + la liste de patchs en diff (patches/).
+#
+# Remplace l'ancien mode (wheel PyPI + scripts/prepare_src.py en replace_once)
+# par : source d'origine (submodule) + diffs lisibles et versionnés.
+#
+# Usage : scripts/apply_patches.sh [--check]   (--check = vérifie sans écrire)
+set -euo pipefail
+PROJ="$(cd "$(dirname "$0")/.." && pwd)"
+[ -f "$PROJ/AGENTS.md" ] || { echo "refus de tourner hors racine projet"; exit 1; }
+export GIT_CONFIG_GLOBAL=/dev/null   # pas de dépendance à la config git du système
+
+SUB="$PROJ/vendor/open-webui"
+PATCHES="$PROJ/patches"
+BACKEND_SRC="$SUB/backend/open_webui"
+FRONTEND_SRC="$SUB/src"
+CIBLE="$PROJ/src/open_webui"   # paquet Python attendu par Chaquopy (python.srcDirs = src)
+
+CHECK=0
+[ "${1:-}" = "--check" ] && CHECK=1
+
+command -v git >/dev/null || { echo "git requis"; exit 1; }
+if [ ! -d "$SUB/.git" ] && [ ! -f "$SUB/.git" ]; then
+  echo "submodule absent : git submodule update --init --recursive"
+  exit 1
+fi
+
+n_app=0; n_deja=0; n_ech=0
+
+# `patch` (et non `git apply`, qui résout les chemins depuis la racine du repo
+# parent) : cwd = dossier cible, chemins `a/… b/…` → strip1.
+# NB : `patch` retourne 1 quand le patch est déjà appliqué (« Reversed ») —
+# avec `set -o pipefail` un `patch | grep` renverrait 1 même si grep matche,
+# d'où la sortie capturée sans pipeline.
+appliquer() {  # $1 = fichier .patch (absolu) ; $2 = répertoire cible
+  local p="$1" cwd="$2" out
+  out=$( (cd "$cwd" && patch -p1 --forward --dry-run < "$p") 2>&1; true )
+  if (cd "$cwd" && patch -p1 --forward --dry-run < "$p" >/dev/null 2>&1); then
+    if [ "$CHECK" = "1" ]; then
+      echo "  appliquerait : ${p##*/}"
+      return 0
+    fi
+    (cd "$cwd" && patch -p1 --forward < "$p" >/dev/null 2>&1)
+    echo "  appliqué : ${p##*/}"
+    n_app=$((n_app+1))
+  elif echo "$out" | grep -qi "reversed (or previously applied)\|previously applied\|already exists"; then
+    echo "  déjà appliqué : ${p##*/}"
+    n_deja=$((n_deja+1))
+  else
+    echo "  ÉCHEC : ${p##*/}"
+    echo "$out" | head -2 | sed 's/^/      /'
+    n_ech=$((n_ech+1))
+  fi
+}
+
+echo "=== patchs backend (src/*.patch) ==="
+if [ "$CHECK" = "0" ]; then
+  rm -rf "$CIBLE"
+  mkdir -p "$(dirname "$CIBLE")"
+  cp -a "$BACKEND_SRC" "$CIBLE"
+  find "$CIBLE" -name "__pycache__" -type d -prune -exec rm -rf {} + 2>/dev/null
+  find "$CIBLE" -name "*.pyc" -delete 2>/dev/null
+fi
+for p in "$PATCHES"/backend/*.patch; do
+  [ -f "$p" ] || continue
+  appliquer "$p" "$CIBLE"
+done
+
+echo "=== patchs frontend (source Svelte/TS, dans le submodule) ==="
+for p in "$PATCHES"/frontend/*.patch; do
+  [ -f "$p" ] || continue
+  appliquer "$p" "$FRONTEND_SRC"
+done
+
+echo "=== complements (non issus d'Open WebUI) ==="
+if [ "$CHECK" = "0" ]; then
+  # shims (tiktoken natif absent, google-re2 absent) — fichiers versionnés
+  for f in "$PATCHES"/complements/*.py; do
+    [ -f "$f" ] || continue
+    cp -a "$f" "$PROJ/src/"
+    echo "  copié : $(basename "$f")"
+  done
+  # SearXNG embarqué (vendor séparé, commit figé)
+  if [ -d "$PROJ/vendor/searxng/searx" ]; then
+    rm -rf "$PROJ/src/searx"
+    cp -a "$PROJ/vendor/searxng/searx" "$PROJ/src/searx"
+    echo "  copié : vendor/searxng/searx -> src/searx"
+  else
+    echo "  ATTENTION : vendor/searxng/searx absent (SearXNG ne démarrera pas)"
+  fi
+fi
+
+echo "=== bilan : $n_app appliqué(s), $n_deja déjà, $n_ech échec(s) ==="
+[ "$n_ech" -gt 0 ] && exit 1
+exit 0

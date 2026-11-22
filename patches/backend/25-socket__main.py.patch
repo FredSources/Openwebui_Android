@@ -1,0 +1,130 @@
+diff --git a/socket/main.py b/socket/main.py
+index 6adc1ce..ced85d2 100644
+--- a/socket/main.py
++++ b/socket/main.py
+@@ -150,6 +150,33 @@ else:
+     )
+ 
+ 
++# P104 — traçage des envois de paquets EVENT avec id d'ack (appels outils) :
++# toute la chaîne est saine en analyse statique ; on voit enfin si le paquet est
++# remis au transport et s'il l'est avec le bon eio_sid.
++try:
++    _p104_orig_send = sio._send_packet
++
++    async def _p104_send_packet(eio_sid, pkt):
++        try:
++            if getattr(pkt, 'packet_type', None) == 2 and getattr(pkt, 'id', None) is not None:
++                from open_webui.android_logs import journal_exec as _jd
++                _jd("P104 SEND eio=%s id=%s" % (str(eio_sid)[-6:], pkt.id))
++        except Exception:
++            pass
++        try:
++            return await _p104_orig_send(eio_sid, pkt)
++        except Exception as _e:
++            try:
++                from open_webui.android_logs import journal_exec as _jd
++                _jd("P104 SEND-ERREUR eio=%s %s" % (str(eio_sid)[-6:], _e))
++            except Exception:
++                pass
++            raise
++
++    sio._send_packet = _p104_send_packet
++except Exception:
++    pass
++
+ # Timeout duration in seconds
+ TIMEOUT_DURATION = 3
+ SESSION_POOL_TIMEOUT = max(WEBSOCKET_HEARTBEAT_INTERVAL * 4, 120) if WEBSOCKET_HEARTBEAT_INTERVAL is not None else 120
+@@ -482,7 +509,10 @@ async def get_socket_session_user(sid: str, *, wait_for_disconnect: bool = True)
+         if session.get('user') and await get_verified_user_by_token(session.get('token', ''), REDIS):
+             return session['user']
+     except Exception:
++        log.warning('P104 auth socket echouee (exception) sid=%s', str(sid)[-6:])
+         log.debug('Socket authentication expired for %s', sid)
++    else:
++        log.warning('P104 auth socket refusee sid=%s', str(sid)[-6:])
+     LOCAL_AUTHENTICATED_SIDS.discard(sid)
+     if wait_for_disconnect:
+         await sio.disconnect(sid)
+@@ -1424,6 +1454,7 @@ async def yjs_awareness_update(sid, data):
+ 
+ @sio.event
+ async def disconnect(sid, reason=None):
++    log.warning('P104 disconnect sid=%s reason=%s', str(sid)[-6:], reason)
+     await encryption.disconnect(sid)
+     LOCAL_AUTHENTICATED_SIDS.discard(sid)
+     if sid in SESSION_POOL:
+@@ -1781,6 +1812,43 @@ async def get_event_call(request_info):
+ 
+     async def __event_caller__(event_data):
+         session_id = request_info['session_id']
++        # P99 diagnostic session (écrit directement dans exec.log)
++        try:
++            from open_webui.android_logs import journal_exec as _jd
++            _jd("P99 sid=%s uid=%s pool=%s" % (
++                str(request_info.get('session_id'))[:10],
++                str(request_info.get('user_id'))[:10],
++                sorted(str(k)[:10] for k in SESSION_POOL.keys())))
++        except Exception:
++            pass
++        # P104 — les participants RÉELS du manager au moment de l'appel
++        try:
++            from open_webui.android_logs import journal_exec as _jd
++            _parts = []
++            try:
++                _parts = [(str(a)[-6:], str(b)[-6:]) for a, b in
++                          sio.manager.get_participants('/', str(request_info.get('session_id')))]
++            except Exception as _e:
++                _parts = ['err:%s' % _e]
++            _jd("P104 ETAT sid=%s participants=%s" % (
++                str(request_info.get('session_id'))[-6:], _parts))
++        except Exception:
++            pass
++        # P105 — cause racine (tracée par P104 SEND-ERREUR) : les octets bruts
++        # du payload (fichiers récoltés par P51/P77 : {'name', 'data': bytes})
++        # cassent l'encodage JSON du paquet — l'envi meurt dans une exception
++        # avalée par asyncio.wait(tasks) et l'appel reste muet (« bac à sable
++        # muet »). On convertit tout octet en liste d'entiers : forme JSON,
++        # acceptée telle quelle par le frontend (new Uint8Array(r.data)).
++        def _p105_json_sur(_o):
++            if isinstance(_o, (bytes, bytearray, memoryview)):
++                return list(bytes(_o))
++            if isinstance(_o, dict):
++                return {k: _p105_json_sur(v) for k, v in _o.items()}
++            if isinstance(_o, (list, tuple)):
++                return [_p105_json_sur(v) for v in _o]
++            return _o
++        event_data = _p105_json_sur(event_data)
+         chat_id = request_info['chat_id']
+         message_id = request_info['message_id']
+         if is_temporary_chat_id(request_info['chat_id']):
+@@ -1801,6 +1869,28 @@ async def get_event_call(request_info):
+ 
+         # session_id is client-supplied; only the requesting user's own live session may be targeted.
+         session = SESSION_POOL.get(session_id)
++        # P84 : session expirée (réaper après 120 s sans heartbeat, ex. WebView
++        # en arrière-plan) ou synthétique (sous-agent) — au lieu de couper les
++        # outils (execute_code « Client session disconnected »), on replie sur
++        # la session VIVANTE de l'utilisateur et on aligne l'identifiant de
++        # l'événement (le frontend l'exige pour traiter la réponse).
++        if session is None or session.get('id') != request_info.get('user_id'):
++            repli = await asyncio.to_thread(
++                get_user_chat_session_id, request_info['user_id'], request_info['chat_id']
++            )
++            if not repli or get_user_id_from_session_pool(repli) != request_info['user_id']:
++                for _sid in get_session_ids_by_user_ids([request_info['user_id']]):
++                    if get_user_id_from_session_pool(_sid) == request_info['user_id']:
++                        repli = _sid
++                        break
++            if repli and get_user_id_from_session_pool(repli) == request_info['user_id']:
++                session_id = request_info['session_id'] = repli
++                session = SESSION_POOL.get(session_id)
++                if 'session_id' in (event_data.get('data') or {}):
++                    event_data = {
++                        **event_data,
++                        'data': {**event_data['data'], 'session_id': session_id},
++                    }
+         if session is None or session.get('id') != request_info.get('user_id'):
+             log.warning(f'Event caller: session {session_id} not owned by requesting user or disconnected')
+             return {'error': 'Client session disconnected.'}

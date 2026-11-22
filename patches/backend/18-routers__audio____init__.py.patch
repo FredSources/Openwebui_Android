@@ -1,0 +1,334 @@
+diff --git a/routers/audio/__init__.py b/routers/audio/__init__.py
+index 8f86d77..6844285 100644
+--- a/routers/audio/__init__.py
++++ b/routers/audio/__init__.py
+@@ -63,10 +63,30 @@ from open_webui.utils.session_pool import get_session
+ from pydantic import BaseModel, Field
+ 
+ # pydub needs stdlib audioop (gone in 3.13); keep requires-python capped < 3.13
+-if not USE_SLIM:
++# patch Android : import optionnel — sans pydub, les traitements audio locaux
++# (découpage, mediainfo) lèvent une erreur claire ; les API distantes (STT/TTS)
++# et la dictée via la WebView restent utilisables.
++try:
+     from pydub import AudioSegment
+     from pydub.silence import split_on_silence
+     from pydub.utils import mediainfo
++except Exception:
++
++    class _PydubUnavailable:
++        _MSG = (
++            "pydub indisponible sur cet appareil (audioop absent de Python 3.13+) : "
++            "traitement audio local désactivé"
++        )
++
++        def __getattr__(self, name):
++            raise RuntimeError(self._MSG)
++
++        def __call__(self, *args, **kwargs):
++            raise RuntimeError(self._MSG)
++
++    AudioSegment = _PydubUnavailable()
++    split_on_silence = _PydubUnavailable()
++    mediainfo = _PydubUnavailable()
+ 
+ log = logging.getLogger(__name__)
+ router = APIRouter()
+@@ -219,18 +239,26 @@ def transcode_audio_to_mp3(audio_data: bytes, content_type_header: str, output_p
+         sample_rate = int(ct_params.get('rate', 24000))
+         channels = int(ct_params.get('channels', 1))
+ 
+-        audio_segment = AudioSegment.from_raw(
+-            io.BytesIO(audio_data),
+-            sample_width=2,
+-            frame_rate=sample_rate,
+-            channels=channels,
+-        )
+-    else:
+-        audio_segment = AudioSegment.from_file(io.BytesIO(audio_data))
+-
+-    audio_segment.export(str(output_path), format='mp3')
+-    log.info('Transcoded %s audio to MP3: %s', mime_type, output_path)
+-    return True
++        # P129 — pydub/audioop absent (Python 3.13), aucun encodeur MP3 sur
++        # Android : le PCM brut est enveloppé en WAV (module `wave`, pur
++        # Python). La WebView joue le WAV quel que soit le type annoncé
++        # (vérifié sur Chromium : canplay même servi en « audio/mpeg »).
++        import wave as _wave
++        try:
++            with _wave.open(str(output_path), 'wb') as _w:
++                _w.setnchannels(channels)
++                _w.setsampwidth(2)
++                _w.setframerate(sample_rate)
++                _w.writeframes(audio_data)
++            log.info('P129 : PCM enveloppe en WAV (%s Hz, %s canaux) : %s',
++                     sample_rate, channels, output_path)
++            return True
++        except Exception as exc:
++            log.warning('P129 : enveloppage WAV impossible (%s)', exc)
++            return False
++    # Autres formats (ogg, flac, webm, m4a…) : le navigateur les joue
++    # nativement — on sert les octets d'origine (retour False).
++    return False
+ 
+ 
+ def set_faster_whisper_model(model: str, auto_update: bool = False):
+@@ -238,7 +266,14 @@ def set_faster_whisper_model(model: str, auto_update: bool = False):
+         raise HTTPException(503, 'Configure an external speech-to-text engine. Local Whisper is unavailable in slim.')
+     whisper_model = None
+     if model:
+-        from faster_whisper import WhisperModel
++        try:
++            from faster_whisper import WhisperModel
++        except ImportError:
++            raise HTTPException(
++                503,
++                'STT local (faster-whisper) indisponible sur cet appareil : '
++                'configurez un moteur STT distant (Réglages → Audio) ou le mode « web ».',
++            )
+ 
+         faster_whisper_kwargs = {
+             'model_size_or_path': model,
+@@ -296,7 +331,7 @@ class STTConfigForm(BaseModel):
+ 
+ class RealtimeConfigForm(BaseModel):
+     ENABLED: bool = False
+-    PROVIDER: Literal['openai', 'azure'] = 'openai'
++    PROVIDER: Literal['openai', 'azure', 'android'] = 'openai'
+     AUTH_TYPE: Literal['api_key', 'microsoft_entra_id'] = 'api_key'
+     OPENAI_API_BASE_URL: str = 'https://api.openai.com/v1'
+     OPENAI_API_KEY: str = ''
+@@ -366,8 +401,15 @@ async def update_audio_config(request: Request, form_data: AudioConfigUpdateForm
+ def load_speech_pipeline(request):
+     if USE_SLIM:
+         raise HTTPException(503, 'Configure an external text-to-speech engine. Local TTS is unavailable in slim.')
+-    from datasets import load_dataset
+-    from transformers import pipeline
++    try:
++        from datasets import load_dataset
++        from transformers import pipeline
++    except ImportError:
++        raise HTTPException(
++            503,
++            'TTS local (transformers) indisponible sur cet appareil : '
++            'configurez un moteur TTS distant (Réglages → Audio).',
++        )
+ 
+     if request.app.state.speech_synthesiser is None:
+         request.app.state.speech_synthesiser = pipeline('text-to-speech', 'microsoft/speecht5_tts')
+@@ -677,8 +719,14 @@ async def _tts_transformers(request, payload, file_path, file_body_path, user):
+     """Generate speech via the local HuggingFace SpeechT5 pipeline (thread-offloaded)."""
+     if USE_SLIM:
+         raise HTTPException(503, 'Configure an external text-to-speech engine. Local TTS is unavailable in slim.')
+-    import soundfile as sf
+-    import torch
++    try:
++        import soundfile as sf
++        import torch
++    except ImportError:
++        raise HTTPException(
++            503,
++            'TTS local indisponible sur cet appareil : configurez un TTS distant.',
++        )
+ 
+     await asyncio.to_thread(load_speech_pipeline, request)
+ 
+@@ -872,6 +920,15 @@ async def _transcribe_whisper(request, file_path, languages, file_dir, id):
+         )
+ 
+     model = request.app.state.faster_whisper_model
++    # P127 (ajout — aucune ligne amont modifiée) : le STT local (faster-whisper)
++    # n'est pas embarqué sur Android : message clair au lieu d'une
++    # AttributeError (HTTP 500) en aval.
++    if model is None:
++        raise HTTPException(
++            status_code=503,
++            detail='STT local (faster-whisper) indisponible sur cet appareil : '
++                   'configurez un moteur STT distant (Réglages → Audio) ou le mode « web ».',
++        )
+ 
+     def _run():
+         segments, info = model.transcribe(
+@@ -1188,6 +1245,23 @@ async def transcription_handler(request, file_path, metadata, user=None):
+     elif await Config.get('audio.stt.engine') == 'mistral':
+         return await _transcribe_mistral(request, file_path, filename, metadata, file_dir, id)
+ 
++    # P127 (ajout — aucune ligne amont modifiée) : la dictée native (moteur
++    # « web ») est un traitement LOCAL du micro : elle ne transcrit pas les
++    # FICHIERS joints. Message clair au lieu d'une TypeError (HTTP 500)
++    # quand cette fonction retournait None.
++    stt_engine = (await Config.get('audio.stt.engine') or '').strip()
++    if stt_engine == 'web':
++        raise HTTPException(
++            status_code=400,
++            detail='La dictée native (moteur « web ») ne transcrit pas les fichiers '
++                   'joints : configurez un moteur STT distant dans Réglages → Audio.',
++        )
++    raise HTTPException(
++        status_code=400,
++        detail=f'Moteur STT inconnu « {stt_engine} » : configurez un moteur dans '
++               'Réglages → Audio.',
++    )
++
+ 
+ async def _transcribe_mistral(request, file_path, filename, metadata, file_dir, id):
+     """Transcribe audio via the Mistral STT API."""
+@@ -1359,7 +1433,7 @@ async def transcribe(request: Request, file_path: str, metadata: Optional[dict]
+ 
+         # Always produce a list of chunk paths (could be one entry if small)
+         try:
+-            chunk_paths = await asyncio.to_thread(split_audio, file_path, MAX_FILE_SIZE)
++            chunk_paths = await asyncio.to_thread(_split_audio_local, file_path, MAX_FILE_SIZE)  # P129/P130 : découpage local sans pydub
+             print(f'Chunk paths: {chunk_paths}')
+         except Exception as e:
+             log.exception(e)
+@@ -1723,3 +1797,149 @@ async def get_available_voices(request) -> dict:
+ @router.get('/voices')
+ async def get_voices(request: Request, user=Depends(get_verified_user)):
+     return {'voices': [{'id': k, 'name': v} for k, v in (await get_available_voices(request)).items()]}
++
++
++# --- P129/P130 — découpage audio LOCAL (ajouté, amont intact) ---------------
++# pydub/audioop est absent de Python 3.13 : split_audio() d'origine ne peut
++# pas fonctionner. Voici le découpage local appelé par transcribe() :
++#   - WAV (PCM) : module stdlib `wave` ;
++#   - MP3 : frontières de trames MPEG (parseur maison) ;
++#   - autres formats : pont Android P130 (MediaExtractor/MediaMuxer),
++#     enregistré par android_main.register_audio_split() — absent en hôte.
++# Un fichier qui tient dans max_bytes est rendu tel quel (comportement amont).
++
++
++def _split_audio_local(file_path, max_bytes):
++    """P129/P130 — découpage local sans pydub (appelé depuis transcribe)."""
++    file_size = os.path.getsize(file_path)
++    if file_size <= max_bytes:
++        return [file_path]
++    ext = os.path.splitext(file_path)[1].lower()
++    if ext == '.wav':
++        return _split_wav_python(file_path, max_bytes)
++    if ext == '.mp3':
++        return _split_mp3_python(file_path, max_bytes)
++    chunks = _split_via_android_bridge(file_path, max_bytes)  # P130
++    if chunks:
++        return chunks
++    raise Exception(
++        f'Decoupage local impossible pour le format « {ext or "?"} » : le fichier '
++        f'depasse {max_bytes // (1024 * 1024)} Mo. Convertissez-le en WAV ou en MP3.'
++    )
++
++
++def _split_wav_python(file_path: str, max_bytes: int):
++    """P129 — découpage WAV pur Python (module stdlib `wave`)."""
++    import wave
++
++    base, _ = os.path.splitext(file_path)
++    chunks = []
++    with wave.open(file_path, 'rb') as src:
++        params = src.getparams()
++        frame_size = max(params.nchannels * params.sampwidth, 1)
++        bytes_per_sec = max(params.framerate * frame_size, 1)
++        # marge de 10 % pour l'entête WAV (44 o) et l'arrondi des trames
++        target = max(int(max_bytes * 0.9), bytes_per_sec)
++        frames_per_chunk = max(target // frame_size, 1)
++        i = 0
++        while True:
++            data = src.readframes(frames_per_chunk)
++            if not data:
++                break
++            chunk_path = f'{base}_chunk_{i}.wav'
++            with wave.open(chunk_path, 'wb') as dst:
++                dst.setparams(params)
++                dst.writeframes(data)
++            chunks.append(chunk_path)
++            i += 1
++    return chunks or [file_path]
++
++
++_MP3_BITRATES = {  # MPEG-1 Layer III, index 1..14 (kbit/s)
++    3: [32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320],
++    2: [8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],  # MPEG-2
++    0: [8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],  # MPEG-2.5
++}
++_MP3_RATES = {3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000]}
++
++
++def _mp3_frame_len(data: bytes, pos: int):
++    """Longueur de la trame MPEG Layer III en `pos`, ou None si ce n'en est pas une."""
++    if pos + 4 > len(data):
++        return None
++    h = data[pos:pos + 4]
++    if h[0] != 0xFF or (h[1] & 0xE0) != 0xE0:
++        return None
++    version = (h[1] >> 3) & 0x03   # 3 = MPEG-1, 2 = MPEG-2, 0 = MPEG-2.5
++    layer = (h[1] >> 1) & 0x03     # 1 = Layer III
++    br_idx = (h[2] >> 4) & 0x0F
++    sr_idx = (h[2] >> 2) & 0x03
++    padding = (h[2] >> 1) & 0x01
++    if version == 1 or layer != 1 or br_idx in (0, 15) or sr_idx == 3:
++        return None
++    rate = _MP3_RATES[version][sr_idx]
++    bitrate = _MP3_BITRATES[version][br_idx - 1] * 1000
++    coef = 144 if version == 3 else 72
++    length = coef * bitrate // rate + padding
++    return length if length > 4 else None
++
++
++def _split_mp3_python(file_path: str, max_bytes: int):
++    """P129 — découpage MP3 sur frontières de trames (pur Python)."""
++    with open(file_path, 'rb') as f:
++        data = f.read()
++    pos = 0
++    if data[:3] == b'ID3':  # balise ID3v2 à sauter
++        size = ((data[6] & 0x7F) << 21) | ((data[7] & 0x7F) << 14) | ((data[8] & 0x7F) << 7) | (data[9] & 0x7F)
++        pos = min(10 + size, len(data))
++    target = max(int(max_bytes * 0.95), 8192)
++    base, _ = os.path.splitext(file_path)
++    chunks = []
++    i = 0
++    chunk_start = pos
++    cursor = pos
++    while cursor < len(data):
++        flen = _mp3_frame_len(data, cursor)
++        if not flen:
++            cursor += 1  # resynchronisation
++            continue
++        next_pos = cursor + flen
++        if next_pos - chunk_start >= target and cursor > chunk_start:
++            chunk_path = f'{base}_chunk_{i}.mp3'
++            with open(chunk_path, 'wb') as out:
++                out.write(data[chunk_start:cursor])
++            chunks.append(chunk_path)
++            i += 1
++            chunk_start = cursor
++        cursor = next_pos
++    if chunk_start < len(data):
++        chunk_path = f'{base}_chunk_{i}.mp3'
++        with open(chunk_path, 'wb') as out:
++            out.write(data[chunk_start:])
++        chunks.append(chunk_path)
++    return chunks or [file_path]
++
++
++def _split_via_android_bridge(file_path: str, max_bytes: int):
++    """P130 — découpage par le pont Android (MediaExtractor/MediaMuxer),
++    enregistré par `android_main.register_audio_split()` au démarrage.
++    Retourne [] si le pont est absent (hors appareil)."""
++    try:
++        import audio_bridge
++        fn = audio_bridge.get_split()
++        if fn is None:
++            return []
++        import json as _json
++        spec = _json.dumps({'path': file_path, 'max_bytes': int(max_bytes)})
++        try:
++            raw = fn(spec)
++        except TypeError:
++            raw = fn.apply(spec)  # objet Java non converti en callable
++        chunks = _json.loads(str(raw)) if raw else []
++        if isinstance(chunks, list) and chunks and not str(chunks[0]).startswith('ERROR:'):
++            log.info('P130 : %d morceau(x) via le pont Android', len(chunks))
++            return [str(c) for c in chunks]
++        log.error('P130 : pont audio Android en erreur : %s', chunks)
++    except Exception as exc:
++        log.error('P130 : pont audio Android indisponible : %s', exc)
++    return []

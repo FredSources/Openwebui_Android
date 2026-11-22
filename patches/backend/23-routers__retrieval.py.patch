@@ -1,0 +1,32 @@
+diff --git a/routers/retrieval.py b/routers/retrieval.py
+index 3588941..b41514c 100644
+--- a/routers/retrieval.py
++++ b/routers/retrieval.py
+@@ -2310,6 +2310,16 @@ async def search_web(
+             )
+         else:
+             raise Exception('No SEARXNG_QUERY_URL found in environment variables')
++    elif engine in ('embedded-searxng', 'embeded-searxng'):
++        # SearXNG embarqué dans l'APK (Android) : instance locale, aucun réglage requis
++        # (« embeded-searxng » = alias de l'ancienne typo, conservé pour les bases anciennes)
++        return await search_searxng(
++            'http://127.0.0.1:8888/search?q=<query>',
++            query,
++            config['web.search.result_count'],
++            config['web.search.domain.filter_list'],
++            language=config['web.search.searxng_language'],
++        )
+     elif engine == 'openserp':
+         if config['web.search.openserp_base_url']:
+             return await search_openserp(
+@@ -2639,7 +2649,9 @@ async def search_web(
+         else:
+             raise Exception('No LINKUP_API_KEY found in environment variables')
+     else:
+-        raise Exception('No search engine API key found in environment variables')
++        raise Exception(
++            f'No search engine API key found in environment variables (moteur configure : {engine!r})'
++        )
+ 
+ 
+ @router.post('/process/web/search')

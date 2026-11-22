@@ -1,0 +1,112 @@
+diff --git a/models/knowledge.py b/models/knowledge.py
+index 853f4c3..262dcb4 100644
+--- a/models/knowledge.py
++++ b/models/knowledge.py
+@@ -419,18 +419,44 @@ class KnowledgeTable:
+                 if filter:
+                     q = filter.get('query')
+                     if q:
++                        # P55 : normalisation espace/tiret/underscore + jetons
++                        # (même moteur que search_files_by_id — P48)
++                        from sqlalchemy import and_ as _and
++                        import re as _re
++
++                        def _norm(s):
++                            import unicodedata
++                            s = _re.sub(r'[\s_\-]+', ' ', (s or '').lower()).strip()
++                            s = ''.join(c for c in unicodedata.normalize('NFKD', s) if not unicodedata.combining(c))
++                            return s.replace('œ', 'oe').replace('æ', 'ae')
++
++                        def _fold_sql(expr):
++                            for _src, _dst in (
++                                ('é', 'e'), ('è', 'e'), ('ê', 'e'), ('ë', 'e'),
++                                ('É', 'e'), ('È', 'e'), ('Ê', 'e'),
++                                ('à', 'a'), ('â', 'a'), ('À', 'a'), ('Â', 'a'),
++                                ('ù', 'u'), ('û', 'u'), ('ü', 'u'), ('Ù', 'u'), ('Û', 'u'),
++                                ('ô', 'o'), ('Ô', 'o'), ('î', 'i'), ('ï', 'i'), ('Î', 'i'), ('Ï', 'i'),
++                                ('ç', 'c'), ('Ç', 'c'), ('œ', 'oe'), ('Œ', 'oe'), ('æ', 'ae'), ('Æ', 'ae'),
++                            ):
++                                expr = func.replace(expr, _src, _dst)
++                            return expr
++
++                        nom_norm = _fold_sql(func.replace(func.replace(func.lower(File.filename), '-', ' '), '_', ' '))
++                        jetons = [j for j in _norm(q).split(' ') if j]
+                         if filter.get('include_content'):
+                             # Use ->> (as_string) instead of CAST(-> AS TEXT)
+                             # to avoid PostgreSQL "invalid memory alloc request
+                             # size" on large extracted-content rows (#24670).
+                             content_text = File.data['content'].as_string()
+                             content_text = func.substr(content_text, 1, RAG_FILE_CONTENT_SEARCH_MAX_CHARS)
+-                            search_filter = or_(
+-                                File.filename.ilike(f'%{q}%'),
+-                                content_text.ilike(f'%{q}%'),
+-                            )
++                            cont_norm = _fold_sql(func.replace(func.replace(func.lower(content_text), '-', ' '), '_', ' '))
++                            search_filter = _and(*[
++                                or_(nom_norm.like(f'%{j}%'), cont_norm.like(f'%{j}%'))
++                                for j in jetons
++                            ]) if jetons else True
+                         else:
+-                            search_filter = File.filename.ilike(f'%{q}%')
++                            search_filter = _and(*[nom_norm.like(f'%{j}%') for j in jetons]) if jetons else True
+                         stmt = stmt.filter(search_filter)
+ 
+                 # Order by file changes
+@@ -579,20 +605,52 @@ class KnowledgeTable:
+                 if filter:
+                     query_key = filter.get('query')
+                     if query_key:
++                        # P48 : normalisation espace/tiret/underscore + jetons
++                        # (audit : « rapport vulnerabilites » ne trouvait pas
++                        # « rapport-vulnerabilites.json » ; chaque jeton doit
++                        # être présent, le tiret/espace/underscore sont équivalents)
++                        from sqlalchemy import and_ as _and
++                        import re as _re
++
++                        def _norm(s):
++                            import unicodedata
++                            s = _re.sub(r'[\s_\-]+', ' ', (s or '').lower()).strip()
++                            s = ''.join(c for c in unicodedata.normalize('NFKD', s) if not unicodedata.combining(c))
++                            return s.replace('œ', 'oe').replace('æ', 'ae')
++
++                        def _fold_sql(expr):
++                            # P73 : SQLite ignore les accents dans lower() —
++                            # repli explicite des diacritiques français.
++                            for _src, _dst in (
++                                ('é', 'e'), ('è', 'e'), ('ê', 'e'), ('ë', 'e'),
++                                ('É', 'e'), ('È', 'e'), ('Ê', 'e'),
++                                ('à', 'a'), ('â', 'a'), ('À', 'a'), ('Â', 'a'),
++                                ('ù', 'u'), ('û', 'u'), ('ü', 'u'), ('Ù', 'u'), ('Û', 'u'),
++                                ('ô', 'o'), ('Ô', 'o'), ('î', 'i'), ('ï', 'i'), ('Î', 'i'), ('Ï', 'i'),
++                                ('ç', 'c'), ('Ç', 'c'), ('œ', 'oe'), ('Œ', 'oe'), ('æ', 'ae'), ('Æ', 'ae'),
++                            ):
++                                expr = func.replace(expr, _src, _dst)
++                            return expr
++
++                        nom_norm = _fold_sql(func.replace(func.replace(func.lower(File.filename), '-', ' '), '_', ' '))
++                        jetons = [j for j in _norm(query_key).split(' ') if j]
+                         if filter.get('include_content'):
+                             # Use ->> (as_string) instead of CAST(-> AS TEXT)
+                             # to avoid PostgreSQL memory allocation failures on
+                             # large content (#24670).
+                             content_text = File.data['content'].as_string()
+                             content_text = func.substr(content_text, 1, RAG_FILE_CONTENT_SEARCH_MAX_CHARS)
++                            cont_norm = _fold_sql(func.replace(func.replace(func.lower(content_text), '-', ' '), '_', ' '))
+                             stmt = stmt.filter(
+-                                or_(
+-                                    File.filename.ilike(f'%{query_key}%'),
+-                                    content_text.ilike(f'%{query_key}%'),
+-                                )
++                                _and(*[
++                                    or_(nom_norm.like(f'%{j}%'), cont_norm.like(f'%{j}%'))
++                                    for j in jetons
++                                ]) if jetons else True
+                             )
+                         else:
+-                            stmt = stmt.filter(File.filename.ilike(f'%{query_key}%'))
++                            stmt = stmt.filter(
++                                _and(*[nom_norm.like(f'%{j}%') for j in jetons]) if jetons else True
++                            )
+ 
+                     view_option = filter.get('view_option')
+                     if view_option == 'created':

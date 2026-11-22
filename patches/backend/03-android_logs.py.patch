@@ -1,0 +1,206 @@
+diff --git a/android_logs.py b/android_logs.py
+new file mode 100644
+index 0000000..fe62d8a
+--- /dev/null
++++ b/android_logs.py
+@@ -0,0 +1,200 @@
++"""OpenWebUI Android — journaux d'activité (P94).
++
++Module AJOUTÉ hors amont : capture les journaux Python (uvicorn, open_webui,
++android_main, execute_code) dans data/logs/*.log pour les consulter et les
++télécharger depuis /fm → Journaux. Stdlib seule, rotation par taille.
++"""
++
++import logging
++import os
++import re
++import threading
++from datetime import datetime
++from pathlib import Path
++
++_lock = threading.Lock()
++_dir_cache = None
++_taille_max = 1_200_000
++_installe = False
++_VALID = re.compile(r"^(serveur|exec)\.log(\.\d)?$")
++
++
++def _dir() -> Path:
++    global _dir_cache
++    if _dir_cache is None:
++        d = os.environ.get("OWUI_LOGS_DIR")
++        if not d:
++            from open_webui.config import DATA_DIR
++            d = Path(DATA_DIR) / "logs"
++        d = Path(d)
++        d.mkdir(parents=True, exist_ok=True)
++        _dir_cache = d
++    return _dir_cache
++
++
++def chemin(nom: str):
++    """Chemin sur d'un journal (nom de base accepte, sinon None)."""
++    nom = os.path.basename((nom or "").strip())
++    if not _VALID.match(nom):
++        return None
++    p = _dir() / nom
++    return p if p.is_file() else None
++
++
++def _rotation(chemin_f) -> None:
++    try:
++        if chemin_f.exists() and chemin_f.stat().st_size >= _taille_max:
++            a1 = chemin_f.parent / (chemin_f.name + ".1")
++            a2 = chemin_f.parent / (chemin_f.name + ".2")
++            if a1.exists():
++                a1.replace(a2)
++            chemin_f.replace(a1)
++    except Exception:
++        pass
++
++
++def suite(etats: dict) -> list:
++    """P95 — flux EN DIRECT des journaux de l'application : nouvelles lignes
++    depuis les offsets connus (etats = {nom: offset}, mis a jour en place).
++    Une rotation de fichier repart du debut. Alimente /fm/logs/live — ce sont
++    exactement les lignes de serveur.log / exec.log, rien du systeme."""
++    sorties = []
++    try:
++        for p in sorted(_dir().iterdir()):
++            if not _VALID.match(p.name):
++                continue
++            off = int(etats.get(p.name, 0))
++            taille = p.stat().st_size
++            if taille < off:
++                off = 0
++            if taille == off:
++                continue
++            with open(p, "rb") as f:
++                f.seek(off)
++                brut = f.read(256 * 1024)
++            etats[p.name] = off + len(brut)
++            for l in brut.decode("utf-8", "replace").splitlines():
++                sorties.append((p.name, l))
++    except Exception:
++        pass
++    return sorties
++
++
++def _ecrire(nom: str, ligne: str) -> None:
++    # P111 — journalisation désactivée : aucune écriture (le réglage est lu à
++    # chaque ligne : l'effet est immédiat).
++    if os.environ.get('OWUI_LOGS', 'off').strip().lower() in (
++            'off', 'non', '0', 'false', 'desactive', 'aucun'):
++        return
++    try:
++        p = _dir() / nom
++        with _lock:
++            _rotation(p)
++            with open(p, "a", encoding="utf-8") as f:
++                f.write(ligne)
++    except Exception:
++        pass
++
++
++def journal(source: str, message: str, niveau: str = "INFO") -> None:
++    """Ligne horodatee dans serveur.log (evenements hors logging)."""
++    _ecrire("serveur.log", "[%s] %s %s: %s\n" % (
++        datetime.now().strftime("%Y-%m-%d %H:%M:%S"), niveau, source, message))
++
++
++def journal_exec(message: str) -> None:
++    """Ligne horodatee dans exec.log (journal des executions execute_code)."""
++    _ecrire("exec.log", "[%s] %s\n" % (
++        datetime.now().strftime("%Y-%m-%d %H:%M:%S"), message))
++
++
++class _Handler(logging.Handler):
++    """Handler fichier : message formate (traceback inclus) dans serveur.log."""
++
++    def emit(self, record):
++        try:
++            texte = self.format(record)
++        except Exception:
++            texte = record.getMessage()
++        _ecrire("serveur.log", "[%s] %s %s: %s\n" % (
++            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
++            record.levelname, record.name, texte))
++
++
++def install() -> None:
++    """Branche la capture fichier sur les loggeurs de l'app (idempotent).
++    Aucun niveau n'est change : seul un handler supplementaire est ajoute."""
++    global _installe
++    if _installe:
++        return
++    _installe = True
++    try:
++        h = _Handler()
++        h.setFormatter(logging.Formatter("%(message)s"))
++        for nom in ("", "uvicorn", "uvicorn.error", "uvicorn.access", "android_main",
++                    "open_webui", "socketio", "engineio"):
++            logging.getLogger(nom).addHandler(h)
++    except Exception:
++        pass
++
++
++def fichiers() -> list:
++    """Liste des journaux (nom, taille, date) — rotations comprises."""
++    sortie = []
++    try:
++        for p in sorted(_dir().iterdir()):
++            if not _VALID.match(p.name):
++                continue
++            st = p.stat()
++            sortie.append({
++                "nom": p.name,
++                "taille": st.st_size,
++                "modifie": datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
++            })
++        sortie.sort(key=lambda f: f["nom"])
++    except Exception:
++        pass
++    return sortie
++
++
++def lecture(nom: str, lignes: int = 300) -> str:
++    """Dernieres lignes d'un journal (lecture tronquee a ~400 Ko)."""
++    p = chemin(nom)
++    if p is None:
++        return ""
++    try:
++        with open(p, "r", encoding="utf-8", errors="replace") as f:
++            f.seek(0, os.SEEK_END)
++            f.seek(max(0, f.tell() - 400_000))
++            brut = f.read()
++        return "\n".join(brut.splitlines()[-max(1, lignes):])
++    except Exception:
++        return ""
++
++
++def supprimer(nom: str) -> bool:
++    p = chemin(nom)
++    if p is None:
++        return False
++    try:
++        p.unlink()
++        return True
++    except Exception:
++        return False
++
++
++def vider() -> int:
++    """P101 — vide tous les journaux (après analyse). Retourne le nombre de
++    fichiers supprimés."""
++    n = 0
++    try:
++        for p in list(_dir().iterdir()):
++            if _VALID.match(p.name):
++                try:
++                    p.unlink()
++                    n += 1
++                except Exception:
++                    pass
++    except Exception:
++        pass
++    return n

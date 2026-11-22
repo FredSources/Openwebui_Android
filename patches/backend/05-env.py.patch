@@ -1,0 +1,21 @@
+diff --git a/env.py b/env.py
+index b672fe0..54ba1aa 100644
+--- a/env.py
++++ b/env.py
+@@ -500,11 +500,14 @@ WEBSOCKET_SERVER_ENGINEIO_LOGGING = (
+     ).lower()
+     == 'true'
+ )
+-WEBSOCKET_SERVER_PING_TIMEOUT = os.getenv('WEBSOCKET_SERVER_PING_TIMEOUT', '20')
++# P100 : le ping_timeout=20 s déconnectait le client quand il chargeait
++# Pyodide (> 20 s sans pong) → session supprimée → « Client session
++# disconnected ». On tolère un client occupé pendant le chargement.
++WEBSOCKET_SERVER_PING_TIMEOUT = os.getenv('WEBSOCKET_SERVER_PING_TIMEOUT', '300')
+ try:
+     WEBSOCKET_SERVER_PING_TIMEOUT = int(WEBSOCKET_SERVER_PING_TIMEOUT)
+ except ValueError:
+-    WEBSOCKET_SERVER_PING_TIMEOUT = 20
++    WEBSOCKET_SERVER_PING_TIMEOUT = 300
+ 
+ WEBSOCKET_SERVER_PING_INTERVAL = os.getenv('WEBSOCKET_SERVER_PING_INTERVAL', '25')
+ try:

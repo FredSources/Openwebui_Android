@@ -1,0 +1,13 @@
+diff --git a/routers/audio/realtime.py b/routers/audio/realtime.py
+index eea7605..5fbadc3 100644
+--- a/routers/audio/realtime.py
++++ b/routers/audio/realtime.py
+@@ -391,6 +391,8 @@ async def realtime_call(ws: WebSocket):
+         )
+         if not config.get('audio.realtime.enabled'):
+             raise ValueError('Realtime calls are disabled')
++        if config.get('audio.realtime.provider') == 'android':
++            raise ValueError('Realtime calls are handled locally on Android')
+         if user.role != 'admin' and not await has_permission(user.id, 'chat.call', config.get('user.permissions', {})):
+             raise ValueError('Call permission denied')
+         chat_id = auth.get('chat_id')

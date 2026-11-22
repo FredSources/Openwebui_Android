@@ -1,0 +1,1360 @@
+diff --git a/android_fm.py b/android_fm.py
+new file mode 100644
+index 0000000..eda7c55
+--- /dev/null
++++ b/android_fm.py
+@@ -0,0 +1,1354 @@
++"""OpenWebUI Android — navigateur de fichiers /fm + maintenance (P27/P31/P36).
++
++Module AJOUTÉ hors amont (audit de divergence 2026-11-09) : ces routes
++vivent ici pour garder main.py identique à l'origine Open WebUI.
++"""
++
++import asyncio
++
++from fastapi import Depends, Request
++
++from open_webui.utils.auth import get_verified_user
++
++
++def register_fm(app) -> None:
++
++    # P94 : capture des journaux Python (data/logs/serveur.log) dès le démarrage
++    # du noyau — consultables/téléchargeables depuis /fm → Journaux.
++    try:
++        from open_webui import android_logs as _allog
++        _allog.install()
++        import os as _osv
++        _allog.journal_exec("P101 version=0.0.79_beta ping_timeout=%s" % _osv.environ.get('WEBSOCKET_SERVER_PING_TIMEOUT', '?'))
++    except Exception:
++        pass
++
++    _FM_VERSION = "0.0.79_beta"
++    import html as _html
++    import os as _osj
++    import re as _re
++    import traceback as _tb
++    from datetime import datetime as _dt
++    from urllib.parse import quote as _quote
++
++    from fastapi.responses import HTMLResponse as _HTMLResponse, RedirectResponse as _Redirect
++
++    _FM_STYLE = """
++      :root {
++        --font: -apple-system, BlinkMacSystemFont, "Inter", "Vazirmatn", ui-sans-serif, system-ui, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif;
++        --sidebar-width: 245px;
++        --radius-lg: .5rem; --radius-xl: .75rem; --radius-2xl: 1rem;
++        --bg: #ffffff; --fg: #000000;
++        --side: #fafafa; --panel: #ffffff;
++        --border: #e7e7e7; --muted: #616161; --hover: rgba(0,0,0,.035);
++        --accent: #3b82f6; --accent-fg: #ffffff;
++        --btn-primary: #171717; --btn-primary-fg: #ffffff;
++        /* P125 — secondaire OWUI : blanc + bordure gray-200 (light) */
++        --btn2: #ffffff; --btn2-fg: #171717;
++        --danger: #dc2626;
++      }
++      html.dark {
++        --bg: #171717; --fg: #eeeeee;
++        --side: #171717; --panel: #1f1f1f;
++        --border: #2c2c2c; --muted: #9b9b9b; --hover: rgba(255,255,255,.045);
++        --btn-primary: #eeeeee; --btn-primary-fg: #171717;
++        --btn2: #1f1f1f; --btn2-fg: #eeeeee;
++      }
++      html.oled-dark { --bg: #000000; --side: #0a0a0a; --panel: #0a0a0a; }
++      * { box-sizing: border-box; }
++      /* P125 — même règle que le frontend OWUI : aucun mot long ne déborde */
++      html { word-break: break-word; }
++      body { font-family: var(--font); margin: 0; background: var(--bg); color: var(--fg); font-size: 14px; }
++      a { color: var(--fg); text-decoration: none; }
++      a:hover { text-decoration: underline; }
++      .wrap { display: flex; min-height: 100vh; }
++      .side { width: var(--sidebar-width); min-width: 220px; max-width: 480px; padding: 10px 8px 14px; background: var(--side); border-right: 1px solid var(--border); position: relative; transition: width .18s ease, min-width .18s ease, max-width .18s ease; }
++      /* P121 — mode réduit : icônes seules (56 px) */
++      body.sideicons .side { width: 56px; min-width: 56px; max-width: 56px; padding: 10px 6px 14px; }
++      body.sideicons .side .sl { display: none; }
++      body.sideicons .side a { justify-content: center; padding: 7px 4px; }
++      body.sideicons .side summary { justify-content: center; padding: 8px 4px; }
++      body.sideicons .side details a { padding-left: 4px; }
++      body.sideicons .side-head { justify-content: center; padding: 2px 0 10px; }
++      body.sideicons #sidebar-resizer { display: none; }
++      body.sideicons .ver { left: 66px; }
++      .side .si { display: inline-flex; align-items: center; flex: none; }
++      .side .si svg { display: block; }
++      .side-head { display: flex; align-items: center; gap: 6px; padding: 2px 4px 10px; }
++      #sidebar-toggle-button { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; background: transparent; color: var(--fg); border-radius: var(--radius-lg); cursor: pointer; }
++      #sidebar-toggle-button:hover { background: var(--hover); }
++      #sidebar-resizer { position: absolute; top: 0; right: -3px; width: 6px; height: 100%; cursor: col-resize; z-index: 20; touch-action: none; }
++      #sidebar-resizer::after { content: ""; position: absolute; left: -1.5rem; right: -1.5rem; top: 0; bottom: 0; }
++      #sidebar-resizer:hover { background: var(--border); }
++      .side a { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: var(--radius-xl); margin-bottom: 2px; color: var(--fg); opacity: .85; }
++      .side a:hover { background: var(--hover); text-decoration: none; }
++      .side a.on { background: var(--hover); color: var(--fg); opacity: 1; font-weight: 500; }
++      .main { flex: 1; padding: 18px 20px; min-width: 0; }
++      h1 { font-size: 1.15rem; margin: 0 0 14px; font-weight: 600; }
++      /* P125 — icône du sprite devant le titre : alignée sur la ligne de texte */
++      h1 > svg, h2 > svg, h3 > svg { vertical-align: -3px; margin-right: 5px; }
++      .bar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
++      /* P125 — champs alignés sur OWUI : 6px/8px, 11 px, sans contour de focus,
++         bordure bleue (blue-400) à la place de l'outline. */
++      input[type=search] { background: var(--panel); border: 1px solid var(--border); color: var(--fg); padding: 6px 8px; border-radius: var(--radius-lg); min-width: 200px; font-size: 11px; outline: none; font-family: inherit; }
++      input[type=search]:focus { border-color: #60a5fa; }
++      /* P125 — boutons OWUI : 28 px de haut, 10 px de gouttière, 12 px/400,
++         radius .5rem ; inline-flex pour aligner l'icône SVG sur le libellé. */
++      button, .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; vertical-align: middle; min-height: 28px; background: var(--btn-primary); color: var(--btn-primary-fg); border: 0; padding: 0 10px; border-radius: var(--radius-lg); cursor: pointer; font-size: 12px; font-weight: 400; font-family: inherit; line-height: 1.45; }
++      button > svg, .btn > svg { display: block; flex: none; }
++      button:hover, .btn:hover { opacity: .9; text-decoration: none; }
++      .btn2 { background: var(--btn2); color: var(--btn2-fg); border: 1px solid var(--border); }
++      .del { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
++      .del:hover { background: rgba(220, 38, 38, .12); opacity: 1; }
++      td:last-child { white-space: nowrap; }
++      td .btn, td button, td form button { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 0 10px; font-size: 11px; margin: 2px 4px 2px 0; }
++      table { width: 100%; border-collapse: collapse; font-size: .88rem; }
++      th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--border); }
++      th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .02em; }
++      tr:hover td { background: var(--hover); }
++      .ico { font-size: 1.2rem; }
++      .nav { margin: 16px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
++      /* P125 — liens-boutons (.nav) : mêmes cotes que les boutons secondaires */
++      .nav a { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); color: var(--fg); background: var(--panel); font-size: 12px; }
++      .nav a:hover { background: var(--hover); text-decoration: none; }
++      .empty { color: var(--muted); padding: 30px 0; }
++      .err { background: rgba(220, 38, 38, .1); border: 1px solid var(--danger); padding: 12px; border-radius: 10px; white-space: pre-wrap; }
++      .ver { position: fixed; left: 10px; bottom: 6px; color: var(--muted); font-size: 10px; opacity: .7; transition: left .18s ease; }
++      .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; }
++      .srv { font-size: 13.5px; margin: 0 0 6px; }
++      .logbox { background: var(--side); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: 12px/1.5 ui-monospace, "SF Mono", Consolas, monospace; white-space: pre-wrap; word-break: break-word; max-height: 60vh; overflow-y: auto; }
++      .err { color: var(--danger); font-weight: 600; }
++      .logtable td:nth-child(4), .logtable th:nth-child(4) { display: table-cell; }
++      .settings { max-width: 780px; margin: 0 auto; padding-bottom: 60px; }
++      .card { border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 18px 20px; margin: 16px 0 28px; background: var(--panel); }
++      .card h2 { font-size: .95rem; margin: 0 0 2px; font-weight: 600; }
++      .sub { color: var(--muted); font-size: 12.5px; margin: 2px 0 10px; line-height: 1.5; }
++      .card label { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; margin: 12px 0 5px; }
++      .card input { width: 100%; padding: 6px 8px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--bg); color: var(--fg); font-size: 11px; outline: none; }
++      .card input::placeholder, textarea::placeholder, input::placeholder { color: #b4b4b4; }
++      .card input:focus, textarea:focus { border-color: #60a5fa; }
++      .card label.chk { display: flex; align-items: center; gap: 8px; margin: 12px 0 5px; text-transform: none; letter-spacing: normal; font-size: 13px; font-weight: 500; color: var(--fg); }
++      .card .chk input { width: 14px; height: 14px; padding: 0; }
++      /* P125 — cases à cocher : règle OWUI reprise telle quelle (14 px, radius
++         .25rem, bleu 600 cochée, coche SVG blanche en :after). Placée APRÈS
++         .card input (même spécificité) pour lui primer dessus. */
++      input[type=checkbox] { appearance: none; -webkit-appearance: none; position: relative; box-sizing: border-box; width: 14px; height: 14px; padding: 0; border: 1px solid var(--border); border-radius: .25rem; background: var(--bg); cursor: pointer; flex: none; }
++      input[type=checkbox]:checked { border-color: #2563eb; background: #2563eb; }
++      input[type=checkbox]:after { content: ""; opacity: 0; pointer-events: none; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M4 8l3 3l5-5"/></svg>') 50%/80% no-repeat; width: 100%; height: 100%; transition: opacity .2s; display: block; position: absolute; top: 0; left: 0; box-sizing: border-box; }
++      input[type=checkbox]:checked:after { opacity: 1; }
++      .envbox { width: 100%; min-height: 180px; font-family: ui-monospace, monospace; font-size: 12px; padding: 6px 8px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--bg); color: var(--fg); resize: vertical; outline: none; }
++      .primary { background: var(--btn-primary); color: var(--btn-primary-fg); }
++      /* P125 — secondaire OWUI : fond clair + bordure (comme .btn2) */
++      .ghost { background: var(--btn2); color: var(--btn2-fg); border: 1px solid var(--border); }
++      .danger { background: var(--danger); color: #fff; }
++      .ghost:hover, .primary:hover, .danger:hover { opacity: .9; }
++      img, iframe, embed, video { max-width: 100%; height: auto; }
++      .sideov { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 2147483001; }
++      .sideov.on { display: block; }
++      /* P124 — bouton d'ouverture de la sidebar (visible sur téléphone seule) */
++      #side-open { display: none; position: fixed; top: 10px; left: 10px; width: 40px; height: 40px; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--border); background: var(--panel); color: var(--fg); border-radius: var(--radius-lg); cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.25); z-index: 2147483000; }
++      #side-open:hover { background: var(--hover); }
++      @media (max-width: 820px) {
++        .wrap { display: block; }
++        .side { position: fixed; top: 0; left: 0; bottom: 0; width: 56px; max-width: none; min-width: 0; z-index: 2147483001; overflow-y: auto; overflow-x: hidden; padding: 10px 6px 14px; border-right: 1px solid var(--border); border-bottom: 0; transition: width .2s ease, box-shadow .2s ease; }
++        body:not(.sideicons) .side { width: min(var(--sidebar-width), 85vw); padding: 10px 8px 14px; box-shadow: 0 0 30px rgba(0,0,0,.35); }
++        .side a { white-space: nowrap; margin-bottom: 0; padding: 7px 12px; }
++        .main { padding: 58px 12px 12px 68px; }
++        .ver { left: 66px; }
++        h1 { font-size: 1.05rem; }
++        table { font-size: .82rem; }
++        th:nth-child(4), td:nth-child(4), th:nth-child(5), td:nth-child(5) { display: none; }
++        td:last-child { white-space: nowrap; }
++        td .btn, td button, td form button { padding: 0 8px; font-size: 11px; }
++        input[type=search] { min-width: 0; flex: 1 1 140px; }
++      }
++      /* P124 — TÉLÉPHONE (≤600 px) : plus de colonne permanente, la sidebar est
++         un tiroir hors-canvas ouvert par #side-open (le voile #sideov le signale :
++         `.sideov.on ~ .wrap .side` l'affiche). La tablette (601–820 px) garde
++         la colonne d'icônes de 56 px, le desktop (≥821 px) est inchangé. */
++      @media (max-width: 600px) {
++        .side { transform: translateX(-100%); visibility: hidden; transition: transform .2s ease, visibility .2s ease; }
++        .sideov.on ~ .wrap .side { transform: translateX(0); visibility: visible; }
++        .main { padding: 58px 12px 12px 12px; }
++        .ver { left: 10px; }
++        #side-open { display: flex; }
++        #sidebar-toggle-button { display: none; }
++        #sidebar-resizer { display: none; }
++      }
++      @media (max-width: 480px) {
++        th:nth-child(3), td:nth-child(3) { display: none; }
++        th, td { padding: 8px 4px; }
++        button, .btn, .nav a { min-height: 34px; padding: 0 14px; font-size: 12px; }
++        .ver { display: none; }
++      }
++      /* P109 — arbre de navigation, onglets Paramètres, points d'état */
++      .side details { margin: 2px 0; }
++      .side summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px 10px; border-radius: 8px; font-weight: 600; list-style: none; user-select: none; }
++      .side summary::-webkit-details-marker { display: none; }
++      .side summary:hover { background: var(--hover); }
++      .side details a { padding-left: 26px; font-size: 13px; }
++      .tabs { display: flex; gap: 8px; margin: 4px 0 18px; flex-wrap: wrap; }
++      .tabs .tab { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 12px; text-decoration: none; color: var(--fg); background: var(--panel); font-weight: 600; }
++      .tabs .tab.on { border-color: var(--accent); background: var(--accent); color: var(--accent-fg); }
++      @media (max-width: 820px) {
++        .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
++        .tabs .tab { flex: none; }
++      }
++      .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
++      .svcbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
++      .chk { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
++      .twocol { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; }
++      .twocol > div { min-width: 0; }
++      .vsep { border-left: 1px solid var(--border); margin: 0 16px; }
++      .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 2147483001; align-items: center; justify-content: center; padding: 20px; }
++      .modal.on { display: flex; }
++      .modal-box { background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; max-width: 340px; text-align: center; }
++      .modal-box p { margin: 0 0 14px; }
++    """
++
++
++    # P121 — icônes SVG reprises du sprite d'Open WebUI
++    # (src-assets/frontend/_app/immutable/chunks/wCZlPA5v.js ; viewBox 24, stroke 1.5)
++    _FM_SVG = ('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" '
++               'stroke="currentColor" stroke-width="1.5" stroke-linecap="round" '
++               'stroke-linejoin="round" aria-hidden="true">')
++    _FM_ICONS = {
++        'folder': '<path d="M2 11V4.6C2 4.26863 2.26863 4 2.6 4H8.77805C8.92127 4 9.05977 4.05124 9.16852 4.14445L12.3315 6.85555C12.4402 6.94876 12.5787 7 12.722 7H21.4C21.7314 7 22 7.26863 22 7.6V11M2 11V19.4C2 19.7314 2.26863 20 2.6 20H21.4C21.7314 20 22 19.7314 22 19.4V11M2 11H22"></path>',
++        'list': '<path d="M8 6H20"></path><path d="M4 6.01L4.01 5.99889"></path><path d="M4 12.01L4.01 11.9989"></path><path d="M4 18.01L4.01 17.9989"></path><path d="M8 12H20"></path><path d="M8 18H20"></path>',
++        'pdf-logo': '<path d="M4 21.4V2.6C4 2.26863 4.26863 2 4.6 2H16.2515C16.4106 2 16.5632 2.06321 16.6757 2.17574L19.8243 5.32426C19.9368 5.43679 20 5.5894 20 5.74853V21.4C20 21.7314 19.7314 22 19.4 22H4.6C4.26863 22 4 21.7314 4 21.4Z"></path><path d="M16 2V5.4C16 5.73137 16.2686 6 16.6 6H20"></path><text x="12" y="15.2" text-anchor="middle" font-size="5.5" font-weight="700" fill="currentColor" stroke="none">PDF</text>',
++        'image': '<path d="M21 3.6V20.4C21 20.7314 20.7314 21 20.4 21H3.6C3.26863 21 3 20.7314 3 20.4V3.6C3 3.26863 3.26863 3 3.6 3H20.4C20.7314 3 21 3.26863 21 3.6Z"></path><path d="M3 16L10 13L21 18"></path><path d="M16 10C14.8954 10 14 9.10457 14 8C14 6.89543 14.8954 6 16 6C17.1046 6 18 6.89543 18 8C18 9.10457 17.1046 10 16 10Z"></path>',
++        'code': '<path d="M13.5 6L10 18.5"></path><path d="M6.5 8.5L3 12L6.5 15.5"></path><path d="M17.5 8.5L21 12L17.5 15.5"></path>',
++        'markdown-logo': '<rect x="3" y="6" width="18" height="12" rx="1.5"></rect><path d="M6 15V9L9 12L12 9V15"></path><path d="M16 9V15M14 13L16 15L18 13"></path>',
++        'package': '<path d="M20 5.99999L20 18C20 19.1046 19.1046 20 18 20H6C4.89543 20 4 19.1046 4 18V6C4 4.89543 4.89543 4 6 4H18C19.1045 4 19.9999 4.89543 20 5.99999Z"></path><path d="M12 9V4"></path>',
++        'settings': '<path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z"></path><path d="M19.6224 10.3954L18.5247 7.7448L20 6L18 4L16.2647 5.48295L13.5578 4.36974L12.9353 2H10.981L10.3491 4.40113L7.70441 5.51596L6 4L4 6L5.45337 7.78885L4.3725 10.4463L2 11V13L4.40111 13.6555L5.51575 16.2997L4 18L6 20L7.79116 18.5403L10.397 19.6123L11 22H13L13.6045 19.6132L16.2551 18.5155C16.6969 18.8313 18 20 18 20L20 18L18.5159 16.2494L19.6139 13.598L21.9999 12.9772L22 11L19.6224 10.3954Z"></path>',
++        'brain': '<path d="M9.5 4.5C7.9 3.4 5.6 4.3 5.2 6.2C3.7 6.6 2.7 8 2.8 9.6C1.8 10.7 1.8 12.6 2.9 13.7C2.5 15.7 4.1 17.5 6.1 17.5C6.8 19.2 9.1 19.6 10.3 18.2C10.9 17.5 11.2 16.6 11.2 15.7V6.9C11.2 5.9 10.6 5.1 9.5 4.5Z"></path><path d="M14.5 4.5C16.1 3.4 18.4 4.3 18.8 6.2C20.3 6.6 21.3 8 21.2 9.6C22.2 10.7 22.2 12.6 21.1 13.7C21.5 15.7 19.9 17.5 17.9 17.5C17.2 19.2 14.9 19.6 13.7 18.2C13.1 17.5 12.8 16.6 12.8 15.7V6.9C12.8 5.9 13.4 5.1 14.5 4.5Z"></path><path d="M8 9.2C8.8 9.2 9.5 9.7 9.8 10.4"></path><path d="M16 9.2C15.2 9.2 14.5 9.7 14.2 10.4"></path><path d="M8.6 14.2C9.4 14.2 10.1 13.8 10.5 13.1"></path><path d="M15.4 14.2C14.6 14.2 13.9 13.8 13.5 13.1"></path>',
++        'search': '<path d="M17 17L21 21"></path><path d="M3 11C3 15.4183 6.58172 19 11 19C13.213 19 15.2161 18.1015 16.6644 16.6493C18.1077 15.2022 19 13.2053 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11Z"></path>',
++        'tools': '<path d="M10.0503 10.6066L2.97923 17.6777C2.19818 18.4587 2.19818 19.7251 2.97923 20.5061C3.76027 21.2872 5.0266 21.2872 5.80765 20.5061L12.8787 13.4351"></path><path d="M17.1927 13.7994L21.071 17.6777C21.8521 18.4587 21.8521 19.7251 21.071 20.5061C20.29 21.2872 19.0236 21.2872 18.2426 20.5061L12.0341 14.2977"></path><path d="M6.73267 5.90381L4.61135 6.61092L2.49003 3.07539L3.90424 1.66117L7.43978 3.78249L6.73267 5.90381ZM6.73267 5.90381L9.5629 8.73404"></path><path d="M10.0503 10.6066C9.2065 8.45359 9.37147 5.62861 11.111 3.8891C12.8505 2.14958 16.0607 1.76778 17.8285 2.82844L14.7878 5.86911L14.5052 8.98015L17.6162 8.69754L20.6569 5.65686C21.7176 7.42463 21.3358 10.6349 19.5963 12.3744C17.8567 14.1139 15.0318 14.2789 12.8788 13.435"></path>',
++        'page-text': '<path d="M4 21.4V2.6C4 2.26863 4.26863 2 4.6 2H16.2515C16.4106 2 16.5632 2.06321 16.6757 2.17574L19.8243 5.32426C19.9368 5.43679 20 5.5894 20 5.74853V21.4C20 21.7314 19.7314 22 19.4 22H4.6C4.26863 22 4 21.7314 4 21.4Z"></path><path d="M8 10L16 10"></path><path d="M8 18L16 18"></path><path d="M8 14L12 14"></path><path d="M16 2V5.4C16 5.73137 16.2686 6 16.6 6H20"></path>',
++        'sidebar-expand': '<path d="M19 21L5 21C3.89543 21 3 20.1046 3 19L3 5C3 3.89543 3.89543 3 5 3L19 3C20.1046 3 21 3.89543 21 5L21 19C21 20.1046 20.1046 21 19 21Z"></path><path d="M9.5 21V3"></path><path d="M5.5 10L7.25 12L5.5 14"></path>',
++        'chat-bubble': '<path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 13.8214 2.48697 15.5291 3.33782 17L2.5 21.5L7 20.6622C8.47087 21.513 10.1786 22 12 22Z"></path>',
++        'check': '<path d="M5 13L9 17L19 7"></path>',
++        'clock': '<circle cx="12" cy="12" r="10"></circle><path d="M12 6V12H16.5"></path>',
++        'database-script': '<path d="M22 14V6C22 4.34315 20.6569 3 19 3H9C7.34315 3 6 4.34315 6 6V13"></path><path d="M12 21H6C3.79086 21 2 19.2091 2 17C2 14.7909 3.79086 13 6 13H18C15.7909 13 14 14.7909 14 17C14 19.2091 15.7909 21 18 21C20.2091 21 22 19.2091 22 17V14"></path>',
++        'download': '<path d="M6 20H18"></path><path d="M12 4V16M12 16L15.5 12.5M12 16L8.5 12.5"></path>',
++        'globe': '<circle cx="12" cy="12" r="10"></circle><path d="M2 12H22"></path><path d="M12 2C14.5 5.5 14.5 18.5 12 22"></path><path d="M12 2C9.5 5.5 9.5 18.5 12 22"></path><path d="M4 7H20"></path><path d="M4 17H20"></path>',
++        'grid': '<rect x="3" y="3" width="6" height="6" rx="1"></rect><rect x="15" y="3" width="6" height="6" rx="1"></rect><rect x="3" y="15" width="6" height="6" rx="1"></rect><rect x="15" y="15" width="6" height="6" rx="1"></rect>',
++        'info': '<path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"></path><path d="M12 8H12.01"></path><path d="M11 12H12V16H13"></path>',
++        'lock': '<path d="M16 12H17.4C17.7314 12 18 12.2686 18 12.6V19.4C18 19.7314 17.7314 20 17.4 20H6.6C6.26863 20 6 19.7314 6 19.4V12.6C6 12.2686 6.26863 12 6.6 12H8M16 12V8C16 6.66667 15.2 4 12 4C8.8 4 8 6.66667 8 8V12M16 12H8"></path>',
++        'play': '<path d="M6.90588 4.53682C6.50592 4.2998 6 4.58808 6 5.05299V18.947C6 19.4119 6.50592 19.7002 6.90588 19.4632L18.629 12.5162C19.0211 12.2838 19.0211 11.7162 18.629 11.4838L6.90588 4.53682Z"></path>',
++        'plug': '<path d="M12 22V18"></path><path d="M8 18H16"></path><path d="M8 14V18"></path><path d="M16 14V18"></path><path d="M7 14H17C17 14 20 13 20 9C20 7 18 6 16 6H8C6 6 4 7 4 9C4 13 7 14 7 14Z"></path><path d="M10 6V2"></path><path d="M14 6V2"></path>',
++        'refresh': '<path d="M21.168 8A10.003 10.003 0 0012 2C6.815 2 2.55 5.947 2.05 11"></path><path d="M17 8H21.4C21.7314 8 22 7.73137 22 7.4V3"></path><path d="M2.832 16c1.612 3.604 5.253 6 9.168 6 5.185 0 9.45-3.947 9.95-9"></path><path d="M7 16H2.6C2.26863 16 2 16.2686 2 16.6V21"></path>',
++        'save': '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline>',
++        'spark': '<path d="M3 12C9.26752 12 12 9.36306 12 3C12 9.36306 14.7134 12 21 12C14.7134 12 12 14.7134 12 21C12 14.7134 9.26752 12 3 12Z"></path>',
++        'stop': '<rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor"></rect>',
++        'trash': '<path d="M20 9L18.005 20.3463C17.8369 21.3026 17.0062 22 16.0353 22H7.96474C6.99379 22 6.1631 21.3026 5.99496 20.3463L4 9"></path><path d="M21 6H15.5M3 6H8.5M8.5 6V4C8.5 3.44772 8.94772 3 9.5 3H14.5C15.0523 3 15.5 3.44772 15.5 4V6M8.5 6H15.5"></path>',
++    }
++
++
++    def _fm_ico(nom: str, taille: int = 16) -> str:
++        svg = _FM_SVG
++        if taille != 16:
++            svg = svg.replace('width="16" height="16"', f'width="{taille}" height="{taille}"')
++        return svg + _FM_ICONS[nom] + '</svg>'
++
++
++    # P125 — émojis des pages /fm → icônes du sprite Open WebUI.
++    # Le remplacement porte sur l'ENTITÉ HTML (jamais sur l'émoji littéral, que le
++    # générateur n'écrit pas) et sur les placeholders `@@ICO:nom@@` réservés aux
++    # exceptions ciblées (Index des documents → grid, Fichiers journaux → folder,
++    # Nettoyer l'index → refresh). `None` = entité purement décorative à supprimer
++    # (&#65039; = variation selector emoji, toujours accolée à 🛠 ou ⚠).
++    _FM_EMO_ICO = {
++        '&#9654;': 'play',        # ▶ Démarrer / Activer
++        '&#9208;': 'stop',        # ⏹ Arrêter / Désactiver
++        '&#8635;': 'refresh',     # ↺ Redémarrer / Rafraîchir
++        '&#9888;': 'info',        # ⚠ Réinitialisation / index non inspectable
++        '&#9989;': 'check',       # ✅ succès (réglages, index vérifié…)
++        '&#9881;': 'settings',    # ⚙ titres Paramètres
++        '&#128268;': 'plug',      # 🔌 carte Service
++        '&#128269;': 'search',    # 🔍 carte Recherche
++        '&#128190;': 'save',      # 💾 Enregistrer les réglages
++        '&#129302;': 'spark',     # 🤖 cartes Modèles (LLM)
++        '&#128218;': 'database-script',  # 📑 Recherche & RAG
++        '&#128274;': 'lock',      # 🔒 Sécurité & préférences
++        '&#128295;': 'code',      # 🔧 Variables avancées
++        '&#128220;': 'page-text', # 📝 Journaux (h1) — Index des documents → grid
++        '&#128260;': 'clock',     # 📷 Journalisation
++        '&#128196;': 'list',      # 📄 Logs fichier — Fichiers journaux → folder
++        '&#127760;': 'globe',     # 🌐 Logs réseau
++        '&#128229;': 'download',  # 📥 Tout télécharger (zip)
++        '&#128465;': 'trash',     # 🗅 Vider — Nettoyer l'index → refresh
++        '&#128736;': 'tools',     # 🛠 Maintenance
++        '&#128230;': 'package',   # 📦 Données de l'application
++        '&#128172;': 'chat-bubble',  # 💬 FAB retour vers Open WebUI
++        '&#65039;': None,         # variation selector : jamais rendue seule
++    }
++    _FM_ICO_PH = _re.compile(r'@@ICO:([a-z0-9-]+)@@')
++
++
++    def _fm_deco(txt: str) -> str:
++        """P125 — remplace les émojis des pages /fm par les icônes du sprite OWUI.
++
++        Appelé une fois sur le document COMPLET retourné par `_fm_page` : aucune
++        entité n'apparaît dans un attribut, dans le CSS ni dans le JS (contrôlé),
++        donc le remplacement ne peut pas casser le gabarit."""
++        txt = _FM_ICO_PH.sub(lambda m: _fm_ico(m.group(1)), txt)
++        for ent, nom in _FM_EMO_ICO.items():
++            if ent not in txt:
++                continue
++            txt = txt.replace(ent, '' if nom is None else _fm_ico(nom))
++        return txt
++
++
++    def _fm_side(folder: str = "all", src: str = "both", tab: str = "owui") -> str:
++        """P109/P110/P121 — sidebar PERMANENTE : arbre Fichiers + arbre Paramètres
++        (Open WebUI, SearXNG, Maintenance, Journaux) — navigation toujours visible.
++        P121 : icônes du frontend Open WebUI, structure
++        <span class="si">icône</span><span class="sl">libellé</span> (mode réduit
++        body.sideicons = icônes seules, libellés masqués, tooltip title)."""
++        def _lien(url, label, on, ic):
++            return (f'<a href="{url}" class="{"on" if on else ""}" title="{label}">'
++                    f'<span class="si">{_fm_ico(ic)}</span>'
++                    f'<span class="sl">{label}</span></a>')
++
++        def _groupe(titre, ic, items):
++            return ('<details open><summary title="%s">'
++                    '<span class="si">%s</span><span class="sl">%s</span></summary>'
++                    % (titre, _fm_ico(ic), titre)) + items + '</details>'
++
++        feuilles = [("all", "Tous", "list"), ("pdf", "PDF", "pdf-logo"),
++                    ("img", "Images", "image"), ("typ", "Typst", "code"),
++                    ("md", "Markdown", "markdown-logo"),
++                    ("other", "Autres", "package")]
++        fichiers = _groupe(
++            "Fichiers", "folder",
++            "".join(_lien(f"/fm?folder={k}&src={src}", lib, k == folder, ic)
++                    for k, lib, ic in feuilles))
++        entrees = [("/fm?folder=settings&tab=owui", "Open WebUI", "brain",
++                    folder == 'settings' and tab != 'searxng'),
++                   ("/fm?folder=settings&tab=searxng", "SearXNG", "search",
++                    folder == 'settings' and tab == 'searxng'),
++                   ("/fm?folder=maintenance", "Maintenance", "tools",
++                    folder == 'maintenance'),
++                   ("/fm?folder=logs", "Journaux", "page-text", folder == 'logs')]
++        params = _groupe(
++            "Paramètres", "settings",
++            "".join(_lien(u, lib, on, ic) for u, lib, ic, on in entrees))
++        return fichiers + params
++
++
++    def _fm_onglets(actif: str = "owui") -> str:
++        """P110 — barre d'onglets commune à toute la zone Paramètres : Open WebUI,
++        SearXNG (points vert/rouge d'état), Maintenance, Journaux — même largeur et
++        mêmes styles sur tous les écrans."""
++        import android_main as _am
++        st = _am.service_status()
++        _vert, _rouge = '#22c55e', '#ef4444'
++
++        def _t(k, label, href, dot=''):
++            d = f'<span class="dot" style="background:{dot}"></span> ' if dot else ''
++            return f'<a class="tab{" on" if k == actif else ""}" href="{href}">{d}{label}</a>'
++        html = (
++            '<div class="tabs">'
++            + _t('owui', 'Open WebUI', '/fm?folder=settings&tab=owui',
++                 _vert if st.get('openwebui') == 'actif' else _rouge)
++            + _t('searxng', 'SearXNG', '/fm?folder=settings&tab=searxng',
++                 _vert if st.get('searxng') == 'actif' else _rouge)
++            + _t('maintenance', 'Maintenance', '/fm?folder=maintenance')
++            + _t('logs', 'Journaux', '/fm?folder=logs')
++            + '</div>'
++        )
++        return html
++
++
++    def _fm_page(inner: str, title: str = "Fichiers", folder: str = "all", src: str = "both", tab: str = "owui") -> str:
++        # P37/P109 — habillage COMPLET et PERMANENT : la sidebar (arbre de
++        # navigation) est TOUJOURS présente, le bouton de retour est FIXE en HAUT
++        # à droite ; thème aligné sur Open WebUI (lu dans localStorage["theme"]).
++        theme_js = (
++            '<script>(function(){var t=null;try{t=localStorage.getItem("theme");}catch(e){}'
++            'var dark=(t==="dark"||t==="oled-dark")'
++            '||(t!=="light"&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);'
++            'var c=document.documentElement.classList;'
++            'if(dark){c.add("dark");if(t==="oled-dark"){c.add("oled-dark");}}else{c.add("light");}'
++            '})();</script>'
++        )
++        # P40 — FAB retour vers Open WebUI : jumeau du bouton 📂 du SPA (même
++        # style, autre icône 💬), présent sur TOUTES les pages /fm.
++        retour = (
++            '<a href="/" id="fab-fm" title="Retour à Open WebUI — glisser pour déplacer" '
++            'style="position:fixed;top:10px;right:12px;z-index:2147483000;'
++            'width:42px;height:42px;border-radius:50%;background:#3b82f6;color:#fff;'
++            'display:flex;align-items:center;justify-content:center;font-size:20px;'
++            'text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:grab;touch-action:none">'
++            '&#128172;</a>'
++            '<script>(function(){var el=document.getElementById("fab-fm");if(!el)return;'
++            'try{var s=JSON.parse(localStorage.getItem("fabPos")||"null");'
++            'if(s){el.style.left=s.l+"px";el.style.top=s.t+"px";el.style.right="auto";el.style.bottom="auto";}}catch(e){}'
++            'var sx,sy,ox,oy,drag=0,moved=0;'
++            'el.addEventListener("pointerdown",function(e){drag=1;moved=0;sx=e.clientX;sy=e.clientY;'
++            'var r=el.getBoundingClientRect();ox=r.left;oy=r.top;});'
++            'el.addEventListener("pointermove",function(e){if(!drag)return;'
++            'var dx=e.clientX-sx,dy=e.clientY-sy;if(!moved&&Math.abs(dx)+Math.abs(dy)<6)return;'
++            'moved=1;el.style.left=(ox+dx)+"px";el.style.top=(oy+dy)+"px";'
++            'el.style.right="auto";el.style.bottom="auto";e.preventDefault();});'
++            'el.addEventListener("pointerup",function(){if(!drag)return;drag=0;if(moved){'
++            'try{localStorage.setItem("fabPos",JSON.stringify({l:parseInt(el.style.left)||0,t:parseInt(el.style.top)||0}));}catch(e){}}});'
++            'el.addEventListener("click",function(e){if(moved){e.preventDefault();e.stopPropagation();moved=0;}});'
++            '})();</script>'
++        )
++        # P125 — les émojis des pages deviennent les icônes du sprite OWUI : le
++        # remplacement est fait UNE fois sur le document complet (contrôlé : aucune
++        # entité dans un attribut, le CSS ou le JS).
++        return _fm_deco(
++            '<!doctype html><html lang="fr"><head><meta charset="utf-8">'
++            '<meta name="viewport" content="width=device-width, initial-scale=1">'
++            f'<title>{_html.escape(title)}</title>{theme_js}<style>{_FM_STYLE}</style></head>'
++            '<body>'
++            '<div class="sideov" id="sideov"></div>'
++            # P124 — bouton d'ouverture de la sidebar : seul moyen d'y accéder sur
++            # téléphone (la colonne disparaît ≤600 px). Même icône que le repli.
++            '<button id="side-open" title="Ouvrir le menu" aria-label="Ouvrir le menu">'
++            + _fm_ico('sidebar-expand', 20) + '</button>'
++            '<div class="wrap"><aside class="side">'
++            '<div class="side-head"><button id="sidebar-toggle-button" '
++            'title="Réduire / agrandir la sidebar" aria-label="Réduire la sidebar">'
++            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" '
++            'stroke="currentColor" stroke-width="1.5" stroke-linecap="round" '
++            'stroke-linejoin="round" aria-hidden="true">'
++            '<path d="M19 21L5 21C3.89543 21 3 20.1046 3 19L3 5C3 3.89543 3.89543 3 5 3L19 3C20.1046 3 21 3.89543 21 5L21 19C21 20.1046 20.1046 21 19 21Z"/>'
++            '<path d="M9.5 21V3"/><path d="M5.5 10L7.25 12L5.5 14"/>'
++            '</svg></button></div>'
++            + _fm_side(folder, src, tab)
++            + '<div id="sidebar-resizer" role="separator" aria-orientation="vertical" '
++            'tabindex="0" title="Redimensionner la sidebar"></div>' + '</aside>'
++            f'<main class="main">{inner}</main></div>'
++            '<div class="modal" id="fmm"><div class="modal-box">'
++            '<p id="fmm-msg"></p>'
++            '<button class="ghost" onclick="document.getElementById(\'fmm\').classList.remove(\'on\')">OK</button>'
++            '</div></div>'
++            '<script>function fmErr(t){var m=document.getElementById("fmm");'
++            'document.getElementById("fmm-msg").textContent=t;m.classList.add("on")}'
++            'function fmPost(u,a){var b=a?new URLSearchParams({action:a}):null;'
++            'fetch(u,{method:"POST",body:b}).then(function(r){if(!r.ok){return r.text()'
++            '.then(function(t){throw new Error(t||("Erreur "+r.status))})}location.reload()})'
++            '.catch(function(e){fmErr(String(e.message||e))})}'
++            'function fmSide(){'
++            'var ov=document.getElementById("sideov");'
++            'var mobile=window.innerWidth<=820;'
++            'var icons=document.body.classList.contains("sideicons");'
++            'document.body.classList.toggle("sideicons",!icons);'
++            'if(mobile){if(ov){ov.classList.toggle("on",icons);}}'
++            'else{if(!icons){var ds=document.querySelectorAll(".side details");'
++            'for(var i=0;i<ds.length;i++){ds[i].open=true;}}'
++            'try{localStorage.setItem("sidebar",icons?"full":"icons");}catch(e){}}'
++            'var b=document.getElementById("sidebar-toggle-button");'
++            'if(b){b.setAttribute("title",document.body.classList.contains("sideicons")'
++            '?"Agrandir la sidebar":"Réduire en icônes");}}'
++            'var stb=document.getElementById("sidebar-toggle-button");'
++            'if(stb){stb.addEventListener("click",fmSide);}'
++            'var sv=document.getElementById("sideov");'
++            'if(sv){sv.addEventListener("click",fmSide);}'
++            'var so=document.getElementById("side-open");'
++            'if(so){so.addEventListener("click",fmSide);}'
++            '(function(){var h=null;try{h=localStorage.getItem("sidebar");}catch(e){}'
++            'var mobile=window.innerWidth<=820;'
++            'var icons=mobile?true:(h==="icons");'
++            'document.body.classList.toggle("sideicons",icons);'
++            'if(icons){var d0=document.querySelectorAll(".side details");'
++            'for(var i0=0;i0<d0.length;i0++){d0[i0].open=true;}}'
++            'var ov2=document.getElementById("sideov");'
++            'if(ov2){ov2.classList.remove("on");}'
++            'var b2=document.getElementById("sidebar-toggle-button");'
++            'if(b2){b2.setAttribute("title",icons?"Agrandir la sidebar":"Réduire en icônes");}'
++            'var sms=document.querySelectorAll(".side summary");'
++            'for(var k=0;k<sms.length;k++){(function(sm){sm.addEventListener("click",function(e){'
++            'if(document.body.classList.contains("sideicons")){e.preventDefault();}});})(sms[k]);}'
++            'window.addEventListener("resize",function(){'
++            'var o=document.getElementById("sideov");'
++            'if(o){o.classList.toggle("on",window.innerWidth<=820'
++            '&&!document.body.classList.contains("sideicons"));}});'
++            'var r=document.getElementById("sidebar-resizer");'
++            'if(r){var MIN=220,MAX=480,cur=245;'
++            'function setW(w){w=Math.min(MAX,Math.max(MIN,Math.round(w)));'
++            'document.documentElement.style.setProperty("--sidebar-width",w+"px");return w;}'
++            'try{var sv2=parseFloat(localStorage.getItem("sidebarWidth"));'
++            'if(sv2>=MIN&&sv2<=MAX){cur=setW(sv2);}}catch(e){}'
++            'r.addEventListener("pointerdown",function(e){e.preventDefault();'
++            'try{r.setPointerCapture(e.pointerId);}catch(err){}'
++            'document.body.style.userSelect="none";var sx=e.clientX,base=cur;'
++            'function mv(ev){cur=setW(base+(ev.clientX-sx));}'
++            'function up(){r.removeEventListener("pointermove",mv);'
++            'r.removeEventListener("pointerup",up);'
++            'document.body.style.userSelect="";'
++            'try{localStorage.setItem("sidebarWidth",String(cur));}catch(err){}}'
++            'r.addEventListener("pointermove",mv);r.addEventListener("pointerup",up);});'
++            'r.addEventListener("keydown",function(e){'
++            'if(e.key!=="ArrowLeft"&&e.key!=="ArrowRight")return;'
++            'e.preventDefault();cur=setW(cur+(e.key==="ArrowLeft"?-10:10));'
++            'try{localStorage.setItem("sidebarWidth",String(cur));}catch(err){}});}})();'
++            # onglets : l'onglet ACTIF reste visible (auto-centrage horizontal)
++            'var t=document.querySelector(".tabs .tab.on");'
++            'if(t){var pp=t.parentNode,rr=t.getBoundingClientRect(),'
++            'pr=pp.getBoundingClientRect();'
++            'if(pp.scrollWidth>pp.clientWidth){'
++            'pp.scrollLeft+=rr.left-pr.left-(pp.clientWidth-rr.width)/2;}}'
++            '</script>'
++            + retour
++            + f'<footer class="ver">OpenWebUI Android {_FM_VERSION}</footer></body></html>'
++        )
++
++
++    def _fm_get(meta, key):
++        """meta est un dict OU un objet FileMeta (reponse API) selon les chemins."""
++        if isinstance(meta, dict):
++            return meta.get(key)
++        return getattr(meta, key, None)
++
++
++    def _fm_kind(name: str, ctype: str) -> str:
++        """P109 — catégories de l'arbre : pdf, image, typst, markdown, autres."""
++        n = (name or "").lower()
++        c = (ctype or "").lower()
++        if c == "application/pdf" or n.endswith(".pdf"):
++            return "pdf"
++        if c.startswith("image/") or n.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")):
++            return "img"
++        if n.endswith(".typ"):
++            return "typ"
++        if c in ("text/markdown", "text/x-markdown") or n.endswith((".md", ".markdown")):
++            return "md"
++        return "other"
++
++
++    _FM_ICO = {"pdf": "\U0001f4c4", "img": "\U0001f5bc", "typ": "\u270d", "md": "\U0001f4c3", "other": "\U0001f4e6"}
++
++
++    def _fm_size(n) -> str:
++        """Taille lisible en français : « 1,9 Mo » ; « — » si inconnue."""
++        try:
++            if n is None:
++                return "\u2014"
++            n = float(n)
++        except Exception:
++            return "\u2014"
++        if n >= 1 << 30:
++            return f"{n / (1 << 30):.1f}".replace(".", ",") + " Go"
++        if n >= 1 << 20:
++            return f"{n / (1 << 20):.1f}".replace(".", ",") + " Mo"
++        if n >= 1000:
++            return f"{n / 1000:.1f}".replace(".", ",") + " Ko"
++        return f"{int(n)} o"
++
++
++    def _fm_real_size(f, meta):
++        """Taille du fichier : maximum des sources disponibles (disque, metadonnees,
++        contenu en base) — jamais 0 si une source connait la taille reelle."""
++        candidats = []
++        try:
++            import os as _os
++
++            from open_webui.storage.provider import Storage
++
++            candidats.append((_os.path.getsize(Storage.get_file(getattr(f, "path", None))), "disque"))
++        except Exception:
++            pass
++        try:
++            v = _fm_get(meta, "size")
++            if v:
++                candidats.append((int(v), "meta"))
++        except Exception:
++            pass
++        try:
++            contenu = (f.data or {}).get("content")
++            if contenu:
++                candidats.append((len(contenu), "contenu"))
++        except Exception:
++            pass
++        if not candidats:
++            return None
++        return max(candidats)[0]
++
++
++    def _fm_chemin_local(nom: str):
++        """Fichier du dossier uploads (alias /mnt/uploads) — nom de base uniquement."""
++        import os as _os
++
++        from open_webui.config import UPLOAD_DIR as _UP
++
++        nom = _os.path.basename(nom)
++        p = _UP / nom
++        return p if p.is_file() else None
++
++
++    def _fm_orphelins(deja_references) -> list:
++        """Fichiers presents dans le dossier uploads mais absents de la base
++        (ecrits par des outils/skills via /mnt/uploads ou Storage direct)."""
++        import os as _os
++
++        from open_webui.config import UPLOAD_DIR as _UP
++
++        if not _UP.is_dir():
++            return []
++        orphelins = []
++        for p in _UP.iterdir():
++            try:
++                if p.is_file() and _os.path.realpath(p) not in deja_references:
++                    orphelins.append(p)
++            except Exception:
++                continue
++        return sorted(orphelins, key=lambda p: p.stat().st_mtime, reverse=True)
++
++
++    def _fm_row(f) -> str:
++        meta = f.meta or {}
++        name = str(_fm_get(meta, "name") or f.filename or f.id)
++        size = _fm_size(_fm_real_size(f, meta))
++        ctype = str(_fm_get(meta, "content_type") or "")
++
++        def _fmt(ts) -> str:
++            try:
++                if isinstance(ts, _dt):
++                    return ts.strftime("%Y-%m-%d %H:%M")
++                if isinstance(ts, (int, float)):
++                    return _dt.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
++                return str(ts or "")
++            except Exception:
++                return ""
++
++        when = _fmt(f.updated_at) or _fmt(f.created_at)
++        kind = _fm_kind(name, ctype)
++        return (
++            f"<tr><td class=\"ico\">{_FM_ICO[kind]}</td>"
++            f"<td><a href=\"/fm/preview?id={f.id}\">{_html.escape(name)}</a></td>"
++            f"<td>{size}</td><td>{when}</td><td>{_html.escape(ctype)}</td><td>"
++            f"<a class=\"btn\" href=\"/api/v1/files/{f.id}/content\" download>T\u00e9l\u00e9charger</a> "
++            f"<form style=\"display:inline\" method=\"post\" action=\"/fm/delete\" "
++            f"onsubmit=\"return confirm('Supprimer ce fichier ?')\">"
++            f"<input type=\"hidden\" name=\"id\" value=\"{f.id}\">"
++            f"<button class=\"del\">Suppr.</button></form></td></tr>"
++        )
++
++
++    def _fm_error(exc: Exception) -> str:
++        return _fm_page(
++            "<h1>Erreur du gestionnaire de fichiers</h1><div class=\"err\">"
++            + _html.escape("".join(_tb.format_exception(exc)))
++            + "</div><div class=\"nav\"><a href=\"/fm\">\u2190 r\u00e9essayer</a></div>"
++        )
++
++
++    def _journaux_actifs() -> bool:
++        """P95/P111 — les journaux sont-ils actifs ? (réglage OWUI_LOGS).
++        P111 : par défaut, AUCUNE journalisation (accord utilisateur 2026-11-11)."""
++        return _osj.environ.get('OWUI_LOGS', 'off').strip().lower() not in (
++            'off', 'non', '0', 'false', 'desactive', 'aucun')
++
++
++    def _journaux_reseau() -> bool:
++        """P111 — l’évacuation des journaux par le réseau (téléchargement, zip,
++        flux live) est DÉSACTIVABLE (réglage OWUI_LOGS_NET, active par défaut)."""
++        return _osj.environ.get('OWUI_LOGS_NET', 'on').strip().lower() not in (
++            'off', 'non', '0', 'false', 'desactive', 'aucun')
++
++
++    @app.get('/fm')
++    async def fm_browser(request: Request, user=Depends(get_verified_user)):
++        """P27 — navigateur de fichiers (dossiers par type, recherche, actions)."""
++        try:
++            from open_webui.models.files import Files
++
++            q = (request.query_params.get('q') or '').strip().lower()
++            folder = request.query_params.get('folder') or 'all'
++            # P109 — origine des fichiers : base (fiches), disque (orphelins) ou les deux.
++            src = (request.query_params.get('src') or 'both').strip() or 'both'
++            tab = (request.query_params.get('tab') or 'owui').strip() or 'owui'
++            # P95 : les journaux sont coupables à l'exécution (réglage
++            # OWUI_LOGS=off dans les Paramètres, appliqué au redémarrage).
++            _journaux_on = _journaux_actifs()
++            page = max(1, int(request.query_params.get('page') or 1))
++            per_page = 50
++            uid = None if user.role == 'admin' else user.id
++            result = await Files.get_file_list(user_id=uid, skip=0, limit=10000)
++            items = []
++            for f in result.items:
++                meta = f.meta or {}
++                name = str(_fm_get(meta, 'name') or f.filename or f.id)
++                if folder != 'all' and _fm_kind(name, str(_fm_get(meta, 'content_type') or '')) != folder:
++                    continue
++                if q and q not in name.lower():
++                    continue
++                items.append(f)
++            def _key(f):
++                v = f.updated_at or f.created_at or 0
++                try:
++                    return v.timestamp() if isinstance(v, _dt) else float(v)
++                except Exception:
++                    return 0.0
++
++            items.sort(key=_key, reverse=True)
++            if src == 'disk':
++                items = []  # P109 : on ne montre que les fichiers « sur disque »
++            refs = set()
++            for f in result.items:
++                try:
++                    import os as _os2
++                    from open_webui.storage.provider import Storage as _St
++                    refs.add(_os2.path.realpath(_St.get_file(f.path)))
++                except Exception:
++                    pass
++            orph = []
++            import re as _re
++            for p in _fm_orphelins(refs):
++                nom_aff = _re.sub(r'^[0-9a-fA-F-]{36}_', '', p.name)
++                if folder != 'all' and _fm_kind(nom_aff, '') != folder:
++                    continue
++                if q and q not in nom_aff.lower():
++                    continue
++                orph.append((p, nom_aff))
++            if src == 'base':
++                orph = []  # P109 : origine « en base » — on masque les orphelins du disque
++            total = len(items) + len(orph)
++            page_items = items[(page - 1) * per_page: page * per_page]
++            rows_l = [_fm_row(f) for f in page_items]
++            for p, nom_aff in orph:
++                try:
++                    st = p.stat()
++                    taille = _fm_size(st.st_size)
++                    quand = _dt.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M")
++                except Exception:
++                    taille, quand = "\u2014", ""
++                kind_o = _fm_kind(nom_aff, '')
++                rows_l.append(
++                    f"<tr><td class=\"ico\">{_FM_ICO[kind_o]}</td>"
++                    f"<td><a href=\"/fm/raw?name={_quote(p.name)}\">{_html.escape(nom_aff)}</a></td>"
++                    f"<td>{taille}</td><td>{quand}</td><td>sur disque</td><td>"
++                    f"<a class=\"btn\" href=\"/fm/raw?name={_quote(p.name)}\" download>T\u00e9l\u00e9charger</a> "
++                    f"<form style=\"display:inline\" method=\"post\" action=\"/fm/delete-raw\" "
++                    f"onsubmit=\"return confirm('Supprimer ce fichier ?')\">"
++                    f"<input type=\"hidden\" name=\"name\" value=\"{_html.escape(p.name)}\">"
++                    f"<button class=\"del\">Suppr.</button></form></td></tr>"
++                )
++            body = "".join(rows_l) or "<tr><td colspan=\"6\" class=\"empty\">Aucun fichier ici pour le moment.</td></tr>"
++            # P109 — la sidebar (arbre) est fournie par _fm_page ; ici, le sélecteur
++            # d'origine des fichiers : en base, sur disque, ou les deux.
++            src_liens = (
++                '<div class="tabs" style="margin:0 0 14px">'
++                + "".join(
++                    f"<a class=\"tab {'on' if src == k else ''}\" "
++                    f"href=\"/fm?folder={folder}&src={k}&q={_quote(q)}\">{l}</a>"
++                    for k, l in (("both", "Les deux"), ("base", "En base"), ("disk", "Sur disque"))
++                ) + '</div>'
++            )
++            if folder == 'settings':
++                import android_main as _am
++                brut = _am.env_read()
++                vals = {}
++                for _l in brut.splitlines():
++                    _s = _l.strip()
++                    if _s and not _s.startswith('#') and '=' in _s:
++                        _k, _, _v = _s.partition('=')
++                        vals[_k.strip()] = _v.strip()
++                # P117 : les réglages de journalisation (OWUI_LOGS / OWUI_LOGS_NET)
++                # sont TRANSPARENTS ici — gérés par l'onglet Journaux.
++                connus = ('OLLAMA_BASE_URL', 'OPENAI_API_BASE_URL', 'OPENAI_API_KEY',
++                          'RAG_EMBEDDING_ENGINE', 'RAG_OPENAI_API_BASE_URL',
++                          'RAG_OPENAI_API_KEY', 'RAG_OPENAI_EMBEDDING_MODEL',
++                          'WEBUI_AUTH', 'ENABLE_SIGNUP', 'DEFAULT_LOCALE')
++                aides = {
++                    'OLLAMA_BASE_URL': 'ex. http://100.64.0.2:11434',
++                    'OPENAI_API_BASE_URL': 'ex. https://api.openai.com/v1',
++                    'OPENAI_API_KEY': 'clé API du modèle',
++                    'RAG_EMBEDDING_ENGINE': 'openai / ollama / azure',
++                    'RAG_OPENAI_API_BASE_URL': 'ex. https://api.openai.com/v1',
++                    'RAG_OPENAI_API_KEY': 'clé API embeddings',
++                    'RAG_OPENAI_EMBEDDING_MODEL': 'ex. text-embedding-3-small',
++                    'WEBUI_AUTH': 'true / false',
++                    'ENABLE_SIGNUP': 'true / false',
++                    'DEFAULT_LOCALE': 'ex. fr-FR',
++                }
++                reste = chr(10).join(
++                    _l for _l in brut.splitlines()
++                    if not (_l.strip() and not _l.strip().startswith('#') and '=' in _l
++                            and _l.partition('=')[0].strip() in (
++                                *connus, 'OWUI_LOGS', 'OWUI_LOGS_NET')))
++
++                def _champ(nom):
++                    type_ = 'password' if 'KEY' in nom else 'text'
++                    return (
++                        '<label>' + nom.replace('_', ' ').lower() + '</label>'
++                        '<input type="' + type_ + '" name="VAR_' + nom + '" value="'
++                        + _html.escape(vals.get(nom, '')) + '" placeholder="'
++                        + _html.escape(aides.get(nom, '')) + '">'
++                    )
++
++                st = _am.service_status()
++                _vert, _rouge = '#22c55e', '#ef4444'
++                dot_ow = _vert if st.get('openwebui') == 'actif' else _rouge
++                dot_sx = _vert if st.get('searxng') == 'actif' else _rouge
++                _js = ('<script>function svc(n,a){try{document.getElementById("svcmsg")'
++                       '.textContent=AndroidSystem.serverAction(n,a)}catch(e){document'
++                       '.getElementById("svcmsg").textContent="pont système indisponible : "+e}}</script>')
++                onglets = _fm_onglets('searxng' if tab == 'searxng' else 'owui')
++                if tab == 'searxng':
++                    sx = _am.searxng_settings_load()
++
++                    def _chk(k):
++                        return 'checked' if k in (sx.get('formats') or []) else ''
++                    page = (
++                        onglets
++                        + '<div class="settings"><form method="post" action="/fm/settings">'
++                        + '<input type="hidden" name="tab" value="searxng">'
++                        + '<h1>&#9881; Paramètres &mdash; SearXNG</h1>'
++                        + '<div class="card"><h2>&#128268; Service</h2>'
++                        + '<p class="sub"><span class="dot" style="background:' + dot_sx + '"></span> '
++                        + 'État : <b>' + _html.escape(st.get('searxng', 'arrêt')) + '</b> &mdash; '
++                        + 'instance locale <code>127.0.0.1:8888</code></p>'
++                        + '<div class="svcbar">'
++                        + '<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;run&quot;)">'
++                        + '&#9654; Démarrer</button>'
++                        + '<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;stop&quot;)">'
++                        + '&#9208; Arrêter</button>'
++                        + '<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;restart&quot;)">'
++                        + '&#8635; Redémarrer</button>'
++                        + '<a class="btn" href="/search?q=test&amp;format=json" target="_blank">'
++                        + '&#128269; Tester la recherche</a>'
++                        + '</div></div>'
++                        + '<div class="card"><h2>&#128269; Recherche</h2>'
++                        + '<p class="sub">Formats de réponse de l’instance embarquée.</p>'
++                        + '<label class="chk"><input type="checkbox" name="SX_html" '
++                        + _chk('html') + '> html</label>'
++                        + '<label class="chk"><input type="checkbox" name="SX_json" ' + _chk('json')
++                        + '> json (requis par l’appli)</label>'
++                        + '<label class="chk"><input type="checkbox" name="SX_limiter"'
++                        + (' checked' if sx.get('limiter') else '')
++                        + '> limiter (anti-abus, inutile en local)</label>'
++                        + '</div>'
++                        + '<div class="bar" style="margin-top:18px">'
++                        + '<button class="primary">&#128190; Enregistrer les réglages</button></div>'
++                        + '</form></div><p id="svcmsg" class="sub"></p>' + _js
++                    )
++                else:
++                    page = """@@ONGLETS@@
++    <form method="post" action="/fm/settings"><input type="hidden" name="tab" value="owui"><div class="settings">
++    <h1>&#9881; Paramètres &mdash; Open WebUI</h1>
++    <p class="sub">Réglages écrits dans <code>data/openwebui.env</code> — appliqués au prochain démarrage.</p>
++    <div class="card"><h2>&#128268; Service</h2>
++    <p class="sub"><span class="dot" style="background:@@DOT_OW@@"></span> État : <b>@@ST_OW@@</b></p>
++    <div class="svcbar">
++    <button type="button" class="ghost" onclick="svc(&quot;openwebui&quot;,&quot;run&quot;)">&#9654; Démarrer</button>
++    <button type="button" class="ghost" onclick="svc(&quot;openwebui&quot;,&quot;stop&quot;)">&#9208; Arrêter</button>
++    <button type="button" class="ghost" onclick="AndroidSystem.restartApp()">&#8635; Redémarrer l'application</button>
++    </div></div>
++    <div class="card"><h2>&#129302; Modèles (LLM)</h2>
++    <p class="sub">Connexion à Ollama ou à une API OpenAI-compatible.</p>
++    @@OLLAMA_BASE_URL@@
++    @@OPENAI_API_BASE_URL@@
++    @@OPENAI_API_KEY@@
++    </div>
++    <div class="card"><h2>&#128218; Recherche &amp; RAG</h2>
++    <p class="sub">Embeddings distants pour la recherche dans vos documents.</p>
++    @@RAG_EMBEDDING_ENGINE@@
++    @@RAG_OPENAI_API_BASE_URL@@
++    @@RAG_OPENAI_API_KEY@@
++    @@RAG_OPENAI_EMBEDDING_MODEL@@
++    </div>
++    <div class="card"><h2>&#128274; Sécurité &amp; préférences</h2>
++    @@WEBUI_AUTH@@
++    @@ENABLE_SIGNUP@@
++    @@DEFAULT_LOCALE@@
++    </div>
++    <div class="card"><h2>&#128295; Variables avancées</h2>
++    <p class="sub">Toute autre variable, une par ligne au format KEY=VALUE.</p>
++    <textarea name="extras" spellcheck="false" class="envbox">@@RESTE@@</textarea>
++    </div>
++    <div class="bar" style="margin-top:18px">
++    <button class="primary">&#128190; Enregistrer les réglages</button>
++    </div>
++    </div></form>
++    <p id="svcmsg" class="sub"></p>
++    <script>function svc(n,a){try{document.getElementById("svcmsg").textContent=AndroidSystem.serverAction(n,a)}catch(e){document.getElementById("svcmsg").textContent="pont système indisponible : "+e}}</script>"""
++                    for _nom in connus:
++                        page = page.replace('@@' + _nom + '@@', _champ(_nom))
++                    page = page.replace('@@RESTE@@', _html.escape(reste))
++                    page = page.replace('@@ONGLETS@@', onglets)
++                    page = page.replace('@@ST_OW@@', st.get('openwebui', 'arrêt'))
++                    page = page.replace('@@DOT_OW@@', dot_ow)
++                return _HTMLResponse(_fm_page(page, 'Paramètres', folder='settings', src=src))
++            if folder == 'logs':
++                from open_webui import android_logs as _al
++                sel = (request.query_params.get('log') or '').strip() or 'TOUS'
++                try:
++                    limite = max(20, min(int(request.query_params.get('n') or 300), 1000))
++                except Exception:
++                    limite = 300
++                journaux = _al.fichiers()
++                rows_log = "".join(
++                    "<tr><td>" + _html.escape(f['nom']) + "</td><td>" + _fm_size(f['taille']) + "</td>"
++                    "<td>" + _html.escape(f['modifie']) + "</td><td style='white-space:nowrap'>"
++                    "<a class='btn2 btn' href='/fm?folder=logs&log=" + _quote(f['nom']) + "'>Voir</a> "
++                    "<a class='btn' href='/fm/logs/download?name=" + _quote(f['nom']) + "'>Télécharger</a>"
++                    "</td></tr>"
++                    for f in journaux
++                ) or "<tr><td colspan='4' class='empty'>Aucun journal pour l'instant.</td></tr>"
++                if sel.upper() == 'TOUS':
++                    _lignes = []
++                    for _f in _al.fichiers():
++                        for _l in (_al.lecture(_f['nom'], limite) or '').splitlines():
++                            _lignes.append(_f['nom'] + ' | ' + _l)
++                    contenu = chr(10).join(_lignes) or '(journaux vides)'
++                else:
++                    contenu = _al.lecture(sel, limite)
++                jl = []
++                for _l in (contenu.splitlines() or ["(journal vide)"]):
++                    _e = _html.escape(_l)
++                    if any(m in _l for m in (' ERROR ', 'CRITICAL', 'Traceback (most recent', 'EXCEPTION ')):
++                        _e = "<span class='err'>" + _e + "</span>"
++                    jl.append(_e)
++                inner = (
++                    _fm_onglets('logs')
++                    + "<div class='settings'><h1>&#128220; Journaux</h1>"
++                    + "<div class='card'><h2>&#128260; Journalisation</h2><div class='twocol'>"
++                    + "<div><p class='sub'>&#128196; Logs fichier</p>"
++                    + "<p class='sub'><span class='dot' style='background:"
++                    + ("#22c55e" if _journaux_actifs() else "#ef4444") + "'></span> <b>"
++                    + ("actifs" if _journaux_actifs() else "désactivés") + "</b></p>"
++                    + "<div class='svcbar'>"
++                    + "<button class='ghost' onclick=\"fmPost('/fm/logs/toggle','logs_on')\">&#9654; Activer</button>"
++                    + "<button class='ghost' onclick=\"fmPost('/fm/logs/toggle','logs_off')\">&#9208; Désactiver</button>"
++                    + "</div></div><div class='vsep'></div><div>"
++                    + "<p class='sub'>&#127760; Logs réseau</p>"
++                    + "<p class='sub'><span class='dot' style='background:"
++                    + ("#22c55e" if _journaux_reseau() else "#ef4444") + "'></span> <b>"
++                    + ("active" if _journaux_reseau() else "désactivée") + "</b></p>"
++                    + "<div class='svcbar'>"
++                    + "<button class='ghost' onclick=\"fmPost('/fm/logs/toggle','net_on')\">&#9654; Activer</button>"
++                    + "<button class='ghost' onclick=\"fmPost('/fm/logs/toggle','net_off')\">&#9208; Désactiver</button>"
++                    + "</div></div></div></div>"
++                    + "<div class='card'><h2>@@ICO:folder@@ Fichiers journaux</h2>"
++                    "<div class='bar'>"
++                    "<a class='btn' href='/fm?folder=logs&log=" + _quote(sel) + "'>&#8635; Rafraîchir</a>"
++                    "<a class='btn' href='/fm/logs/download?all=1'>&#128229; Tout télécharger (zip)</a>"
++                    "<button class='del' onclick=\"fmPost('/fm/logs/clear')\">&#128465; Vider</button></div>"
++                    "<table class='logtable'><thead><tr><th>Nom</th><th>Taille</th><th>Modifié</th><th>Actions</th></tr></thead><tbody>"
++                    + rows_log + "</tbody></table></div>"
++                    + "<div class='card'><h2>" + _html.escape(sel) + " — dernières "
++                    + str(limite) + " lignes</h2>"
++                    "<pre class='logbox' id='logbox'>" + "<br>".join(jl) + "</pre>"
++                    "<script>(function(){var p=document.getElementById('logbox');if(!p)return;"
++                    "var u='/fm/logs/tail?n=" + str(limite) + "&log=" + _quote(sel) + "';"
++                    "function s(){fetch(u).then(function(r){return r.text()}).then(function(t){"
++                    "if(t&&t!==p.textContent){p.textContent=t}p.scrollTop=p.scrollHeight})"
++                    ".catch(function(){})}"
++                    "p.scrollTop=p.scrollHeight;setInterval(s,3000);})();</script>"
++                    "<p class='sub'>Journaux complets téléchargeables ci-dessus : tracebacks Python "
++                    "(dont les erreurs <code>execute_code</code>), erreurs uvicorn et activité des services.</p></div></div>"
++                )
++                return _HTMLResponse(_fm_page(inner, "Journaux", folder='logs'))
++            if folder == 'maintenance':
++                import os as _os3
++                from open_webui.config import DATA_DIR as _DD
++                taille_db = 0
++                for nom_db in ('webui.db', 'webui.db-wal', 'webui.db-shm'):
++                    p_db = _DD / nom_db
++                    if p_db.is_file():
++                        taille_db += p_db.stat().st_size
++                inner = (
++                    _fm_onglets('maintenance')
++                    + "<div class=\"settings\"><h1>&#128736;&#65039; Maintenance</h1>"
++                    + "<div class=\"card\"><h2>&#128230; Données de l'application</h2>"
++                    f"<p class='sub'>Données : <code>{_html.escape(str(_DD))}</code></p>"
++                    f"<p class='sub'>Base de données : {_fm_size(taille_db)} &mdash; Fichiers : {total} &mdash; "
++                    f"<a class='btn' href='/fm/raw?name=webui.db'>Télécharger une sauvegarde de la base</a></p>"
++                    + "</div><div class=\"card\"><h2>@@ICO:grid@@ Index des documents</h2>"
++                    + "<p class='sub'>Nettoie les entrées de l'index dont le fichier a disparu.</p>"
++                    "<form method='post' action='/fm/fix-index'>"
++                    "<button class='ghost'>@@ICO:refresh@@ Nettoyer l'index des documents disparus</button></form>"
++                    + "</div><div class=\"card\"><h2>&#9888;&#65039; Réinitialisation</h2>"
++                    "<form method='post' action='/fm/reset'>"
++                    "<button class='danger'>&#9888; Tout effacer et réinitialiser</button></form>"
++                    "<p class='sub'>Cette action est définitive : comptes, conversations, fichiers et réglages. "
++                    "Elle s'applique au prochain démarrage (forcez l'arrêt de l'appli puis relancez).</p>"
++                    "<p class='sub'>La configuration ne provient jamais de l'APK ; elle vit uniquement ici. "
++                    "Si elle réapparaît après effacement, c'est Android qui l'a restaurée "
++                    "(sauvegarde automatique désactivée depuis v0.0.15). Les données sont aussi visibles "
++                    "et supprimables depuis votre gestionnaire de fichiers : "
++                    "<code>Android/data/org.openwebui.android/</code>.</p></div></div>"
++
++                )
++                return _HTMLResponse(_fm_page(inner, "Maintenance", folder='maintenance'))
++            prev_link = f"<a href=\"/fm?folder={folder}&q={_quote(q)}&src={src}&page={page-1}\">\u2190 pr\u00e9c\u00e9dent</a>" if page > 1 else ""
++            next_link = f"<a href=\"/fm?folder={folder}&q={_quote(q)}&src={src}&page={page+1}\">suivant \u2192</a>" if page * per_page < total else ""
++            inner = (
++                "<h1>Navigateur de fichiers</h1>"
++                + src_liens +
++                f"<div class=\"bar\"><form method=\"get\" action=\"/fm\">"
++                f"<input type=\"hidden\" name=\"folder\" value=\"{folder}\">"
++                f"<input type=\"search\" name=\"q\" value=\"{_html.escape(q)}\" placeholder=\"Rechercher un fichier\">"
++                "<button>Chercher</button></form></div>"
++                f"<table><thead><tr><th></th><th>Nom ({total})</th><th>Taille</th><th>Modifi\u00e9</th>"
++                f"<th>Type</th><th>Actions</th></tr></thead><tbody>{body}</tbody></table>"
++                f"<div class=\"nav\">{prev_link}{next_link}</div>"
++            )
++            return _HTMLResponse(_fm_page(inner, folder=folder, src=src))
++        except Exception as exc:
++            return _HTMLResponse(_fm_error(exc), status_code=500)
++
++
++    @app.get('/fm/preview')
++    async def fm_preview(request: Request, user=Depends(get_verified_user)):
++        """Apercu d'un fichier (image, PDF, texte) + telechargement."""
++        try:
++            from open_webui.models.files import Files
++
++            f = await Files.get_file_by_id(request.query_params.get('id') or '')
++            if f is None:
++                return _HTMLResponse(_fm_page("<h1>Fichier introuvable</h1>"), status_code=404)
++            if user.role != 'admin' and f.user_id != user.id:
++                return _HTMLResponse(_fm_page("<h1>Acc\u00e8s refus\u00e9</h1>"), status_code=403)
++            meta = f.meta or {}
++            name = str(_fm_get(meta, 'name') or f.filename or f.id)
++            kind = _fm_kind(name, str(_fm_get(meta, 'content_type') or ''))
++            url = f'/api/v1/files/{f.id}/content'
++            if kind == 'img':
++                view = f"<img src=\"{url}\" style=\"max-width:100%\">"
++            elif kind == 'pdf':
++                view = f"<embed src=\"{url}\" type=\"application/pdf\" style=\"width:100%;height:75vh\">"
++            else:
++                view = (
++                    "<pre id=\"c\" style=\"white-space:pre-wrap;background:#101010;padding:12px;"
++                    "border-radius:8px;max-height:70vh;overflow:auto\">Chargement\u2026</pre>"
++                    f"<script>fetch('{url}').then(r=>r.text()).then(t=>document.getElementById('c').textContent=t)"
++                    ".catch(e=>document.getElementById('c').textContent='Erreur : '+e);</script>"
++                )
++            inner = (
++                f"<h1>{_FM_ICO[kind]} {_html.escape(name)}</h1>"
++                f"<div class=\"bar\"><a class=\"btn\" href=\"{url}\" download>T\u00e9l\u00e9charger</a>"
++                "</div>" + view
++            )
++            return _HTMLResponse(_fm_page(inner, name))
++        except Exception as exc:
++            return _HTMLResponse(_fm_error(exc), status_code=500)
++
++
++    @app.post('/fm/delete')
++    async def fm_delete(request: Request, user=Depends(get_verified_user)):
++        """Supprime un fichier (proprietaire ou admin) puis revient au navigateur."""
++        try:
++            from open_webui.models.files import Files
++
++            form = await request.form()
++            f = await Files.get_file_by_id(str(form.get('id') or ''))
++            if f is not None and (user.role == 'admin' or f.user_id == user.id):
++                try:
++                    from open_webui.storage.provider import Storage
++                    await asyncio.to_thread(Storage.delete_file, f.path)
++                except Exception:
++                    pass
++                # P31 : purger aussi l'index vectoriel (sinon l'index cite des
++                # fichiers disparus — incohérence signalée en audit)
++                try:
++                    from open_webui.retrieval.vector.async_client import ASYNC_VECTOR_DB_CLIENT
++                    await ASYNC_VECTOR_DB_CLIENT.delete(collection_name=f'file-{f.id}')
++                except Exception:
++                    pass
++                await Files.delete_file_by_id(f.id)
++        except Exception:
++            pass
++        return _Redirect('/fm', status_code=303)
++
++
++    @app.post('/fm/reset')
++    async def fm_reset(request: Request, user=Depends(get_verified_user)):
++        """Demande une reinitialisation complete : appliquee au prochain demarrage."""
++        try:
++            from open_webui.config import DATA_DIR as _DD
++            (_DD / 'reset-requested').write_text('1', encoding='utf-8')
++        except Exception:
++            pass
++        return _HTMLResponse(_fm_page(
++            "<h1>&#9989; Reinitialisation demandee</h1>"
++            "<p>Forcez l'arret de l'appli puis relancez-la : comptes, conversations, "
++            "fichiers et reglages seront effaces.</p>"))
++
++
++    @app.post('/fm/fix-index')
++    async def fm_fix_index(request: Request, user=Depends(get_verified_user)):
++        """P31 : supprime les collections orphelines de l'index vectoriel
++        (fichiers supprimés dont les chunks restent indexés)."""
++        try:
++            from open_webui.models.files import Files
++            from open_webui.retrieval.vector.async_client import ASYNC_VECTOR_DB_CLIENT
++
++            result = await Files.get_file_list(user_id=None, skip=0, limit=100000)
++            connus = {"file-" + f.id for f in result.items}
++            orphelins = []
++            # P36 : get_collections() n'existe ni sur le wrapper async ni sur tous
++            # les backends — on passe par le client synchrone, avec repli propre.
++            client = ASYNC_VECTOR_DB_CLIENT.sync
++            inspectable = hasattr(client, "get_collections")
++            noms = []
++            if inspectable:
++                try:
++                    noms = list(client.get_collections() or [])
++                except Exception:
++                    inspectable = False
++            if not inspectable:
++                return _HTMLResponse(_fm_page(
++                    "<h1>&#9888; Index non inspectable</h1>"
++                    "<p>Le backend vectoriel en cours ne permet pas d'énumérer les "
++                    "collections : aucun nettoyage d'orphelin n'est possible.</p>"
++                    ))
++            for nom in noms:
++                if str(nom).startswith("file-") and str(nom) not in connus:
++                    try:
++                        await ASYNC_VECTOR_DB_CLIENT.delete(collection_name=str(nom))
++                        orphelins.append(str(nom))
++                    except Exception:
++                        pass
++            msg = (str(len(orphelins)) + " collection(s) orpheline(s) supprimée(s)." if orphelins
++                   else "Aucune collection orpheline : l'index est cohérent.")
++            return _HTMLResponse(_fm_page(
++                "<h1>&#9989; Index vérifié</h1><p>" + _html.escape(msg) + "</p>"
++                ))
++        except Exception as exc:
++            return _HTMLResponse(_fm_error(exc), status_code=500)
++
++
++    @app.post('/fm/settings')
++    async def fm_settings_save(request: Request, user=Depends(get_verified_user)):
++        """P89 — enregistre les variables d'environnement (data/openwebui.env),
++        appliquées au prochain démarrage/redémarrage de l'application."""
++        try:
++            form = await request.form()
++            import android_main as _am
++            _tab = str(form.get('tab') or 'owui')
++            msgs = []
++            if _tab == 'searxng':
++                _formats = []
++                if form.get('SX_html'):
++                    _formats.append('html')
++                if form.get('SX_json'):
++                    _formats.append('json')
++                msgs.append(_am.searxng_settings_save(_formats, bool(form.get('SX_limiter'))))
++            else:
++                lignes = []
++                for _k in form.keys():
++                    if _k.startswith('VAR_'):
++                        _v = str(form.get(_k) or '').strip()
++                        if _v:
++                            lignes.append(_k[4:] + '=' + _v)
++                _extras = str(form.get('extras') or '').strip()
++                if _extras:
++                    lignes.append(_extras)
++                msgs.append(_am.env_save(chr(10).join(lignes)))
++            return _HTMLResponse(_fm_page(
++                _fm_onglets(_tab if _tab == 'searxng' else 'owui')
++                + "<h1>&#9989; Réglages</h1><p>" + _html.escape(' '.join(msgs)) + "</p>",
++                'Paramètres', folder='settings', src='both', tab=_tab))
++        except Exception as exc:
++            return _HTMLResponse(_fm_error(exc), status_code=500)
++
++
++    @app.get('/fm/raw')
++    async def fm_raw(request: Request, user=Depends(get_verified_user)):
++        """Telechargement/apercu direct d'un fichier du dossier uploads (nom de base)."""
++        from fastapi.responses import FileResponse as _FR
++
++        nom = (request.query_params.get('name') or '').strip()
++        p = _fm_chemin_local(nom)
++        if p is None:
++            return _HTMLResponse(_fm_page("<h1>Fichier introuvable</h1>"), status_code=404)
++        return _FR(p, filename=p.name)
++
++
++    @app.post('/fm/delete-raw')
++    async def fm_delete_raw(request: Request, user=Depends(get_verified_user)):
++        """Supprime un fichier orphelin du dossier uploads."""
++        try:
++            form = await request.form()
++            p = _fm_chemin_local(str(form.get('name') or ''))
++            if p is not None:
++                p.unlink()
++        except Exception:
++            pass
++        return _Redirect('/fm', status_code=303)
++
++
++    @app.get('/fm/logs/download')
++    async def fm_logs_download(request: Request, user=Depends(get_verified_user)):
++        """P94 — telecharge un journal (nom de base) ou tous les journaux (zip)."""
++        from open_webui import android_logs as _al
++        from fastapi.responses import FileResponse as _FR, Response as _Resp
++
++        if not _journaux_actifs():
++            return _HTMLResponse("journaux desactives", status_code=404)
++        if not _journaux_reseau():
++            return _HTMLResponse("evacuation reseau desactivee", status_code=404)
++        if (request.query_params.get('all') or '').strip():
++            import io as _io
++            import zipfile as _zip
++            tampon = _io.BytesIO()
++            with _zip.ZipFile(tampon, 'w', _zip.ZIP_DEFLATED) as zf:
++                for f in _al.fichiers():
++                    p = _al.chemin(f['nom'])
++                    if p is not None:
++                        zf.write(p, f['nom'])
++            return _Resp(tampon.getvalue(), media_type='application/zip',
++                         headers={'Content-Disposition': 'attachment; filename="journaux-openwebui-android.zip"'})
++        p = _al.chemin((request.query_params.get('name') or '').strip())
++        if p is None:
++            return _HTMLResponse(_fm_page("<h1>Journal introuvable</h1>"), status_code=404)
++        return _FR(p, filename=p.name, media_type='text/plain')
++
++
++    @app.get('/fm/logs/live')
++    async def fm_logs_live(request: Request):
++        """P95 — flux EN DIRECT des journaux de l'application (texte brut, suivi
++        de fichier) : les memes lignes que serveur.log / exec.log, rien du
++        systeme. Acces limite a la boucle locale (le serveur n'ecoute que
++        127.0.0.1) — lisible au curl -N ou dans le navigateur de l'appareil."""
++        from fastapi.responses import StreamingResponse as _SR
++        from open_webui import android_logs as _al
++
++        hote = (request.client.host if request.client else '')
++        if hote not in ('127.0.0.1', '::1', 'localhost'):
++            return _HTMLResponse(_fm_page("<h1>Accès refusé</h1>"), status_code=403)
++        if not _journaux_actifs():
++            return _HTMLResponse("journaux desactives", status_code=404)
++        if not _journaux_reseau():
++            return _HTMLResponse("evacuation reseau desactivee", status_code=404)
++        sel = (request.query_params.get('log') or '').strip()
++        try:
++            hist = max(0, min(int(request.query_params.get('hist') or 0), 2000))
++        except Exception:
++            hist = 0
++
++        async def _flux():
++            etats = {}
++            for f in _al.fichiers():
++                etats[f['nom']] = f['taille']
++            if hist:
++                for f in _al.fichiers():
++                    if sel and f['nom'] != sel:
++                        continue
++                    for l in _al.lecture(f['nom'], hist).splitlines():
++                        yield f['nom'] + " | " + l + chr(10)
++            while True:
++                for nom_f, l in _al.suite(etats):
++                    if sel and nom_f != sel:
++                        continue
++                    yield nom_f + " | " + l + chr(10)
++                await asyncio.sleep(1)
++
++        return _SR(_flux(), media_type='text/plain; charset=utf-8')
++
++
++    @app.post('/fm/logs/clear')
++    async def fm_logs_clear(request: Request, user=Depends(get_verified_user)):
++        """P101 — vide tous les journaux (après analyse)."""
++        from open_webui import android_logs as _al
++        from fastapi.responses import RedirectResponse as _Red
++
++        _al.vider()
++        return _Red('/fm?folder=logs', status_code=303)
++
++
++    @app.post('/fm/logs/toggle')
++    async def fm_logs_toggle(request: Request, user=Depends(get_verified_user)):
++        """P111 — bascule de la journalisation : la case « désactiver » (vide par
++        défaut) coupe toute nouvelle écriture. Effet IMMÉDIAT + mémorisé dans
++        data/openwebui.env (OWUI_LOGS=on/off)."""
++        form = await request.form()
++        action = str(form.get('action') or '')
++        if action in ('logs_on', 'logs_off'):
++            _osj.environ['OWUI_LOGS'] = 'on' if action == 'logs_on' else 'off'
++        if action in ('net_on', 'net_off'):
++            _osj.environ['OWUI_LOGS_NET'] = 'on' if action == 'net_on' else 'off'
++        import android_main as _am
++        lignes = [l for l in _am.env_read().splitlines()
++                  if l.strip() and not l.strip().startswith(('OWUI_LOGS=', 'OWUI_LOGS_NET='))]
++        lignes.append('OWUI_LOGS=' + _osj.environ.get('OWUI_LOGS', 'off'))
++        lignes.append('OWUI_LOGS_NET=' + _osj.environ.get('OWUI_LOGS_NET', 'on'))
++        _am.env_save(chr(10).join(lignes))
++        return _Redirect('/fm?folder=logs', status_code=303)
++
++
++    @app.get('/fm/logs/tail')
++    async def fm_logs_tail(request: Request):
++        """P111 — extrait des journaux (texte brut) pour le suivi automatique de
++        la vue : la page se rafraîchit et se cale sur les dernières lignes."""
++        from fastapi.responses import Response as _R
++        from open_webui import android_logs as _al
++        if not _journaux_actifs():
++            return _HTMLResponse("journaux desactives", status_code=404)
++        if not _journaux_reseau():
++            return _HTMLResponse("evacuation reseau desactivee", status_code=404)
++        try:
++            n = max(20, min(int(request.query_params.get('n') or 300), 1000))
++        except Exception:
++            n = 300
++        sel = (request.query_params.get('log') or '').strip() or 'TOUS'
++        if sel.upper() == 'TOUS':
++            lignes = []
++            for f in _al.fichiers():
++                for l in (_al.lecture(f['nom'], n) or '').splitlines():
++                    lignes.append(f['nom'] + ' | ' + l)
++            texte = chr(10).join(lignes) or '(journaux vides)'
++        else:
++            texte = _al.lecture(sel, n) or '(journal vide)'
++        return _R(texte, media_type='text/plain; charset=utf-8')
++
++
++    @app.get('/fm/diag/eventcall')
++    async def fm_diag_eventcall(request: Request, user=Depends(get_verified_user)):
++        """P104 — auto-test de la livraison des appels outils : l'app s'envoie à
++        elle-même execute:python sur la session vivante de l'administrateur et
++        renvoie la réponse (ou l'échec + l'état interne du gestionnaire de
++        sessions). Diagnostic complet de la chaîne execute_code à la demande."""
++        import asyncio as _aio
++        import json as _j
++        import time as _t
++        if user.role != 'admin':
++            return _HTMLResponse("reserve aux administrateurs", status_code=403)
++        hote = (request.client.host if request.client else '')
++        if hote not in ('127.0.0.1', '::1', 'localhost'):
++            return _HTMLResponse(_fm_page("<h1>Acces refuse</h1>"), status_code=403)
++        try:
++            from open_webui.socket.main import (
++                sio as _sio, SESSION_POOL as _pool,
++                get_session_ids_by_user_ids as _gids)
++            cibles = [s for s in _gids([user.id]) if s in _pool]
++            etat = {
++                'sessions_vivantes': [str(s)[-8:] for s in cibles],
++                'pool': [str(k)[-8:] for k in _pool.keys()],
++            }
++            if not cibles:
++                return _HTMLResponse("<pre>" + _j.dumps(
++                    {'erreur': 'aucune session vivante', **etat}, indent=1) + "</pre>")
++            cible = cibles[-1]
++            try:
++                etat['participants'] = [
++                    (str(a)[-8:], str(b)[-8:])
++                    for a, b in _sio.manager.get_participants('/', cible)]
++            except Exception as e:
++                etat['participants'] = ['err: %s' % e]
++            payload = {'type': 'execute:python', 'data': {
++                'id': 'diag-%s' % int(_t.time()), 'code': 'print(2+3)',
++                'packages': [], 'exec_timeout': 30, 'session_id': cible, 'files': []}}
++            debut = _t.time()
++            try:
++                rep = await _aio.wait_for(
++                    _sio.call('events',
++                              {'chat_id': 'diag', 'message_id': 'diag', 'data': payload},
++                              to=cible, timeout=None),
++                    timeout=45)
++                etat['reponse'] = rep
++            except Exception as e:
++                etat['reponse'] = '%s: %s' % (type(e).__name__, e)
++            etat['duree_s'] = round(_t.time() - debut, 1)
++            return _HTMLResponse("<pre>" + _j.dumps(
++                etat, indent=1, ensure_ascii=False, default=str) + "</pre>")
++        except Exception as exc:
++            return _fm_error(exc)
++

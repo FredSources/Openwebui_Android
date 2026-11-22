@@ -1,0 +1,3 @@
+[submodule "vendor/open-webui"]
+	path = vendor/open-webui
+	url = https://github.com/open-webui/open-webui.git

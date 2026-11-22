@@ -1,0 +1,515 @@
+diff --git a/tools/android_tools.py b/tools/android_tools.py
+new file mode 100644
+index 0000000..9f8b86b
+--- /dev/null
++++ b/tools/android_tools.py
+@@ -0,0 +1,509 @@
++"""OpenWebUI Android — outils et helpers AJOUTÉS (hors amont).
++
++Audit de divergence 2026-11-09 : pour rester au plus proche de l'origine
++Open WebUI, tout le code AJOUTÉ par le portage vit dans ce module —
++tools/builtin.py se contente de l'importer. Les corrections de COMPORTEMENT
++des outils amont, elles, restent greffées dans builtin.py et sont justifiées
++une à une dans journal.md.
++
++Contenu : compile_typst (P11), delete_note/delete_skill/delete_tool (P29),
++delete_file/list_tools (P58/P59), _probe_fetch_url (P33), _pyodide_packages
++(P46), _uploads_pour_sable (P51), SANDBOX_NET_BOOTSTRAP (P52).
++"""
++from __future__ import annotations
++
++import asyncio
++import logging
++
++from fastapi import Request
++
++from open_webui.utils.json_codec import JSONCodec
++
++log = logging.getLogger(__name__)
++# ---- Typst -> PDF (outil embarqué, décision D14) ----
++
++
++async def compile_typst(
++    source: str = "",
++    file_path: str = "",
++    output_name: str = "",
++    __request__: Request = None,
++    __user__: dict = None,
++) -> str:
++    """Compile un document Typst (.typ) en PDF sauvegardé dans vos fichiers,
++    affichable ensuite dans la conversation.
++
++    Typst est un langage de mise en page (proche de LaTeX, plus simple).
++    Exemple minimal :
++    #set page(margin: 1.5cm)
++    = Mon document
++    Bonjour *le monde* !
++
++    :param source: texte Typst à compiler (prioritaire sur file_path)
++    :param file_path: chemin d'un fichier .typ de vos fichiers
++      (ex. files/xxxx_mon_doc.typ) si source est vide
++    :param output_name: nom du PDF (sans extension) ; par défaut celui du fichier
++    :return: JSON avec l'identifiant du PDF (outil display_file pour l'afficher)
++    """
++    try:
++        import io
++        import time
++        import uuid as uuidlib
++
++        try:
++            import typst as typst_lib
++        except Exception as _exc:
++            import os as _os
++            import sys as _sys
++            paquets = []
++            for base in list(_sys.path)[:8]:
++                try:
++                    d = _os.path.join(base, 'typst')
++                    if _os.path.isdir(d):
++                        paquets.append(d + ' -> ' + str(sorted(_os.listdir(d))[:6]))
++                except Exception:
++                    pass
++            try:
++                libre = _os.statvfs(_os.environ.get('HOME', '/')).f_bavail * 4096
++            except Exception:
++                libre = -1
++            raise RuntimeError(
++                f"import typst impossible : {_exc} | python={_sys.version.split()[0]} | "
++                f"HOM"
++                f"E={_os.environ.get('HOME', '')} | libres={libre}o | paquets={paquets}"
++            ) from _exc
++
++        from open_webui.models.files import FileForm, Files
++        from open_webui.storage.provider import Storage
++
++        user = __user__ or {}
++
++        def _read_and_compile() -> bytes:
++            # typst.compile : une chaîne (str) est interprétée comme un CHEMIN de
++            # fichier (→ « os error 2 » si absent) ; le code source doit passer en
++            # OCTETS, et un fichier doit passer par son vrai chemin (contexte des
++            # #include et images relatifs).
++            if source:
++                return typst_lib.compile(source.encode("utf-8"))
++            if not file_path:
++                raise ValueError("Fournir 'source' (texte Typst) ou 'file_path' (fichier .typ).")
++            local = Storage.get_file(file_path)
++            return typst_lib.compile(local)
++
++        pdf_bytes = await asyncio.to_thread(_read_and_compile)
++
++        base = output_name
++        if not base:
++            base = file_path.rsplit("/", 1)[-1].rsplit(".", 1)[0] if file_path else "document"
++        base = "".join(c if (c.isalnum() or c in "-_. ") else "_" for c in base).strip()[:80] or "document"
++
++        file_id = str(uuidlib.uuid4())
++        filename = f"{file_id}_{base}.pdf"
++        tags = {
++            "OpenWebUI-User-Id": user.get("id", ""),
++            "OpenWebUI-User-Name": user.get("name", ""),
++            "OpenWebUI-File-Id": file_id,
++        }
++        _, stored_path = await asyncio.to_thread(Storage.upload_file, io.BytesIO(pdf_bytes), filename, tags)
++        await Files.insert_new_file(
++            user.get("id", ""),
++            FileForm(
++                id=file_id,
++                filename=filename,
++                path=stored_path,
++                data={},
++                meta={"name": f"{base}.pdf", "content_type": "application/pdf", "size": len(pdf_bytes)},
++            ),
++        )
++        return JSONCodec.dumps(
++            {
++                "file_id": file_id,
++                "filename": f"{base}.pdf",
++                "size": len(pdf_bytes),
++                "hint": "PDF généré. Utilisez l'outil display_file avec ce file_id pour l'afficher.",
++            },
++            ensure_ascii=False,
++        )
++    except Exception as exc:
++        log.exception(f"compile_typst error: {exc}")
++        return JSONCodec.dumps({"error": str(exc)})
++
++async def delete_note(
++    note_id: str,
++    __request__: Request = None,
++    __user__: dict = None,
++) -> str:
++    """
++    Delete a note permanently (irreversible).
++
++    :param note_id: id of the note to delete
++    :return: JSON confirmation of the deletion
++    """
++    try:
++        from open_webui.models.notes import Notes
++
++        note = await Notes.get_note_by_id(note_id)
++        if note is None:
++            return JSONCodec.dumps({'error': f'Note introuvable : {note_id}'})
++        user = __user__ or {}
++        if user.get('role') != 'admin' and getattr(note, 'user_id', None) not in (None, user.get('id')):
++            return JSONCodec.dumps({'error': 'Accès refusé'})
++        ok = await Notes.delete_note_by_id(note_id)
++        return JSONCodec.dumps(
++            {'status': 'supprimée' if ok else 'erreur', 'id': note_id}, ensure_ascii=False)
++    except Exception as e:
++        log.exception(f'delete_note error: {e}')
++        return JSONCodec.dumps({'error': str(e)})
++
++
++async def delete_skill(
++    skill_id: str,
++    __request__: Request = None,
++    __user__: dict = None,
++) -> str:
++    """
++    Delete a private skill permanently (irreversible).
++
++    :param skill_id: id of the skill to delete
++    :return: JSON confirmation of the deletion
++    """
++    try:
++        from open_webui.models.skills import Skills
++
++        skill = await Skills.get_skill_by_id(skill_id)
++        if skill is None:
++            return JSONCodec.dumps({'error': f'Skill introuvable : {skill_id}'})
++        user = __user__ or {}
++        if user.get('role') != 'admin' and getattr(skill, 'user_id', None) not in (None, user.get('id')):
++            return JSONCodec.dumps({'error': 'Accès refusé'})
++        ok = await Skills.delete_skill_by_id(skill_id)
++        return JSONCodec.dumps(
++            {'status': 'supprimé' if ok else 'erreur', 'id': skill_id}, ensure_ascii=False)
++    except Exception as e:
++        log.exception(f'delete_skill error: {e}')
++        return JSONCodec.dumps({'error': str(e)})
++
++
++async def delete_tool(
++    tool_id: str,
++    __request__: Request = None,
++    __user__: dict = None,
++) -> str:
++    """
++    Delete a custom tool permanently, freeing its id (irreversible).
++
++    :param tool_id: id of the tool to delete
++    :return: JSON confirmation of the deletion
++    """
++    try:
++        from open_webui.models.tools import Tools
++
++        tool = await Tools.get_tool_by_id(tool_id)
++        if tool is None:
++            return JSONCodec.dumps({'error': f'Outil introuvable : {tool_id}'})
++        user = __user__ or {}
++        if user.get('role') != 'admin' and getattr(tool, 'user_id', None) not in (None, user.get('id')):
++            return JSONCodec.dumps({'error': 'Accès refusé'})
++        await Tools.delete_tool_by_id(tool_id)
++        return JSONCodec.dumps(
++            {'status': 'supprimé', 'id': tool_id}, ensure_ascii=False)
++    except Exception as e:
++        log.exception(f'delete_tool error: {e}')
++        return JSONCodec.dumps({'error': str(e)})
++
++async def list_files(
++    query: Optional[str] = None,
++    __request__: Request = None,
++    __user__: dict = None,
++) -> str:
++    """
++    List the user's stored files (uploads, chat files, knowledge files) with their file_id —
++    the missing companion of delete_file: without it, residual files cannot be found.
++
++    :param query: Optional substring filter on file names (case-insensitive)
++    :return: JSON list of files with id, filename, size, updated_at
++    """
++    try:
++        from open_webui.models.files import Files
++
++        user = __user__ or {}
++        result = await Files.get_file_list(
++            user_id=(None if user.get('role') == 'admin' else user.get('id')),
++            skip=0,
++            limit=200,
++        )
++        out = []
++        q = (query or '').strip().lower()
++        for f in (result.items if result else []):
++            if q and q not in (f.filename or '').lower():
++                continue
++            meta = getattr(f, 'meta', None)
++            out.append({
++                'id': f.id,
++                'filename': f.filename,
++                'size': getattr(meta, 'size', None),
++                'updated_at': f.updated_at,
++            })
++        return JSONCodec.dumps(out, ensure_ascii=False)
++    except Exception as e:
++        log.exception(f'list_files error: {e}')
++        return JSONCodec.dumps({'error': str(e)})
++
++
++async def delete_file(
++    file_id: str,
++    __request__: Request = None,
++    __user__: dict = None,
++) -> str:
++    """
++    Delete a file permanently by file_id (uploads, chat files, knowledge files) — irreversible.
++
++    :param file_id: id of the file to delete
++    :return: JSON confirmation of the deletion
++    """
++    try:
++        from open_webui.models.files import Files
++
++        f = await Files.get_file_by_id(file_id)
++        if f is None:
++            return JSONCodec.dumps({'error': f'Fichier introuvable : {file_id}'})
++        user = __user__ or {}
++        if user.get('role') != 'admin' and getattr(f, 'user_id', None) not in (None, user.get('id')):
++            return JSONCodec.dumps({'error': 'Accès refusé'})
++        try:
++            from open_webui.storage.provider import Storage
++            await asyncio.to_thread(Storage.delete_file, f.path)
++        except Exception:
++            pass
++        try:
++            from open_webui.retrieval.vector.async_client import ASYNC_VECTOR_DB_CLIENT
++            await ASYNC_VECTOR_DB_CLIENT.delete(collection_name=f'file-{f.id}')
++        except Exception:
++            pass
++        await Files.delete_file_by_id(f.id)
++        return JSONCodec.dumps({'status': 'supprimé', 'id': f.id}, ensure_ascii=False)
++    except Exception as e:
++        log.exception(f'delete_file error: {e}')
++        return JSONCodec.dumps({'error': str(e)})
++
++
++async def list_tools(
++    __request__: Request = None,
++    __user__: dict = None,
++) -> str:
++    """
++    List workspace tools and the functions they expose — to verify a creation or a deletion.
++
++    :return: JSON list of tools with id, name, and exposed public function names (private names starting with _ are hidden)
++    """
++    try:
++        import re as _re
++        from open_webui.models.tools import Tools
++
++        out = []
++        for t in await Tools.get_tools():
++            contenu = getattr(t, 'content', '') or ''
++            fns = sorted(set(n for n in _re.findall(r'^\s*(?:async )?def ([A-Za-z_]\w*)\s*\(', contenu, _re.M) if not n.startswith('_')))
++            out.append({'id': t.id, 'name': t.name, 'functions': fns})
++        return JSONCodec.dumps(out, ensure_ascii=False)
++    except Exception as e:
++        log.exception(f'list_tools error: {e}')
++        return JSONCodec.dumps({'error': str(e)})
++
++def _probe_fetch_url(url: str, verify_ssl: bool = True, max_hops: int = 5):
++    """P33 — sonde HTTP légère qui renvoie (statut final, URL finale, chaîne de
++    redirections). Les redirections sont suivies saut par saut avec ré-validation
++    SSRF (validate_url) — jamais de contournement de la garde anti-SSRF."""
++    from urllib.parse import urljoin
++    from open_webui.retrieval.web.utils import (
++        WEB_LOADER_HEADERS, validate_url, get_ssrf_safe_requests_session,
++    )
++
++    chaine = [url]
++    courante = url
++    statut = 0
++    for _ in range(max_hops):
++        try:
++            validate_url(courante)
++            session = get_ssrf_safe_requests_session()
++            session.headers = WEB_LOADER_HEADERS
++            session.verify = True if verify_ssl is None else verify_ssl
++            r = session.get(courante, stream=True, timeout=30, allow_redirects=False)
++        except Exception as exc:
++            return 0, courante, chaine + [f'ERREUR: {exc}']
++        statut = r.status_code
++        loc = r.headers.get('Location')
++        r.close()
++        if statut in (301, 302, 303, 307, 308) and loc:
++            courante = urljoin(courante, loc)
++            chaine.append(courante)
++            continue
++        return statut, courante, chaine
++    return statut, courante, chaine + ['ERREUR: trop de redirections']
++
++def _pyodide_packages(code: str) -> list:
++    """P46a — paquets Pyodide à installer avant exécution. Détection par
++    simple PRÉSENCE du nom du module dans le code (import littéral, boucle,
++    importlib, littéral de chaîne — peu importe le style), pour être
++    insensible à la façon d'importer. Seuls les wheels embarqués dans l'APK
++    sont proposés (installation hors ligne)."""
++    noms = {
++        'numpy': 'numpy', 'pandas': 'pandas', 'matplotlib': 'matplotlib',
++        'scipy': 'scipy', 'sklearn': 'scikit-learn', 'PIL': 'pillow',
++        'seaborn': 'seaborn', 'sympy': 'sympy', 'mpmath': 'mpmath',
++        'bs4': 'beautifulsoup4', 'requests': 'requests', 'lxml': 'lxml',
++        'docx': 'python-docx', 'pptx': 'python-pptx', 'openpyxl': 'openpyxl',
++        'pytz': 'pytz', 'regex': 'regex',
++        'dateutil': 'python-dateutil', 'six': 'six', 'packaging': 'packaging',
++        'pymupdf': 'pymupdf', 'fitz': 'pymupdf', 'statsmodels': 'statsmodels',
++    }
++    texte = code or ''
++    import re as _re
++    trouves = set()
++    for nom, paquet in noms.items():
++        if _re.search(r'\b' + _re.escape(nom) + r'\b', texte):
++            trouves.add(paquet)
++    return sorted(trouves)
++
++def _uploads_pour_sable(code: str = '', max_par: int = 8 * 1024 * 1024, max_total: int = 256 * 1024) -> list:
++    """P51/P77 — alignement des deux magasins : le dossier uploads de l'app est
++    injecté dans le /mnt/uploads du bac à sable (les fichiers déjà injectés y
++    PERSISTENT via IndexedDB).
++    P77 : seuls les fichiers CITÉS dans le code partent systématiquement ; les
++    petits fichiers (≤ 64 Ko, budget 256 Ko) suivent pour la découvrabilité —
++    au-delà, rien ne part : l'expédition totale faisait de CHAQUE appel un
++    transfert de mégaoctets (print('hello') mettait des secondes)."""
++    from open_webui.config import UPLOAD_DIR as _UD
++
++    texte = code or ''
++    sortie = []
++    total = 0
++    try:
++        for ent in (sorted(_UD.iterdir()) if _UD.is_dir() else []):
++            if not ent.is_file():
++                continue
++            taille = ent.stat().st_size
++            if taille > max_par:
++                continue
++            mentionne = ent.name in texte or ent.stem in texte
++            if not mentionne and (taille > 64 * 1024 or total + taille > max_total):
++                continue
++            sortie.append({'name': ent.name, 'data': ent.read_bytes()})
++            total += taille
++    except Exception:
++        pass
++    return sortie
++
++async def appel_avec_reprise(event_call, payload, tentatives: int = 16, pause: float = 10.0):
++    """P95 — appel événementiel avec reprise après « Client session disconnected ».
++    Cause prouvée : la WebView gelée en arrière-plan fige le heartbeat ; le
++    réaper (120 s) ferme la session et l'appel échoue alors que le code n'avait
++    même pas tourné. Au lieu d'échouer, on réessaie jusqu'au retour du client
++    (le socket se reconnecte dès que l'application revient au premier plan) ;
++    la fenêtre globale reste bornée par l'appelant (wait_for 320 s)."""
++    out = None
++    for i in range(max(1, tentatives)):
++        journal_exec_ligne("P97 event_call essai %s/%s" % (i + 1, tentatives))
++        out = await event_call(payload)
++        journal_exec_ligne("P97 essai %s -> %s" % (i + 1, (out or {}).get('error', 'ok') if isinstance(out, dict) else '?'))
++        err = out.get('error') if isinstance(out, dict) else None
++        if err and 'Client session disconnected' in err and i < tentatives - 1:
++            await asyncio.sleep(pause)
++            continue
++        break
++    if isinstance(out, dict) and out.get('error') and 'Client session disconnected' in out['error']:
++        out = {**out, 'error': (
++            'Client session disconnected — application restée en arrière-plan '
++            'trop longtemps : rouvrez l application puis relancez (le code '
++            'n a pas été exécuté).')}
++    return out
++
++def journal_exec_ligne(msg) -> None:
++    """P96 — trace d'exécution (entrée, timeout, erreur) dans exec.log.
++    Ne lève JAMAIS : le journal ne doit pas casser l'outil."""
++    try:
++        from open_webui.android_logs import journal_exec
++        journal_exec(str(msg))
++    except Exception:
++        pass
++
++
++async def remonte_fichiers_sable(output, user_id=None) -> list:
++    """P41/P108 — remontée des fichiers écrits dans /mnt/uploads : chaque
++    fichier produit est STOCKÉ via le fournisseur de stockage et ENREGISTRÉ
++    dans la base (visible au gestionnaire /fm, à display_file et à l'API
++    fichiers) — P108 : l'écriture seule sur disque laissait le fichier
++    invisible au gestionnaire. Retourne les noms affichables produits ;
++    ne lève pas sur un fichier invalide."""
++    import asyncio as _aio
++    import base64 as _b64
++    import io as _io
++    import uuid as _uuid
++    from open_webui.config import UPLOAD_DIR as _UD
++    from open_webui.models.files import FileForm, Files
++    from open_webui.storage.provider import Storage
++
++    produits = []
++    if not isinstance(output, dict):
++        return produits
++    for _f in (output.get('files') or []):
++        try:
++            import os as _os2
++            _nom = _os2.path.basename(str(_f.get('name') or ''))
++            _don = _f.get('data')
++            if not _nom or not _don:
++                continue
++            _brut = _b64.b64decode(_don)
++            _dest = _UD / _nom
++            if _dest.exists() and _dest.stat().st_size == len(_brut):
++                continue  # déjà présent à l'identique (fichier d'entrée)
++            _id = str(_uuid.uuid4())
++            _tronc, _point, _ext = _nom.rpartition('.')
++            _base = ''.join(c if (c.isalnum() or c in '-_. ') else '_'
++                           for c in (_tronc or _nom))[:80] or 'fichier'
++            _stocke = f'{_id}_{_base}' + (f'.{_ext}' if _point else '')
++            _type = ('image/png' if _ext.lower() == 'png' else
++                     'image/jpeg' if _ext.lower() in ('jpg', 'jpeg') else
++                     'text/csv' if _ext.lower() == 'csv' else
++                     'application/pdf' if _ext.lower() == 'pdf' else
++                     'application/octet-stream')
++            _, _chemin = await _aio.to_thread(
++                Storage.upload_file, _io.BytesIO(_brut), _stocke,
++                {'OpenWebUI-File-Id': _id})
++            await Files.insert_new_file(
++                user_id or '',
++                FileForm(id=_id, filename=_stocke, path=_chemin, data={},
++                         meta={'name': _nom, 'content_type': _type,
++                               'size': len(_brut)}),
++            )
++            produits.append(_nom)
++        except Exception:
++            pass
++    return produits
++
++
++def journal_exec_appel(engine, response, delai_exec, stdout, stderr, fichiers_sortie, echec) -> None:
++    """P94 — journalise une exécution execute_code (statut, tailles, extrait
++    stderr sur échec) dans data/logs/exec.log (consultable/téléchargeable dans
++    /fm → Journaux). Ne lève JAMAIS : le journal ne doit pas casser l'outil."""
++    try:
++        from open_webui.android_logs import journal_exec
++        _r = "%s %s delai=%ss out=%sB err=%sB files=%s" % (
++            engine, response.get("status"), delai_exec,
++            len(stdout or ""), len(stderr or ""), len(fichiers_sortie or []))
++        if echec:
++            _r += " | " + (stderr or "").strip()[-1500:]
++        journal_exec(_r)
++    except Exception:
++        pass
++
++
++def journal_exec_exception(e) -> None:
++    """P94 — journalise une exception execute_code (nom + message)."""
++    try:
++        from open_webui.android_logs import journal_exec
++        journal_exec("EXCEPTION %s: %s" % (type(e).__name__, e))
++    except Exception:
++        pass
++
++SANDBOX_NET_BOOTSTRAP = "\n# --- P52/P88 : réseau du bac à sable ---\ntry:\n    network_available\nexcept NameError:\n    network_available = None  # renseigné par une sonde JS bornée (AbortSignal)\ntry:\n    _sock_indispo\nexcept NameError:\n    import socket as _sock\n\n    def _sock_indispo(*a, **k):\n        raise OSError('pas de TCP dans le bac à sable (wasm) : utilisez urllib/requests en HTTP')\n    _sock.create_connection = _sock_indispo\n    _sock.socket = _sock_indispo\n# --- fin P52/P88 ---\n"

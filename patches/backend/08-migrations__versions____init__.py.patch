@@ -1,0 +1,7 @@
+diff --git a/migrations/versions/__init__.py b/migrations/versions/__init__.py
+new file mode 100644
+index 0000000..989a581
+--- /dev/null
++++ b/migrations/versions/__init__.py
+@@ -0,0 +1 @@
++"""Paquet marqué pour extractPackages (Alembic lit les sources)."""

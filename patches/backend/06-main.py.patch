@@ -1,0 +1,31 @@
+diff --git a/main.py b/main.py
+index 572fde9..16765cf 100644
+--- a/main.py
++++ b/main.py
+@@ -2410,6 +2410,7 @@ async def get_app_config(request: Request):
+         'code_execution.engine',
+         'code_interpreter.engine',
+         'audio.realtime.enabled',
++        'audio.realtime.provider',
+         'audio.realtime.model',
+         'audio.realtime.voice',
+         'audio.tts.engine',
+@@ -2545,6 +2546,7 @@ async def get_app_config(request: Request):
+                 'audio': {
+                     'realtime': {
+                         'enabled': config.get('audio.realtime.enabled'),
++                        'provider': config.get('audio.realtime.provider'),
+                         'model': config.get('audio.realtime.model'),
+                         'voice': config.get('audio.realtime.voice'),
+                     },
+@@ -3186,6 +3188,10 @@ mimetypes.add_type('image/webp', '.webp')
+ app.mount('/static', StaticFiles(directory=STATIC_DIR), name='static')
+ 
+ 
++# P27 : navigateur de fichiers + maintenance — module ajouté (hors amont)
++from open_webui.android_fm import register_fm as _register_fm_android
++_register_fm_android(app)
++
+ @app.get('/cache/{path:path}')
+ async def serve_cache_file(
+     path: str,

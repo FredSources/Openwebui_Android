@@ -1,0 +1,48 @@
+diff --git a/utils/memory.py b/utils/memory.py
+index 6492d5a..0856b5a 100644
+--- a/utils/memory.py
++++ b/utils/memory.py
+@@ -82,11 +82,18 @@ def _path_rank(memory_path: str | None, lookup_path: str | None) -> tuple | None
+     return None
+ 
+ 
++def _norm_memory_text(value: str) -> str:
++    """P39a : apostrophes/quotes typographiques normalisées, casse ignorée."""
++    table = {0x2019: 39, 0x2018: 39, 0x02BC: 39, 0x0060: 39, 0x00B4: 39}
++    return (value or '').translate(table).casefold()
++
++
+ def _memory_matches_query(memory, query: str) -> bool:
+-    value = query.strip().lower()
++    value = _norm_memory_text(query).strip()
+     if not value:
+         return True
+-    return value in (memory.content or '').lower() or value in (memory.path or '').lower()
++    haystack = _norm_memory_text(f'{memory.content or ""}\n{memory.path or ""}')
++    return all(word in haystack for word in value.split())
+ 
+ 
+ def search_memory_rows(
+@@ -119,7 +126,21 @@ def search_memory_rows(
+         rows = [memory for memory in rows if related(memory)]
+ 
+     if query:
+-        rows = [memory for memory in rows if _memory_matches_query(memory, query)]
++        # P43 : rappel en deux paliers — tous les mots d'abord (précision),
++        # puis au moins la moitié des mots (rappel : une formulation voisine
++        # renvoyait [] — audit 2026-11-08 22:20). Le tri reste inchangé.
++        _mots = _norm_memory_text(query).split()
++
++        def _score(m):
++            _hay = _norm_memory_text(f'{m.content or ""}\n{m.path or ""}')
++            return sum(1 for w in _mots if w in _hay)
++
++        _exactes = [memory for memory in rows if _score(memory) == len(_mots)]
++        if _exactes:
++            rows = _exactes
++        else:
++            _seuil = max(1, (len(_mots) + 1) // 2)
++            rows = [memory for memory in rows if _score(memory) >= _seuil]
+ 
+     def sort_key(memory):
+         rank = _path_rank(memory.path, lookup_path) if lookup_path else None

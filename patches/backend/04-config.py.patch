@@ -1,0 +1,32 @@
+diff --git a/config.py b/config.py
+index 0b6ae4b..5c3bb3d 100644
+--- a/config.py
++++ b/config.py
+@@ -463,6 +463,9 @@ CODE_INTERPRETER_PYODIDE_PROMPT = """
+ ##### Pyodide Environment
+ 
+ - This Python environment runs via Pyodide in the browser. **Do not install packages** — `pip install`, `subprocess`, and `micropip.install()` are not available.
++- Libraries bundled and available on demand: numpy, pandas, matplotlib, scipy, scikit-learn, seaborn, sympy, mpmath, pillow (PIL), requests, beautifulsoup4 (bs4), lxml, python-docx (docx), python-pptx (pptx), openpyxl, pytz, pymupdf (fitz), statsmodels. No other third-party library (no plotly, pypdf, tiktoken).
++- Network: the sandbox has no TCP. socket.create_connection always raises OSError. Outbound HTTP goes through the browser and is filtered by CORS: a request fails with ConnectionError whenever the target site does not send CORS headers — this does NOT mean the site is down. To probe a URL reliably, use fetch_url; for an API, try fetch_url first and fall back to requests here (or the reverse) — the two paths have different egresses. Each code run is limited to 120 seconds by default (timeout parameter, max 600) — an infinite loop is interrupted and reported. Check the `network_available` flag (set on first run) before trying.
++- Files: everything in /mnt/uploads/ is saved to the app file browser; the app's uploads are also visible there.
+ - If a required library is unavailable, use an alternative approach with available modules. Do not attempt to install anything.
+ 
+ ##### Persistent File System
+@@ -475,7 +478,7 @@ CODE_INTERPRETER_PYODIDE_PROMPT = """
+ 
+ # Vector Database
+ 
+-VECTOR_DB = os.getenv('VECTOR_DB', 'pgvector' if USE_SLIM else 'chroma')
++VECTOR_DB = os.getenv('VECTOR_DB', 'local')  # patch : stockage vectoriel LOCAL (embeddings distants uniquement)
+ 
+ # Chroma
+ CHROMA_DATA_PATH = f'{DATA_DIR}/vector_db'
+@@ -1592,7 +1595,7 @@ AUDIO_STT_OPENAI_API_KEY = os.getenv('AUDIO_STT_OPENAI_API_KEY', OPENAI_API_KEY)
+ 
+ AUDIO_STT_OPENAI_API_REQUEST_FORMAT = os.getenv('AUDIO_STT_OPENAI_API_REQUEST_FORMAT', 'multipart')
+ 
+-AUDIO_STT_ENGINE = os.getenv('AUDIO_STT_ENGINE', '')
++AUDIO_STT_ENGINE = os.getenv('AUDIO_STT_ENGINE', 'web')  # patch Android : dictée native
+ 
+ AUDIO_STT_MODEL = os.getenv('AUDIO_STT_MODEL', '')
+ 

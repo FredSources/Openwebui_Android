@@ -1,0 +1,19 @@
+diff --git a/retrieval/vector/factory.py b/retrieval/vector/factory.py
+index 9e17b87..e8ae16b 100644
+--- a/retrieval/vector/factory.py
++++ b/retrieval/vector/factory.py
+@@ -17,6 +17,14 @@ class Vector:
+         """
+         get vector db instance by vector type
+         """
++        if vector_type in (VectorType.LOCAL, 'local'):
++            from open_webui.retrieval.vector.dbs.local import LocalVectorDB
++
++            return LocalVectorDB()
++        if vector_type in (VectorType.NONE, 'none', '', None):
++            from open_webui.retrieval.vector.dbs.none import NullVectorDB
++
++            return NullVectorDB()
+         if USE_SLIM and vector_type != VectorType.PGVECTOR:
+             raise HTTPException(
+                 503,

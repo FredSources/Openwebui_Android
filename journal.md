@@ -4662,3 +4662,42 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   build corrigé, commit `5e33a5f`). Le correctif sera vérifié fonctionnellement
   sur appareil (appel vocal réel : plus d'erreur « Realtime calls are handled
   locally on Android », dictée/TTS pendant l'appel).
+
+## 2026-11-22 22:03 UTC — purge de la chaîne v1 (refonte v2, point 4 de REFONTE.md FAIT)
+
+- **Contexte** : après le portage vocal v1→v2 (submodule `vendor/open-webui` +
+  patchs), purge des résidus de la chaîne v1 (wheel PyPI + `prepare_src.py` +
+  frontend pré-compilé).
+- **Supprimés (7 fichiers + frontend + rapport)** : `scripts/prepare_src.py`,
+  `scripts/check_patches.py`, `scripts/fetch_src.sh`, `scripts/local_vector_db.py`
+  (doublon patchs 12/14), `scripts/audit_divergence.py`, `scripts/verifier_tag.py`,
+  `.github/workflows/build-apk.yml`, `src-assets/` **entier** (181,5 Mo, ~4 900
+  fichiers dont frontend Svelte pré-compilé, pyodide, wasm, emojis) et le rapport
+  mort `docs/audit-divergence.txt` (ignoré, supprimé du disque). Bilan `git rm` :
+  4 924 suppressions, 15 modifs, 1 modif de sous-module.
+- **Scripts vivants adaptés** : `setup-env.sh` (1/10 — buildPython Chaquopy ;
+  étape 9/10 — `git submodule update --init --recursive` + repli clones ¬git ;
+  étape patchs — `bash scripts/apply_patches.sh`), `build.sh` (repli v1 retiré,
+  `apply_patches.sh` seul), `smoke.sh` (commentaires frontend). Docstrings
+  `version_frozen.py` réécrites : « généré par prepare_src.py » → « complément
+  v2 déposé par scripts/apply_patches.sh » (fichier tracké
+  `patches/complements/searx/version_frozen.py` + 2 artefacts de build ignorés).
+- **Docs maintenues** : `README.md` (badge → `build-apk-submodule.yml`, tableau
+  vendor/open-webui + patches), `REFONTE.md` (branches main/master, `build-apk.yml`
+  supprimé historié, point 4 → FAIT), `AGENTS.md` (l.107), `PATCHES.md` (bandeau
+  « document historique de la chaîne v1 »). `docs/maintenance.typ` : refs v1
+  retirées en batch (16 cellules : colonnes `chunks/*.js` → `frontend/` sources
+  Svelte, P123/P125/P140), procédures réécrites (mise à jour d'Open WebUI =
+  submodule + diffs ; SearXNG = avance de submodule + `apply_patches.sh` ;
+  commandes utiles submodule), mention « contrôle v1 (supprimé) » pour
+  `check_patches.py` ; `docs/environnement.typ` (submodule v0.13.4 + patchs),
+  `docs/audio.typ` ; **3 PDF recompilés OK** (maintenance 695 Ko, environnement
+  114 Ko, audio 299 Ko).
+- **Contrôles** : `bash -n` sur les 3 scripts OK ; grep résidus v1 dans le CI v2 :
+  **zéro** ; dans les fichiers vivants, seules restent des mentions historiques
+  explicites (REFONTE.md, PATCHES.md bandeau, maintenance.typ l.143/284/328/979/999).
+  La chaîne v2 (`apply_patches.sh` 33+5 patchs, `build-apk-submodule.yml`,
+  `check_apk.py`) est intacte.
+- **Suite** : renommage des branches (`master`→`main`, `v2/submodule-patches`→`master`),
+  déplacement du tag `v0.0.80_beta` sur le commit de nettoyage, CI verte + versionCode
+  daté, vérification des marqueurs vocaux dans l'APK.

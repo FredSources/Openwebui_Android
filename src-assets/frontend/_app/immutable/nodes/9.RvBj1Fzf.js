@@ -1,2 +1,0 @@
-import"../chunks/NZTpNUN0.js";import"../chunks/69_IOA4Y.js";import{p as c,l as a,k as f,a as i,s as n,e as g,h as r,b as _,m as $}from"../chunks/C21BfNWO.js";import{i as l}from"../chunks/BtQlYNB3.js";import{t}from"../chunks/CjU8m_MG.js";import{p as u}from"../chunks/NagFHB_G.js";function j(h,o){c(o,!1);const s=()=>_(u,"$page",p),[p,m]=n(),e=$();a(()=>s(),()=>{g(e,s().url.searchParams.get("error"))}),a(()=>(r(e),t),()=>{r(e)&&t.error(r(e))}),f(),l(),i(),m()}export{j as component};
-//# sourceMappingURL=9.RvBj1Fzf.js.map

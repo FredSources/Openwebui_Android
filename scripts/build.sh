@@ -20,14 +20,9 @@ fi
 # 1. SDK + Gradle
 bash "$PROJ/scripts/setup-sdk.sh"
 
-# 2. Sources patchées (si absentes) — chaîne v2 (submodule + diffs) prioritaire,
-#    repli chaîne v1 (wheel PyPI) uniquement sur master (pas de patches/)
+# 2. Sources patchées (si absentes) — chaîne v2 (submodule + diffs), requise
 if [ ! -d "$PROJ/src/open_webui" ]; then
-  if [ -f "$PROJ/scripts/apply_patches.sh" ] && [ -d "$PROJ/patches" ]; then
-    bash "$PROJ/scripts/apply_patches.sh"
-  else
-    "$PROJ/.venv313/bin/python" "$PROJ/scripts/prepare_src.py"
-  fi
+  bash "$PROJ/scripts/apply_patches.sh"
 fi
 
 # 3. Wheels Rust cross-buildés (si absents)

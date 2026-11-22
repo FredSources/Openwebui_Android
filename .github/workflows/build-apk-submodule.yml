@@ -4,7 +4,7 @@
 #
 # Chaîne v2 (voir REFONTE.md) — diffère de v1 UNIQUEMENT sur l'amont :
 #   1. checkout avec `submodules: recursive` (open-webui v0.13.4 + searxng figé)
-#      → ni fetch_src.sh (wheel PyPI), ni clonage SearXNG à la volée ;
+#      → ni wheel PyPI (chaîne v1), ni clonage SearXNG à la volée ;
 #   2. scripts/apply_patches.sh : 33 patchs backend en diff → src/open_webui/,
 #      patch frontend (Audio.svelte) → submodule, compléments (shims + searx) ;
 #   3. frontend RECOMPILÉ depuis les sources Svelte (npm ci + npm run build)

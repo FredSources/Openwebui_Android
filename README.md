@@ -1,6 +1,6 @@
 # OpenWebUI Android — APK autonome sans calcul de l'embedding local
 
-[![Build APK](https://github.com/FredSources/Openwebui_Android/actions/workflows/build-apk.yml/badge.svg)](https://github.com/FredSources/Openwebui_Android/actions/workflows/build-apk.yml)
+[![Build APK](https://github.com/FredSources/Openwebui_Android/actions/workflows/build-apk-submodule.yml/badge.svg)](https://github.com/FredSources/Openwebui_Android/actions/workflows/build-apk-submodule.yml)
 
 APK Android qui embarque le serveur **Open WebUI 0.13.0** (FastAPI + SQLite +
 frontend SvelteKit compilé) dans un interpréteur **Python 3.13** (Chaquopy),
@@ -21,12 +21,13 @@ Le **LLM reste distant** : Ollama ou API OpenAI-compatible sur ton PC/serveur.
 | `todo.md` / `journal.md` | Suivi des tâches / historique horodaté |
 | `PATCHES.md` | Toutes les modifications du code Open WebUI |
 | `requirements-min.txt` | Dépendances Python embarquées (slim, RAG léger `LocalVectorDB`) |
-| `vendor/unpacked/` | Wheel Open WebUI pristine (source des patchs) |
+| `vendor/open-webui/` | Submodule Open WebUI v0.13.4 (source vierge des patchs) |
+| `patches/` | Patchs en diff (backend, frontend, compléments, searx) appliqués par `scripts/apply_patches.sh` |
 | `vendor/searxng/` | SearXNG figé (commit `a30b2d4749`) — copié dans `src/searx/` |
 | `src/` | Code Python embarqué (Open WebUI patché + SearXNG + shims) |
 | `app/` | Projet Android (Java + Chaquopy) |
 | `wheels/` | Wheels Rust cross-buildés (pydantic-core, jiter) |
-| `scripts/` | `env.sh`, `fetch_src.sh`, `prepare_src.py`, `setup-sdk.sh`, `build-wheels.sh`, `build.sh`, `smoke.sh` |
+| `scripts/` | `env.sh`, `apply_patches.sh`, `setup-sdk.sh`, `build-wheels.sh`, `build.sh`, `smoke.sh` |
 | `dist/` | APK produits |
 
 **Isolation** : tout vit dans ce dossier (SDK, Gradle, Rust, NDK, venv).
@@ -55,8 +56,9 @@ Prérequis : Linux aarch64/x86_64, JDK 17+, réseau, ~8 Go libres.
 /opt/opencode-venv/bin/python3 -m venv .venv313
 .venv313/bin/pip install -r requirements-min.txt
 
-# 2. sources patchées (idempotent)
-.venv313/bin/python scripts/prepare_src.py
+# 2. sources patchées depuis le submodule (idempotent)
+git submodule update --init --recursive
+bash scripts/apply_patches.sh
 
 # 3. tout le reste : SDK Android, Gradle, wheels Rust, APK
 bash scripts/build.sh            # → dist/app-debug.apk
@@ -67,8 +69,9 @@ Pour un APK signé « release » : `bash scripts/build.sh assembleRelease`
 
 ## CI/CD (GitHub Actions)
 
-`.github/workflows/build-apk.yml` build les APK **debug et release** uniquement
-lors du push d'un tag `v*`, et publie la **Release GitHub** avec les APK attachés :
+`.github/workflows/build-apk-submodule.yml` build les APK **debug et release**
+uniquement lors du push d'un tag `v*` (submodule + `apply_patches.sh` + frontend
+recompilé), et publie la **Release GitHub** avec les APK attachés :
 
 ```bash
 git tag v0.3.0 && git push origin v0.3.0   # → build CI + release + APK attachés

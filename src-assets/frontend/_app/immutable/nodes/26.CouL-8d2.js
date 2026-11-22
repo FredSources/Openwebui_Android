@@ -1,2 +1,0 @@
-import"../chunks/NZTpNUN0.js";import"../chunks/69_IOA4Y.js";import{p as r,a as e,b as i,s as m}from"../chunks/C21BfNWO.js";import{i as n}from"../chunks/BtQlYNB3.js";import{p as f}from"../chunks/NagFHB_G.js";import g from"../chunks/C1alCnR2.js";function h(o,p){r(p,!1);const s=()=>i(f,"$page",t),[t,a]=m();n(),g(o,{get id(){return s().params.id}}),e(),a()}export{h as component};
-//# sourceMappingURL=26.CouL-8d2.js.map

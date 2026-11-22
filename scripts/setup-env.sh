@@ -56,7 +56,7 @@ if [ "$MODE" = "--check" ]; then
     "tools/qemu/qemu-x86_64-static:qemu x86_64" \
     "tools/pyo3/prefix/include/python3.13:Python Android (PyO3)" \
     "wheels/pydantic_core-2.46.4-cp313-cp313-android_24_arm64_v8a.whl:wheel pydantic_core" \
-    "vendor/unpacked/open_webui:Open WebUI (pristine)" \
+    "vendor/open-webui:Open WebUI (submodule)" \
     "vendor/searxng/searx:SearXNG (figé)" \
     "src/open_webui:src/ patché"; do
     path="${probe%%:*}"; label="${probe#*:}"
@@ -70,7 +70,7 @@ PYV="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
 [ "$PYV" = "3.13" ] || log "ATTENTION : python3 = $PYV (3.13 attendu pour le venv)"
 
 # ============================================================================
-log "1/10 — Python 3.12 portable (buildPython + récupération du wheel Open WebUI)"
+log "1/10 — Python 3.12 portable (buildPython Chaquopy)"
 if [ ! -x tools/python312/bin/python3.12 ]; then
   if [ -d /opt/uv-python/cpython-3.12.16-linux-aarch64-gnu ]; then
     mkdir -p tools/python312
@@ -177,27 +177,30 @@ if [ ! -x tools/qemu/qemu-x86_64-static ]; then
 fi
 
 # ============================================================================
-log "9/10 — Sources vendor : Open WebUI (wheel pristine) + SearXNG (commit figé)"
-if [ ! -d vendor/unpacked/open_webui ]; then
-  tools/python312/bin/python3.12 -m pip download open-webui --no-deps --no-cache-dir -d vendor/wheel
-  mkdir -p vendor/unpacked
-  (cd vendor/unpacked && unzip -q -o ../wheel/open_webui-*.whl)
+log "9/10 — Modules vendor : open-webui + searxng (submodules git, figés)"
+if [ ! -d vendor/open-webui/backend ] || [ ! -d vendor/searxng/searx ]; then
+  git submodule update --init --recursive
+fi
+# Repli hors dépôt git (export d'archive) : clones directs aux versions figées
+if [ ! -d vendor/open-webui/backend ]; then
+  git clone --quiet --depth 1 --branch v0.13.4 \
+    https://github.com/open-webui/open-webui.git vendor/open-webui || true
 fi
 if [ ! -d vendor/searxng/searx ]; then
   git clone --quiet --depth 1 https://github.com/searxng/searxng vendor/searxng || true
   (cd vendor/searxng && git fetch --quiet --depth 1 origin "$VENDOR_COMMIT" \
      && git checkout --quiet "$VENDOR_COMMIT")
 fi
-echo "  Open WebUI : $(ls vendor/wheel/ | head -1)"
-echo "  SearXNG    : $(cd vendor/searxng && git log -1 --format='%h %ad' --date=short)"
+echo "  open-webui : $(cd vendor/open-webui && git describe --tags --always 2>/dev/null || echo v0.13.4)"
+echo "  SearXNG    : $(cd vendor/searxng && git log -1 --format='%h %ad' --date=short 2>/dev/null)"
 
 # ============================================================================
 log "10/10 — Wheels natifs cross-buildés (Rust → Android)"
 bash scripts/build-wheels.sh
 
 # ============================================================================
-log "Sources patchées (patchs P1-P11)"
-.venv313/bin/python scripts/prepare_src.py >/dev/null && echo "  src/ régénéré ✔"
+log "Sources patchées (chaîne v2 : submodule + diffs)"
+bash scripts/apply_patches.sh >/dev/null && echo "  src/ régénéré ✔"
 
 log "=== Environnement prêt ==="
 bash scripts/setup-env.sh --check

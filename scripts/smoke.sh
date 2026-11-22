@@ -5,7 +5,7 @@ set -u
 PROJ="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJ"
 export PYTHONPATH="$PROJ/src:$PROJ/app/src/main/python"
-# frontend extrait par prepare_src vers src-assets (P15) ; repli sur le paquet
+# frontend recompilé par le CI vers src-assets (chaîne v2) ; repli sur le paquet
 export FRONTEND_BUILD_DIR="$PROJ/src-assets/frontend"
 [ -d "$FRONTEND_BUILD_DIR" ] || FRONTEND_BUILD_DIR="$PROJ/src/open_webui/frontend"
 export FRONTEND_BUILD_DIR

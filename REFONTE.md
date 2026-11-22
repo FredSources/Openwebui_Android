@@ -1,9 +1,10 @@
 # REFONTE.md — Architecture v2 : submodule + patchs en diff
 
-Branche : `v2/submodule-patches`. Objectif : **le même livrable** que
-`master` (0.0.79), mais construit depuis la **source d'origine** (`submodule
-Open WebUI v0.13.4`) et une **liste de patchs en diff** versionné, au lieu du
-wheel PyPI + `scripts/prepare_src.py` (remplacements par motifs minifiés).
+Branche : `master` (v2 ; ex-`v2/submodule-patches`). Objectif : **le même livrable**
+que l'ancienne `master` (0.0.79, conservée sous le nom `main`), mais construit
+depuis la **source d'origine** (`submodule Open WebUI v0.13.4`) et une **liste de
+patchs en diff** versionné, au lieu de l'ancien mode v1 (wheel PyPI +
+`prepare_src.py`, remplacements par motifs minifiés — supprimé).
 
 ## Architecture
 
@@ -47,8 +48,9 @@ scripts/apply_patches.sh   applique tout (idempotent) — reconstruit src/
 | 45013208945 | `check_apk.py` : 3 familles — wheels pyodide absentes, `/fm` absent, `version_frozen.py` absent | P47 : copie `wheels-extra/*.whl` → `src-assets/frontend/pyodide/` ; P26b : `patches/frontend/02-app.html.patch` ; P24b : `patches/searx/01-version.py.patch` |
 | 45019541354 | versionCode **régressif** (v2 = 10006 < v1 = 10122 → Android refuse d'installer par-dessus la v1) : les deux workflows dérivaient le code de leur **propre** `GITHUB_RUN_NUMBER` (compteur indépendant) | versionCode **daté** : `(année 2 c. + jour de l'année) × 1000 + run_number` (`$(date -u +%y%j)`), strictement croissant entre releases, indépendant du workflow, < 2 100 000 000 |
 
-`build-apk.yml` (v1) est neutralisé sur cette branche (`workflow_dispatch` uniquement)
-pour éviter un double build et un conflit de release sur le même tag ; intact sur `master`.
+`build-apk.yml` (v1) a été **supprimé** sur `master` (v2) pour éviter un double
+build et un conflit de release sur le même tag ; il reste intact sur `main`
+(ex-`master`, historique v1).
 
 ## Reste à faire (prochaine session)
 
@@ -76,7 +78,11 @@ pour éviter un double build et un conflit de release sur le même tag ; intact 
    `searx/version.py` appelle `git` au démarrage — absent d'Android : l'OSError
    remonte au lieu de tuer le thread SearXNG).
 3. **Chaîne APK** : validée en CI (swap 8 Go + skip CUDA nécessaires, voir tableau).
-4. Supprimer `scripts/prepare_src.py` (mode v1) quand tous les patchs sont portés.
+4. **Supprimer `scripts/prepare_src.py` (mode v1)** — FAIT : nettoyage v1
+   (avec `build-apk.yml`) sur `master` (v2) : retrait de `prepare_src.py`,
+   `check_patches.py`, `fetch_src.sh`, `local_vector_db.py`, `audit_divergence.py`,
+   `verifier_tag.py`, et du frontend pré-compilé `src-assets/frontend`
+   (le CI v2 le recompile via `npm run build`).
 5. Nettoyer le doublon P150 dans `app/src/main/assets/call_polyfill.js` (3 blocs
    identiques sur la branche, 2 sur master — sans effet runtime, mais à réduire
    à 1 ; hors de la course au build 0.0.80_beta).

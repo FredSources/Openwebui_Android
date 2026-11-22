@@ -1,5 +1,14 @@
 # PATCHES.md — Modifications appliquées au code Open WebUI 0.13.4
 
+> ⚠️ **Document historique de la chaîne v1.** Ces patchs étaient appliqués par
+> `scripts/prepare_src.py` (remplacements sur code minifié), **supprimé avec la
+> chaîne v1** (nettoyage v0.0.80_beta sur `master` — v2). Depuis la refonte v2,
+> les modifications sont versionnées en **diffs lisibles** dans `patches/`
+> (`backend/`, `frontend/`, `complements/`, `searx/`) et appliquées par
+> `scripts/apply_patches.sh` sur le submodule `vendor/open-webui` (v0.13.4).
+> Ce tableau reste la référence de l'**intention** de chaque patch ; la branche
+> `main` (ex-`master`, historique v1) conserve l'ancienne chaîne.
+
 Tous les patchs sont générés par `scripts/prepare_src.py` (idempotent, rejouable)
 à partir de `vendor/unpacked/open_webui` (wheel PyPI pristine). Objectif unique :
 **retirer le RAG** et rendre le reste exécutable sur Android/Python 3.13.

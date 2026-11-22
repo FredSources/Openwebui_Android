@@ -123,7 +123,7 @@ def check_apk(apk: pathlib.Path) -> None:
             if requis not in noms:
                 err(f"{apk.name} : absent — {requis}")
         # P47 : wheels supplémentaires garantis dans l'artefact (statsmodels,
-        # pymupdf — sha256 conformes au lock, copiés par prepare_src)
+        # pymupdf — sha256 conformes au lock pyodide)
         for motif in ("statsmodels-", "pymupdf-", "patsy-"):
             if not any(n.startswith("assets/frontend/pyodide/") and motif in n and n.endswith(".whl")
                        for n in noms):

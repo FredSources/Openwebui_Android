@@ -101,13 +101,14 @@ qemu et Python vivent dans le dépôt (règle d'isolation, @sec-iso).
   [`requirements-min.txt`],
   [Dépendances Python embarquées, avec justifications de pin],
 
-  [`vendor/unpacked/`], [Wheel Open WebUI *pristine* (source des patchs)],
+  [`vendor/open-webui/`], [Submodule Open WebUI v0.13.4 (source vierge des patchs)],
   [`vendor/searxng/`], [Dépôt SearXNG figé sur un commit précis],
+  [`patches/`], [Patchs en diff (backend, frontend, complements, searx)],
   [`src/`],
   [Sources embarquées : `open_webui/` patché, `searx/`, shims `tiktoken`/`pycrdt`],
 
-  [`scripts/prepare_src.py`],
-  [Générateur de `src/` : copie pristine + patchs idempotents],
+  [`scripts/apply_patches.sh`],
+  [Reconstruit `src/` depuis le submodule + `patches/` (idempotent)],
 
   [`scripts/build-wheels.sh`], [Cross-build Rust des wheels natifs Android],
   [`scripts/build.sh`], [Build complet de l'APK (SDK, wheels, Gradle)],
@@ -137,9 +138,11 @@ rencontré et sa solution, dans l'ordre chronologique.
 
 == Phase B — Patchs du code amont
 
-- Développement de `scripts/prepare_src.py` : chaque modification du code amont
-  est un *motif texte* remplaçable, vérifié, rejouable et explicitement documenté
-  (P1-P11, cf. @sec-patches). Un patch dont le motif a disparu *échoue fort*
+- Développement de `scripts/apply_patches.sh` : chaque modification du code
+  amont est un *diff lisible* versionné dans `patches/` et appliqué par
+  `patch -p1 --forward` (idempotent). La chaîne v1 (`scripts/prepare_src.py`,
+  remplacements par motifs minifiés) a été supprimée lors du nettoyage
+  v0.0.80_beta (voir `REFONTE.md`). Un diff qui ne s'applique plus *échoue fort*
   (pas de modification silencieuse).
 - Shims embarqués : `tiktoken` (comptage approximatif), `pycrdt` (collab
   dégradée), `NullVectorDB`, `LocalVectorDB`.
@@ -274,10 +277,12 @@ propriété Gradle `android.aapt2FromMavenOverride` et le remplacement de
 
 = Divergences avec l'amont — audit et minimisation <sec-divergences>
 
-L'arbre `src/` est reconstruit à chaque build depuis le wheel amont
-(`vendor/unpacked/`), puis les patchs sont appliqués. L'audit
-`scripts/audit_divergence.py` mesure l'écart (rapport :
-`docs/audit-divergence.txt`).
+L'arbre `src/` est reconstruit à chaque build depuis le submodule amont
+(`vendor/open-webui/`, v0.13.4), puis les patchs en diff (`patches/`) sont
+appliqués par `scripts/apply_patches.sh`. L'écart v1/v2 a été audité lors de
+la refonte (zéro écart hors `__pycache__` — voir `REFONTE.md`) ; l'audit v1
+(`scripts/audit_divergence.py` → `docs/audit-divergence.txt`) a été supprimé
+avec la chaîne v1.
 
 #table(
   columns: (1.1fr, 1fr, 1.6fr),
@@ -319,8 +324,10 @@ P65/P87) est inchangé et validé par la matrice de tests.
 
 = Patchs du code amont <sec-patches>
 
-Tous les patchs sont générés par `scripts/prepare_src.py` (idempotent). Le
-document de référence est `PATCHES.md` ; résumé opérationnel :
+Les patchs v1 (P1-P150) sont documentés dans `PATCHES.md` (historique v1,
+chaîne `prepare_src.py` supprimée). Depuis la refonte v2, ils sont versionnés
+en *diffs lisibles* dans `patches/` et appliqués par `scripts/apply_patches.sh`
+sur le submodule `vendor/open-webui`. Résumé opérationnel (intentions) :
 
 #table(
   columns: (0.5fr, 1.5fr, 2fr),
@@ -383,7 +390,7 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
 
   [P38/P44b/P102/P103],
   [`workers/pyodide.worker-*.js` + `chunks/*.js`],
-  [boot du bac à sable Pyodide — *le piège des deux copies* : le bundle embarque le worker exécuté *et* une copie de repli (iframe/blob) ; P38 préinstallait `numpy/pandas/sympy` au boot (~115 Mo de wasm → OOM Android), P102 n'allégea que la copie de repli, P103 allège enfin le worker (`['micropip','numpy']`, reste à la demande). Toute modification du boot doit viser les *deux* copies et passer `check_patches.py`],
+  [boot du bac à sable Pyodide — *le piège des deux copies* : le bundle embarque le worker exécuté *et* une copie de repli (iframe/blob) ; P38 préinstallait `numpy/pandas/sympy` au boot (~115 Mo de wasm → OOM Android), P102 n'allégea que la copie de repli, P103 allège enfin le worker (`['micropip','numpy']`, reste à la demande). Toute modification du boot doit viser les *deux* copies — contrôle v1 `check_patches.py` (supprimé avec la chaîne v1 ; en v2 : diffs `patches/frontend/` + sondes)],
 
   [P104],
   [`socket/main.py` + `android_fm.py`],
@@ -466,20 +473,20 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [pied de page `.ver` (« OpenWebUI Android x.y.z ») dégagé de la colonne en mode icônes : `body.sideicons .ver` passe de `left:10px` à `left:66px` (56 + 10 de marge) avec transition `.18s` alignée sur la sidebar — mobile inchangé — journal v0.0.74],
 
   [P123],
-  [`prepare_src.py` + `index.html`],
-  [icône du bouton flottant `/fm` : le trombone 📎 devient un SVG dessiné *fichier + roue crante* (document à pli et lignes, engrenage 8 dents sur disque `#3b82f6`, viewBox 24, trait 1.5, 22 px dans le disque de 42 px), titre « Fichiers et paramètres de l'application » — le sprite amont ne fournit ni `paperclip` ni `gear` (123 noms relevés) ; contrôle `check_patches.py` : plus d'émoji `&#128206;`, SVG exigé — journal v0.0.75],
+  [`index.html` (patch v2 `frontend/02-app.html.patch`)],
+  [icône du bouton flottant `/fm` : le trombone 📎 devient un SVG dessiné *fichier + roue crante* (document à pli et lignes, engrenage 8 dents sur disque `#3b82f6`, viewBox 24, trait 1.5, 22 px dans le disque de 42 px), titre « Fichiers et paramètres de l'application » — le sprite amont ne fournit ni `paperclip` ni `gear` (123 noms relevés) ; contrôle v1 `check_patches.py` (supprimé) : plus d'émoji `&#128206;`, SVG exigé — journal v0.0.75],
 
   [P124],
   [`android_fm.py`],
   [sidebar `/fm` responsive aux trois paliers : téléphone ≤600 px en tiroir hors-canvas (`translateX(-100%)` + `visibility:hidden`) ouvert par le bouton `#side-open` (icône `sidebar-expand`) via le voile (sélecteur `.sideov.on ~ .wrap .side`, `~` et non `+` — le bouton est inséré entre les deux), toggle et poignée masqués ; tablette 601-820 px inchangée (colonne d'icônes 56 px) ; desktop ≥821 px inchangé (245 px + resizer) — journal v0.0.76],
 
   [P125],
-  [`prepare_src.py` (→ `android_fm.py`)],
-  [icônes et style des pages `/fm` calqués sur Open WebUI : les 23 entités d'émojis (▶ ⏹ ↺ ⚠ ✅ ⚙ 🔌 🔍 💾 🤖 📑 🔒 🔧 📝 📷 📄 🌐 📥 🗅 🛠 📦 💬 + sélecteur de variation supprimé) deviennent les icônes SVG du sprite OWUI par le décorateur `_fm_deco` appliqué une fois sur le document complet (43 entités, 0 dans un attribut/CSS/JS vérifié), 16 icônes ajoutées à `_FM_ICONS` (29 en tout), 3 exceptions par placeholder `@@ICO:nom@@` (Fichiers journaux `folder`, Index des documents `grid`, Nettoyer l'index `refresh`) ; style OWUI : boutons 28 px / 12 px / graisse 400 / `rounded-lg` en `inline-flex`, secondaire blanc + bordure, champs 6×8 px 11 px sans contour + focus blue-400, cases à cocher 14 px avec coche SVG blanche (`appearance:none`, bleu 600 cochée), `html{word-break:break-word}`, palier ≤480 px à 34 px de haut ; contrôle `check_patches.py` étendu (`check_p125_fm`, 8 sabotages testés) — journal v0.0.76],
+  [`android_fm.py` (patch v2 `backend/02-android_fm.py.patch`)],
+  [icônes et style des pages `/fm` calqués sur Open WebUI : les 23 entités d'émojis (▶ ⏹ ↺ ⚠ ✅ ⚙ 🔌 🔍 💾 🤖 📑 🔒 🔧 📝 📷 📄 🌐 📥 🗅 🛠 📦 💬 + sélecteur de variation supprimé) deviennent les icônes SVG du sprite OWUI par le décorateur `_fm_deco` appliqué une fois sur le document complet (43 entités, 0 dans un attribut/CSS/JS vérifié), 16 icônes ajoutées à `_FM_ICONS` (29 en tout), 3 exceptions par placeholder `@@ICO:nom@@` (Fichiers journaux `folder`, Index des documents `grid`, Nettoyer l'index `refresh`) ; style OWUI : boutons 28 px / 12 px / graisse 400 / `rounded-lg` en `inline-flex`, secondaire blanc + bordure, champs 6×8 px 11 px sans contour + focus blue-400, cases à cocher 14 px avec coche SVG blanche (`appearance:none`, bleu 600 cochée), `html{word-break:break-word}`, palier ≤480 px à 34 px de haut ; contrôle v1 `check_patches.py` étendu (supprimé ; 8 sabotages testés) — journal v0.0.76],
 
   [P126],
   [`utils/tools.py` (révocation P18 + amendement P28)],
-  [toggles des outils web/code à nouveau respectés : *P18 révoqué* (gate amont des outils web restauré tel quel — `is_builtin_tool_enabled('web_search')`, `web.search.enable`, `get_model_capability('web_search')`, `features.get('web_search')` = icône du composeur, permission) et *P28 amendé* (`compile_typst` conditionné par `ENABLE_TOOLS and is_builtin_tool_enabled('tools')` — toggle « Outils » du modèle, indépendant de `workspace.tools`). Audit complet du code généré vs amont (`middleware.py` et gates `execute_code` déjà conformes, frontend sans lien avec les toggles) ; sonde `p126_gate_test.py` sur `get_builtin_tools` réel : fuites confirmées avant correction (web + `compile_typst` dans tous les cas), tous scénarios verts après ; `check_patches.py` renforcé (gate « Outils » exigé, gate forcé P18 interdit) — journal v0.0.77],
+  [toggles des outils web/code à nouveau respectés : *P18 révoqué* (gate amont des outils web restauré tel quel — `is_builtin_tool_enabled('web_search')`, `web.search.enable`, `get_model_capability('web_search')`, `features.get('web_search')` = icône du composeur, permission) et *P28 amendé* (`compile_typst` conditionné par `ENABLE_TOOLS and is_builtin_tool_enabled('tools')` — toggle « Outils » du modèle, indépendant de `workspace.tools`). Audit complet du code généré vs amont (`middleware.py` et gates `execute_code` déjà conformes, frontend sans lien avec les toggles) ; sonde `p126_gate_test.py` sur `get_builtin_tools` réel : fuites confirmées avant correction (web + `compile_typst` dans tous les cas), tous scénarios verts après ; contrôle v1 `check_patches.py` renforcé (supprimé : gate « Outils » exigé, gate forcé P18 interdit) — journal v0.0.77],
 
   [P127],
   [`routers/audio/__init__.py` (ajouts seuls)],
@@ -534,8 +541,8 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [« Default » inutilisable → le default devient Kokoro — même IIFE dans les deux chargeurs de `$settings` (`ne` du layout, toutes les routes ; `de` de `/s/[id]`) : engine du compte vide → sonde de voix ≤ 2 s (polling 150 ms, `AndroidTTS.voicesJson()` puis `speechSynthesis.getVoices()`, cache `window.__owuiSysTTS`) ; aucune voix et moteur admin vide → `engine: "browser-kokoro"`, `dtype: "q8"` si absent (sinon `fp32` ≈ 325 Mo), `voice: "af_heart"`, `defaultVoice` aligné sur `config.audio.tts.voice` (la chaîne amont n'utilise `settings.voice` que si `defaultVoice === config.voice` — sinon « alloy » → `Voice "alloy" not found`, d'où « Erreur après avoir choisi Kokoro ») ; engine déjà Kokoro → normalisation synchrone (voix invalide → `af_heart`, dtype manquant → q8) ; aucun forçage si voix système présentes, TTS serveur réglé ou config non chargée ; en mémoire seulement — sonde `p138_p139_test.py` (12 contrôles) ; *garde-fous v0.0.79_beta* : `snap()` refuse un store non prêt et le `tick` (setTimeout +150 ms, donc hors du `try` de l'IIFE) a son propre `try/catch` — sans cela l'exception `x.subscribe is not a function` n'était jamais avalée et cassait le chargement de la page réglages — journal v0.0.78 + v0.0.79_beta],
 
   [P140],
-  [`frontend/wasm/` + `scripts/prepare_src.py` (données)],
-  [ONNX Runtime Web conservé : Kokoro retrouve son backend — P13 supprimait `wasm/` (21 Mo, « ML navigateur inutile ») alors que le worker Kokoro force `wasmPaths: "/wasm/"` et importe dynamiquement `ort-wasm-simd-threaded.jsep.mjs` : sans eux, `browser-kokoro` lève « no available backend found. ERR: [webgpu] TypeError: Failed to fetch dynamically imported module … /wasm/ort-wasm-simd-threaded.jsep.mjs » (rétroaction utilisateur) ; `slim_frontend` ne supprime plus que les source maps ; MIME `.mjs → text/javascript` / `.wasm → application/wasm` vérifiés (table embarquée Python 3.13) ; garde-fou `check_wasm_ort` (présence + tailles + `wasmPaths` du worker) — journal v0.0.78],
+  [`frontend/wasm/` (données ONNX conservées par la recompilation v2)],
+  [ONNX Runtime Web conservé : Kokoro retrouve son backend — P13 supprimait `wasm/` (21 Mo, « ML navigateur inutile ») alors que le worker Kokoro force `wasmPaths: "/wasm/"` et importe dynamiquement `ort-wasm-simd-threaded.jsep.mjs` : sans eux, `browser-kokoro` lève « no available backend found. ERR: [webgpu] TypeError: Failed to fetch dynamically imported module … /wasm/ort-wasm-simd-threaded.jsep.mjs » (rétroaction utilisateur) ; `slim_frontend` ne supprime plus que les source maps ; MIME `.mjs → text/javascript` / `.wasm → application/wasm` vérifiés (table embarquée Python 3.13) ; garde-fou v1 `check_wasm_ort` (supprimé avec la chaîne v1) — journal v0.0.78],
 
   [P141],
   [`chunks/BnHPywC-.js` + `assets/call_polyfill.js` (frontend)],
@@ -562,8 +569,8 @@ document de référence est `PATCHES.md` ; résumé opérationnel :
   [mode vocal : « la conversation continue toute seule » — après chaque réponse lue à voix haute, la conversation repartait d'elle-même : le recognizer livre des résultats *tardifs* (émis pendant la lecture, arrivés après l'extinction) ; `__callSpeechGate(muted=true)` arme une *fenêtre de grâce de 2,5 s* (`graceUntil`) ; pendant la grâce : `onresult` ignore les résultats tardifs (trace), `__callVadHit()` renvoie `false`, `onstart` n'entretient pas le VAD, `mark()` refuse d'ouvrir un énoncé (trace) ; `stop()` remet `graceUntil = 0` (réouverture d'appel propre) — sonde `p146_call_grace_test.py` (9 scénarios device) — journal v0.0.78],
 
   [P147],
-  [`chunks/BnHPywC-.js` (frontend)],
-  [mode vocal : le silence normal n'est plus un message d'erreur — « aucun son entendu » s'affichait (`transcription vide (moteur : aucun résultat …)`) alors que le reconnaissant n'avait rien à transcrire (silence de l'utilisateur, cas normal) ; en mode local, `st.error` vide / `no-speech` / `aborted` / `aucun résultat` → trace console seulement (`Call STT: silence normal, ignoré (…)`, journalisée dans `exec.log`), aucun toast ; les vraies erreurs moteur (network, service-not-allowed…, `st=null`) gardent leur toast ; chaîné sur P142c (`patch_appel_silence`) — contrôle P147 dans `check_patches.py` + 4 scénarios dans la sonde p141 — journal v0.0.78],
+  [`frontend/` (sources Svelte du mode vocal — CallPanel/CallOverlay)],
+  [mode vocal : le silence normal n'est plus un message d'erreur — « aucun son entendu » s'affichait (`transcription vide (moteur : aucun résultat …)`) alors que le reconnaissant n'avait rien à transcrire (silence de l'utilisateur, cas normal) ; en mode local, `st.error` vide / `no-speech` / `aborted` / `aucun résultat` → trace console seulement (`Call STT: silence normal, ignoré (…)`, journalisée dans `exec.log`), aucun toast ; les vraies erreurs moteur (network, service-not-allowed…, `st=null`) gardent leur toast ; chaîné sur P142c (`patch_appel_silence`) — contrôle v1 P147 dans `check_patches.py` (supprimé) ; 4 scénarios dans la sonde p141 — journal v0.0.78],
 
   [P148],
   [`routers/auths.py` + `utils/oauth.py`],
@@ -611,10 +618,10 @@ mentionne une erreur, c'est l'import Python fautive (manque de dépendance) ;
 sinon, vérifier `adb logcat | grep python`.
 
 #tip-box[
-  Si un patch échoue (`PATCH EN ÉCHEC : motif introuvable`), c'est que le code
-  amont a changé à cet endroit : ouvrir le fichier concerné dans
-  `vendor/unpacked/`, adapter le *motif* dans `prepare_src.py`, recompiler.
-  Ne jamais éditer `src/` à la main : il est régénéré à chaque appel.
+  Si un patch échoue (`patch` en erreur), c'est que le code amont a changé à
+  cet endroit : ouvrir le fichier concerné dans `vendor/open-webui/`, ajuster
+  le diff correspondant dans `patches/`, recompiler. Ne jamais éditer `src/` à
+  la main : il est régénéré à chaque appel.
 ]
 
 = Mise à jour d'Open WebUI
@@ -625,36 +632,33 @@ journal v0.0.79_beta). Chaque étape a un contrôle associé.
 #table(
   columns: (0.5fr, 2.5fr),
   [1.],
-  [Baser la version dans `scripts/fetch_src.sh` (`OPEN_WEBUI_VERSION=x.y.z`) puis `bash scripts/fetch_src.sh` : le wheel est téléchargé sur PyPI et extrait dans `vendor/unpacked/` (écrase l'ancien *pristine*). Le CI lit la version à cet endroit exact → la bascule locale et CI se fait en un seul fichier.],
+  [Faire avancer le *submodule* : `git -C vendor/open-webui fetch --tags && git -C vendor/open-webui checkout vX.Y.Z`, puis `git add vendor/open-webui` — le *gitlink* versionné devient la référence exacte, lue telle quelle par le CI (la bascule locale et CI se fait en un seul commit).],
 
   [2.],
-  [Examiner le nouveau `requirements-slim.txt` et le `METADATA` : nouvelles dépendances ? natives ? versions Python ?],
+  [Examiner le nouveau `pyproject.toml`/`requirements.txt` : nouvelles dépendances ? natives ? versions Python ?],
 
   [3.],
-  [*Relocaliser les fichiers frontend hashés* : la minification renomme les `chunks/*.js` et `nodes/*.js` à chaque version — mettre à jour les chemins dans `scripts/prepare_src.py`, `scripts/check_patches.py` et les sondes (migration 0.13.4 : 5 fichiers renommés, ex. `BeEbX_lw.js` → `BnHPywC-.js`).],
+  [Rejouer `bash scripts/apply_patches.sh` : chaque diff qui *échoue* (`patch` en erreur) signale un changement amont à cet endroit — ajuster le patch correspondant dans `patches/` (`backend/` sur `backend/open_webui/`, `frontend/` sur les sources Svelte de `vendor/open-webui/src/` — la démarche du portage v1→v2 est décrite dans `REFONTE.md`). Idempotent (`--forward`), relançable sans risque.],
 
   [4.],
-  [Rejouer `.venv313/bin/python3 scripts/prepare_src.py` : chaque patch qui échoue signale un changement amont (motif renommé ou logique changée) à intégrer à la main — 0.13.4 : 163 opérations, 0 échec. Mettre à jour `PATCHES.md`.],
+  [*Frontend `_app/`* : la minification renomme les `chunks/*.js` à chaque build — en v2 les patchs front s'appliquent aux *sources* Svelte, les chemins hashés ne sont donc plus à traquer ; seuls `check_apk.py` et les éventuelles sondes mentionnent des chemins du front compilé.],
 
   [5.],
-  [*Réaligner `check_patches.py`* : les motifs de contrôle suivent la minification et se désalignent en faux positifs (0.13.4 : 25 contrôles réalignés). Chaque réalignement doit être *justifié au journal* (aucun contrôle n'est affaibli sans raison écrite).],
-
-  [6.],
   [Adapter `requirements-min.txt` : tout nouveau paquet *natif* doit être (a) présent dans le dépôt de wheels Chaquopy (`https://chaquo.com/pypi-13.1/`), ou (b) cross-buildé via `build-wheels.sh`, ou (c) remplacé par un repli documenté. Vérifier les plafonds connus : `numpy≤1.26.2`, `cryptography≤42.0.8`, `bcrypt≤3.2.2`, `argon2-cffi` = 23.1.0, `authlib≤1.6.4`, `joserfc≤1.5.0`, `aiohttp==3.10.10` (pin `[PIN-REPO]` — ne pas bouger).],
 
-  [7.],
+  [6.],
   [Scan d'imports : vérifier que chaque nom importé de chaque paquet existe bien dans la version épinglée (0.13.4 : `aiohttp.encode_basic_auth`, ajouté en aiohttp 3.11 → repli P148).],
 
-  [8.],
+  [7.],
   [Test de fumée hôte : `scripts/smoke.sh` (port *8090*) puis vérifier `/`, `/health`, `/api/config`, la recherche web et SearXNG (`/search?q=test&format=json`).],
 
-  [9.],
-  [Chaîne de validation : `check_patches.py` vert → `node --check` des polyfills et chunks patchés → `javac` des classes Java autonomes (`AndroidSpeech`/`AndroidTTS`/`AndroidAudio`, classpath `android-sdk/platforms/android-34/android.jar`) → sonde globale de non-régression.],
+  [8.],
+  [Chaîne de validation : `bash scripts/apply_patches.sh --check` (0 échec) → `node --check` des polyfills et sources front patchés → `javac` des classes Java autonomes (`AndroidSpeech`/`AndroidTTS`/`AndroidAudio`, classpath `android-sdk/platforms/android-34/android.jar`) → sonde globale de non-régression.],
 
-  [10.],
+  [9.],
   [Build : `bash scripts/build.sh` → `dist/app-debug.apk`, contrôle de taille (écart zip < 10 Ko) et du `badging`.],
 
-  [11.],
+  [10.],
   [Test appareil (chat, dictée, recherche, upload document avec embeddings, Typst) puis mise à jour de `journal.md`, `PATCHES.md`, `todo.md`, des documents Typst (recompilés) et du `versionName`.],
 )
 
@@ -678,7 +682,7 @@ journal v0.0.79_beta). Chaque étape a un contrôle associé.
 
   [SearXNG],
   [`vendor/searxng/`],
-  [re-cloner puis `git checkout <nouveau-commit>` — *vérifier avant* que `requirements.txt` ne contient ni `curl_cffi`, ni `fasttext`, ni `uvloop`, ni version de `msgspec` incompatible ; rejouer `prepare_src.py`.],
+  [avancer le *submodule* : `git -C vendor/searxng fetch && git -C vendor/searxng checkout <commit>`, puis `git add vendor/searxng` — *vérifier avant* que `requirements.txt` ne contient ni `curl_cffi`, ni `fasttext`, ni `uvloop`, ni version de `msgspec` incompatible ; rejouer `bash scripts/apply_patches.sh` (diffs `patches/searx/` + compléments).],
 
   [Chaquopy],
   [`build.gradle` (plugin) + `tools/python312`],
@@ -701,7 +705,7 @@ journal v0.0.79_beta). Chaque étape a un contrôle associé.
   [remplacer le contenu ; `JAVA_HOME` est ancré dans `env.sh`/`build.sh`.],
 
   [Open WebUI],
-  [`vendor/unpacked/` + `src/`],
+  [`vendor/open-webui/` (submodule) + `src/`],
   [procédure dédiée : section précédente.],
 )
 
@@ -798,7 +802,7 @@ toggle.
 
   [CI : `pip download open-webui` refuse 0.13.0 « from versions: none »],
   [le wheel amont porte `Requires-Python <3.13` (cap pydub/audioop, cf. D7) et la CI télécharge en 3.13],
-  [`fetch_src.sh` passe `--ignore-requires-python` (wheel `py3-none-any` — le cap ne s'applique pas)],
+  [chaîne v1 : `fetch_src.sh` (supprimé) passait `--ignore-requires-python` (wheel `py3-none-any` ; sans objet en v2, submodule git)],
 
   [Écran de chargement « oi » figé, `/api/config` OK mais `/_app/**` en 404],
   [le motif `ignoreAssetsPattern` par défaut d'Android (`<dir>_*`) supprime les *dossiers* d'assets à underscore : `_app/` (tout le JS de l'UI) disparaissait de l'APK — invisible en build local qui sert le frontend depuis le disque],
@@ -822,7 +826,7 @@ toggle.
 
   [`execute_code` → « curseur sans fin », puis « Client session disconnected »],
   [le worker Pyodide chargeait `numpy/pandas/sympy` au boot (~115 Mo de wasm) → OOM/« thrashing » : le worker se tait, l'UI se fige, la session socket tombe ; la copie de repli `chunks/*.js` avait été allégée (P102) mais *pas le worker exécuté* — le piège des deux copies],
-  [P103 (v0.0.54) : boot allégé du worker `['micropip','numpy']`, pandas/sympy à la demande ; `check_patches.py` exige le boot allégé dans les deux copies et rejette le boot lourd — cf. `PATCHES.md` et journal v0.0.54],
+  [P103 (v0.0.54) : boot allégé du worker `['micropip','numpy']`, pandas/sympy à la demande ; contrôle v1 `check_patches.py` exigeait le boot allégé dans les deux copies et rejetait le boot lourd (supprimé) — cf. `PATCHES.md` et journal v0.0.54],
 
   [`execute_code` muet même avec un bac à sable sain (le pilote-t-on directement, il répond en secondes)],
   [la trame `execute:python` émise par `sio.call(to=sid)` *n'arrive jamais au client* — navigateur et client python testés ; les émissions de *room* arrivent, les ciblées par sid non ; la même chaîne fonctionne hors Android],
@@ -834,7 +838,7 @@ toggle.
 
   [Fichiers écrits dans `/mnt/uploads` jamais remontés (`files: []`), `display_file` « introuvable », écritures non persistées entre exécutions],
   [l'appli exécute le bac à sable dans la copie *iframe* (choisie au chargement du module, avant la config) alors que ramassage P41 et persistance IDBFS ne vivent que dans le *worker* — jamais instancié (3ᵉ occurrence du piège des deux copies)],
-  [P106 (v0.0.57) : la voie worker est forcée dans le bundle (`const cp=()=>new hp`) ; `check_patches.py` vérifie le forçage et rejette la décision conditionnelle],
+  [P106 (v0.0.57) : la voie worker est forcée dans le bundle (`const cp=()=>new hp`) ; contrôle v1 `check_patches.py` vérifiait le forçage et rejetait la décision conditionnelle (supprimé)],
 
   [Fichiers produits ramassés (`files: [...]`) mais absents du gestionnaire ; `status: error` sur les réussites (warning `FS.syncfs operations in flight`)],
   [le ramassage écrivait le fichier sur disque sans créer de fiche dans la base que le gestionnaire liste — et `echec = bool(stderr)` traitait le moindre warning comme un échec],
@@ -842,7 +846,7 @@ toggle.
 
   [`add_memory` / `update_memory` → « 'dict' object has no attribute 'id' »],
   [`LocalVectorDB._write` accédait aux champs par attribut alors que le pipeline mémoire passe des dicts bruts],
-  [normalisation dict→VectorItem à l'entrée de `_write` (scripts/local_vector_db.py) ],
+  [normalisation dict→VectorItem à l'entrée de `_write` (diff v2 `backend/12-retrieval__vector__dbs__local.py.patch`, porté depuis `scripts/local_vector_db.py` v1 — supprimé) ],
 
   [`search_web` : dlopen msgspec « libm.so.6 not found »],
   [le sysconfig de l'Python hôte injecte `-L/usr/lib/aarch64-linux-gnu` dans la commande de lien setuptools → `-lm` résolvait sur la glibc ; les builds maturin échappaient au piège],
@@ -870,7 +874,7 @@ toggle.
 
   [`compile_typst` → « 'FilesTable' object has no attribute 'insert' »],
   [l'outil appelait `Files.insert` — l'API réelle est `insert_new_file(user_id, FileForm)`],
-  [corrigé dans l'outil `compile_typst` (générateur `prepare_src.py`) ],
+  [corrigé dans l'outil `compile_typst` (`src/open_webui/utils/tools.py`, diff `backend/33-utils__tools.py.patch`) ],
 
   [`grep_knowledge_files` / `grep_skill_files` → « module 're' has no attribute 'Options' »],
   [`knowledge_fs` utilise l'API `re2.Options` avec repli `import re as re2` (google-re2 natif absent)],
@@ -940,7 +944,8 @@ d'entrée unique.
 #code-box(
   "bash scripts/build.sh          # build complet
 bash scripts/build-wheels.sh  # wheels Rust uniquement
-bash scripts/prepare_src.py   # régénérer src/ (patchs)
+git submodule update --init --recursive
+bash scripts/apply_patches.sh   # régénérer src/ (patchs)
 bash scripts/smoke.sh         # test de fumée hôte
 adb install -r dist/app-debug.apk",
 )
@@ -967,12 +972,12 @@ Numérotation : le projet est en étape pré-stable — les versions historiques
 APK conservés) ; les mentions `1.0.x` de ce document renvoient donc à `0.0.x`.
 Depuis `0.0.6`, le `versionName` de l'APK suit la numérotation du tag.
 
-`.github/workflows/build-apk.yml` (v1, branche `master`) build les APK _debug_
-et _release_ uniquement au push d'un tag `v*`, et publie la Release GitHub
-avec les APK attachés. Sur `v2/submodule-patches`, c'est
-`build-apk-submodule.yml` qui prend le relais (même chaîne APK ; l'amont est
-reconstruit par `apply_patches.sh` depuis les submodules — voir `REFONTE.md`),
-le workflow v1 y étant neutralisé (`workflow_dispatch` uniquement).
+`.github/workflows/build-apk-submodule.yml` (v2, branche `master`) build les
+APK _debug_ et _release_ uniquement au push d'un tag `v*`, et publie la Release
+GitHub avec les APK attachés (même chaîne APK ; l'amont est reconstruit par
+`apply_patches.sh` depuis les submodules — voir `REFONTE.md`).
+Le workflow v1 (`build-apk.yml`) a été **supprimé** sur `master` (v2) lors du
+nettoyage v0.0.80_beta ; il reste sur `main` (`workflow_dispatch` uniquement).
 Adaptations automatiques du runner x86_64 : retrait de la surcharge
 `aapt2FromMavenOverride` (qemu), JDK système accepté si `tools/jdk` (aarch64) est
 absent, `.venv313` recréé en CPython 3.13, SearXNG cloné au commit figé. En v1,
@@ -986,12 +991,14 @@ jour). Signature release : secrets
 GitHub `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` — sans
 eux, l'APK release est signé avec la clé debug (installable, pour tests).
 
-Gardes-fous de cohérence de version (*P93*) : avant chaque étiquetage,
-`scripts/verifier_tag.py` refuse un `versionName` différent du tag ; à la
-construction, `scripts/check_apk.py` (contrôle 9) exige que le nom de chaque APK
-livré contienne la version du tag poussé — l'incident « 0.0.43 publié sous
-le tag v0.0.44 » ne peut plus se reproduire (tag lu depuis `GITHUB_REF`
-sous Actions, repli `git describe --tags --exact-match` en local).
+Gardes-fous de cohérence de version : à la construction, `scripts/check_apk.py`
+(contrôle 9) exige que le nom de chaque APK livré contienne la version du tag
+poussé — l'incident « 0.0.43 publié sous le tag v0.0.44 » ne peut plus se
+reproduire (tag lu depuis `GITHUB_REF` sous Actions, repli
+`git describe --tags --exact-match` en local). Le garde-fou v1 (P93,
+`scripts/verifier_tag.py` exécuté avant étiquetage) a été supprimé avec la
+chaîne v1 : le `versionCode` daté du CI v2 (voir plus haut) assure la
+progressivité des builds.
 
 == Pistes d'évolution
 

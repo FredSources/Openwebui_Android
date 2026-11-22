@@ -28,7 +28,7 @@ dictée (micro), transcription de fichiers audio joints, génération de son
 décrits : le comportement *sans patch* (Open WebUI amont, tel quel) et le
 comportement *avec les patchs du projet* (l'APK livré). Les faits cités
 viennent du code généré (`src/open_webui/`), des patchs
-(`scripts/prepare_src.py`, `PATCHES.md`) et des tests consignés au
+(`patches/`, `PATCHES.md` — historique v1) et des tests consignés au
 `journal.md`.
 
 = Vue d'ensemble du pipeline
@@ -630,7 +630,7 @@ quel que soit le réglage de langue de l'interface. Conséquences :
 #table(
   columns: (1.2fr, 2fr),
   [*Source*], [*Contenu*],
-  [`scripts/prepare_src.py`],
+  [`patches/frontend/` + `PATCHES.md`],
   [patchs P5 (`pydub` optionnel), P7a-c (moteurs locaux → 503),
    P8 (`AUDIO_STT_ENGINE=web`), P136 (boucle d'attente des voix bornée dans
    le chunk d'appel), P137 (file de lecture de l'appel relancée à chaque

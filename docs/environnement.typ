@@ -62,9 +62,9 @@ bash scripts/setup-env.sh --build
   [6], [NDK r27c (sysroot pour le cross-build Rust)], [`tools/android-ndk/`],
   [7], [Rust + cible `aarch64-linux-android` (`--no-modify-path`)], [`tools/cargo/`, `tools/rustup/`],
   [8], [Python Android (PyO3, artefact Maven), qemu-user-static + sysroot amd64], [`tools/pyo3/`, `tools/qemu/`],
-  [9], [Sources verrouillées : wheel Open WebUI pristine + SearXNG au commit figé], [`vendor/unpacked/`, `vendor/searxng/`],
+  [9], [Sources verrouillées : submodules Open WebUI v0.13.4 + SearXNG au commit figé], [`vendor/open-webui/`, `vendor/searxng/`],
   [10], [Cross-build des 7 wheels natifs (`build-wheels.sh`)], [`wheels/`],
-  [11], [Régénération de `src/` (patchs P1-P11)], [`src/`],
+  [11], [Régénération de `src/` (`apply_patches.sh` : diffs `patches/`)], [`src/`],
   [12], [Optionnel `--build` : APK complet], [`dist/app-debug.apk`],
 )
 
@@ -83,8 +83,8 @@ bash scripts/setup-env.sh --build
   [`app/`, `scripts/`, `docs/`, `*.md`, configurations Gradle], [oui], [—],
   [`tools/ndk-cc/`, `tools/wrappers/`], [oui], [—],
   [`wheels/` (7 wheels Android)], [oui], [reconstruit par `build-wheels.sh` si besoin],
-  [`src/` (code embarqué patché)], [non], [`prepare_src.py` à partir de `vendor/`],
-  [`vendor/` (Open WebUI, SearXNG)], [non], [étape 9 du script (pins documentés)],
+  [`src/` (code embarqué patché)], [non], [`apply_patches.sh` depuis les submodules `vendor/`],
+  [`vendor/` (submodules Open WebUI, SearXNG)], [oui (gitlinks)], [`git submodule update --init --recursive`],
   [`android-sdk/`, `tools/` (JDK, NDK, Gradle, Rust, qemu, python)], [non], [étapes 1-8 du script],
   [caches (`.gradle-cache`, `.pip-cache`, `.tmp`…)], [non], [recréés au besoin],
   [`dist/` (APK)], [non], [`build.sh` — l'APK n'est *jamais* versionné (limite GitHub : 100 Mo par fichier ; binaire rebuildable) ; livré hors dépôt],

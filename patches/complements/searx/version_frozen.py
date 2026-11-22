@@ -1,4 +1,4 @@
-"""searx.version_frozen — généré par prepare_src.py (build sans git : Android).
+"""searx.version_frozen — complément v2 déposé par scripts/apply_patches.sh (build sans git : Android).
 
 searx/version.py exécute `git show` au démarrage ; sans binaire git, l'import
 échoue (FileNotFoundError) et le thread SearXNG meurt. Ce module figé est le

@@ -5144,3 +5144,16 @@ Trois points signalés, trois causes distinctes :
 - `apply_patches.sh` : 41 appliqués / 0 déjà / 0 échec (source amont restaurée
   puis reconstruction complète) ; `py_compile` OK ; `docs/maintenance.typ`
   mis à jour, PDF recompilé (747 009 octets, 0 avertissement).
+
+### 23:27 UTC — correctif de livraison
+
+- Premier run `#45288655732` **échoué** à l'étape frontend : l'en-tête du
+  patch 07 annonçait 85 lignes alors que le module en contient 87 ; `patch`
+  a donc tronqué `pyodide-files.ts` juste avant la fin de `mergePackages`
+  (`Unexpected end of file` d'esbuild). Cause : erreur de comptage humaine
+  lors de l'ajout des 2 lignes de commentaire P124.
+- Tous les en-têtes `@@ -a,b +c,d @@` des 41 patchs ont été revérifiés par
+  script (0 divergence) ; en-tête 07 corrigé à 87, reconstruction complète
+  (41/0/0), module complet (87 lignes) et `scripts/test_p124.py` revérifié.
+- Publication reprise sur le même commit `7544dbf` : le tag pointant sur le
+  run échoué est supprimé puis recréé (aucune release n'avait été créée).

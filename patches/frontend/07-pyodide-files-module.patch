@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..8d0312e
 --- /dev/null
 +++ b/lib/android/pyodide-files.ts
-@@ -0,0 +1,85 @@
+@@ -0,0 +1,87 @@
 +// P123 — pont entre le systeme de fichiers du bac a sable Pyodide
 +// (/mnt/uploads, persiste en IndexedDB) et le backend Android.
 +//

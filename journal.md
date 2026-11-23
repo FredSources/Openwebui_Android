@@ -4858,3 +4858,27 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   validation finale (même arborescence, avec le suffixe de version en plus).
 
 (à suivre : création du tag et résultat de la release)
+
+## 2026-11-23 18:33 UTC — prerelease `0.0.81_beta` livrée puis corrigée
+
+- Run de tag `#45236918610` **vert** (commit `4ba246e`, `versionCode=26327015`).
+  Release `v0.0.81_beta` créée à 18:25 UTC : **prerelease=true**, 2 APK
+  (289 325 699 o debug / 278 399 694 o release). `v0.0.80` reste *Latest*
+  (`prerelease=false`) : le nouveau mécanisme `prerelease`/`make_latest` du
+  workflow fonctionne.
+- **Bug détecté à la vérification de l'APK livré** : Gradle copie le *contenu*
+  du répertoire `typst/` dans les assets → les paquets arrivent sous
+  `assets/preview/...` et non `assets/typst/...`. `prepareTypstPackages()`
+  cherchant `assets/typst` levait `FileNotFoundException` à chaque démarrage
+  (extraction non bloquante, donc invisible sauf dans le log) : le rendu hors
+  ligne n'était donc pas effectif dans cette première `0.0.81_beta`.
+- **Correction** : `MainActivity.prepareTypstPackages()` lit désormais l'asset
+  `preview` et extrait vers `<filesDir>/typst/preview` (attendu par
+  `compile_typst()`) ; `maintenance.typ` documente le piège Gradle (section
+  `sec-typst-fichiers`), `maintenance.pdf` recompilé (711 309 octets).
+  Le patch Python D14 était bien présent dans l'APK (`TYPST_CACHE_DIR`,
+  `typst-work` relevés dans `android_tools.pyc`) : seule l'extraction des
+  assets était en défaut.
+- La release et le tag `v0.0.81_beta` seront **recréés** sur le commit corrigé
+  pour que la prerelease téléchargeable contienne effectivement les paquets hors
+  ligne. Aucune release publiée antérieurement n'est touchée.

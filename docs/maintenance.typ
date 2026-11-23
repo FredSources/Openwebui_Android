@@ -1013,11 +1013,14 @@ correctif du 2026-11-23, sont à maintenir :
   d'appel : les paquets `@preview` étaient retéléchargés, d'où des échecs
   intermittents hors ligne. Un seul chemin par environnement.
 - *Paquets embarqués* : les six paquets `@preview` (cetz, fletcher, h-graph,
-  ilm, merman, oxifmt — arbre `typst/preview/`) sont ajoutés aux assets via
-  `app/build.gradle` et extraits par `MainActivity.prepareTypstPackages()` dans
-  `<filesDir>/typst` (marqueur `typst.version`, extraction non bloquante).
-  `compile_typst()` les copie dans le cache ancré au premier appel : rendu hors
-  ligne, sans dépendance au réseau.
+  ilm, merman, oxifmt) sont versionnés dans l'arbre `typst/preview/`. Gradle
+  copiant le *contenu* de `typst/` dans les assets, ils arrivent dans l'APK sous
+  `assets/preview/<paquet>/<version>/` ; `MainActivity.prepareTypstPackages()`
+  les extrait dans `<filesDir>/typst/preview` (marqueur `typst.version`,
+  extraction non bloquante). `compile_typst()` les copie alors dans le cache
+  ancré au premier appel : rendu hors ligne, sans dépendance au réseau.
+  Piège : lire `assets/typst` (au lieu de `assets/preview`) fait échouer
+  silencieusement l'extraction — c'était le cas dans la première `0.0.81_beta`.
 - *Entrée normalisée* : `source` (texte) ou `file_path` (octets via
   `Storage.get_file`) est toujours écrit dans `<HOME>/typst-work/<uuid>.typ`,
   puis compilé *par chemin* (`typst_lib.compile(tmp_path)`), le temporaire étant

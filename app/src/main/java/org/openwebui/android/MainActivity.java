@@ -280,13 +280,15 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * D14 — extrait les paquets Typst @preview embarqués (assets/typst) dans
-     * filesDir/typst. compile_typst() les copie ensuite dans le cache ancré
+     * D14 — extrait les paquets Typst @preview embarqués dans filesDir/typst/preview.
+     * Gradle copie le CONTENU de typst/ dans assets/ : l'arbre versionné
+     * typst/preview/<paquet>/<version> arrive donc dans assets/preview/... .
+     * compile_typst() les copie ensuite dans le cache ancré
      * ($HOME/cache/typst) : rendu hors ligne, sans téléchargement réseau.
      * Échec non bloquant : simple repli sur le téléchargement des paquets.
      */
     private void prepareTypstPackages() {
-        java.io.File target = new java.io.File(dataHome, "typst");
+        java.io.File target = new java.io.File(dataHome, "typst/preview");
         java.io.File marker = new java.io.File(dataHome, "typst.version");
         long current;
         try {
@@ -307,9 +309,9 @@ public class MainActivity extends Activity {
                 }
             }
             deleteRecursive(target);
-            final int total = Math.max(1, countAssets("typst"));
+            final int total = Math.max(1, countAssets("preview"));
             final int[] done = {0};
-            copyAssetFolder(getAssets(), "typst", target, done, total);
+            copyAssetFolder(getAssets(), "preview", target, done, total);
             java.io.FileWriter w = new java.io.FileWriter(marker);
             w.write(String.valueOf(current));
             w.close();

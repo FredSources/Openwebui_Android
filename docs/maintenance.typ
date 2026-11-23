@@ -1062,6 +1062,17 @@ Correctif P120 (même version `0.0.81_beta`). Quatre points indissociables :
 - *Périmètre durci* : `_uploads_pour_sable()` n'injecte que les fichiers
   enregistrés au nom de l'utilisateur ; `/fm/raw` et `/fm/delete-raw`
   exigent le propriétaire ou le rôle admin (nouveau helper `_fm_peut_lire`).
+- *Paquets Pyodide (P121)* : les 56 wheels sont bien embarqués et enregistrés
+  dans `pyodide-lock.json`, mais le frontend reconstruisait sa propre liste
+  de détection et *ignorait* `data.packages` envoyé par le backend. Un import
+  dynamique (`__import__`, `importlib`, liste de noms) ne chargeait donc rien :
+  numpy, pandas, matplotlib, scipy, seaborn, sympy, mpmath, PIL, pymupdf
+  (`fitz`), statsmodels et bs4 semblaient absents. Le handler transmet désormais
+  `data.packages` à `executePythonAsWorker`, qui fusionne cette liste avec la
+  détection locale. Le backend (`_pyodide_packages`) détecte la *présence* du
+  nom dans le code, quel que soit le style d'import, et ne propose que des
+  wheels présents dans l'APK. Ne jamais rerenvoyer `micropip.install` vers
+  PyPI : tout doit rester résolu par le lock local.
 
 Le navigateur `/fm` filtrait déjà correctement via `Files.get_file_list(user_id=…)`.
 La régression à surveiller : une exécution qui ne produit aucun fichier doit

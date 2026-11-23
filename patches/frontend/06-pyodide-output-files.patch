@@ -1,101 +1,39 @@
 --- a/routes/+layout.svelte
 +++ b/routes/+layout.svelte
-@@ -329,6 +329,40 @@
+@@ -301,7 +301,7 @@
+ 		return worker;
+ 	};
+ 
+-	const executePythonAsWorker = async (id, code, cb, files = []) => {
++	const executePythonAsWorker = async (id, code, cb, files = [], paquetsAmont = []) => {
+ 		let result = null;
+ 		let stdout = null;
+ 		let stderr = null;
+@@ -324,8 +324,17 @@
+ 			/\bimport\s+openpyxl\b|\bfrom\s+openpyxl\b/.test(code) ? 'openpyxl' : null,
+ 			/\.(read|to)_excel\(|\.Excel(Writer|File)\(/.test(code) ? 'openpyxl' : null,
+ 			/\bimport\s+pptx\b|\bfrom\s+pptx\b/.test(code) ? 'python-pptx' : null,
+-			/\bimport\s+docx\b|\bfrom\s+docx\b/.test(code) ? 'python-docx' : null
++			/\bimport\s+docx\b|\bfrom\s+docx\b/.test(code) ? 'python-docx' : null,
++			/\bimport\s+mpmath\b|\bfrom\s+mpmath\b/.test(code) ? 'mpmath' : null,
++			/\bimport\s+PIL\b|\bfrom\s+PIL\b/.test(code) ? 'pillow' : null,
++			/\bimport\s+fitz\b|\bfrom\s+fitz\b|\bimport\s+pymupdf\b/.test(code) ? 'pymupdf' : null,
++			/\bimport\s+statsmodels\b|\bfrom\s+statsmodels\b/.test(code) ? 'statsmodels' : null
+ 		].filter(Boolean);
++		// P121 : le backend a déjà détecté TOUS les modules cités dans le code
++		// (import littéral OU dynamique OU chaîne) et ne propose que des wheels
++		// embarqués dans l'APK. Sa liste fait foi ; on ajoute la détection locale
++		// pour les alias (PIL -> pillow, fitz -> pymupdf, bs4 -> beautifulsoup4).
++		packages = [...new Set([...(paquetsAmont || []), ...packages])];
  
  		const worker = getOrCreateWorker();
  
-+		// P120 : remonter les fichiers ECRITS pendant cette execution. On
-+		// compare /mnt/uploads avant/apres pour ne pas re-enregistrer les
-+		// fichiers d'entree (deja indexes avec un file_id).
-+		const fsRequest = (type, payload) =>
-+			new Promise((resolve) => {
-+				const reqId = `${id}:${type}:${Math.random().toString(36).slice(2)}`;
-+				const handler = (event) => {
-+					if (event.data?.id !== reqId) return;
-+					worker.removeEventListener('message', handler);
-+					clearTimeout(garde);
-+					resolve(event.data);
-+				};
-+				// P120 : borne de 2 s — un worker muet ne doit jamais bloquer
-+				// le callback attendu par le backend (sio.call).
-+				const garde = setTimeout(() => {
-+					worker.removeEventListener('message', handler);
-+					resolve(null);
-+				}, 2000);
-+				worker.addEventListener('message', handler);
-+				worker.postMessage({ type, id: reqId, ...payload });
-+			});
-+		const fsList = async () => {
-+			const rep = await fsRequest('fs:list', { path: '/mnt/uploads' });
-+			return rep?.entries ?? [];
-+		};
-+		const toBase64 = (buffer) => {
-+			const bytes = new Uint8Array(buffer);
-+			let s = '';
-+			for (let i = 0; i < bytes.length; i += 8192) {
-+				s += String.fromCharCode(...bytes.subarray(i, i + 8192));
-+			}
-+			return btoa(s);
-+		};
-+
- 		// Fetch file content from the server and prepare for the worker
- 		let filePayloads = [];
- 		if (files && files.length > 0) {
-@@ -348,6 +382,14 @@
+@@ -536,7 +545,7 @@
+ 		if (data?.session_id === $socket.id) {
+ 			if (type === 'execute:python') {
+ 				console.log('execute:python', data);
+-				executePythonAsWorker(data.id, data.code, cb, data.files || []);
++				executePythonAsWorker(data.id, data.code, cb, data.files || [], data.packages || []);
+ 				return;
  			}
  		}
- 
-+		const nomsEntree = new Set(filePayloads.map((f) => f.name));
-+		let avant = [];
-+		try {
-+			avant = await fsList();
-+		} catch (e) {
-+			console.error('P120 : listing initial /mnt/uploads impossible', e);
-+		}
-+
- 		worker.postMessage({
- 			type: 'execute',
- 			id: id,
-@@ -384,7 +426,7 @@
- 		}, 60000);
- 
- 		// Use addEventListener so multiple concurrent executions don't clobber each other
--		const onMessage = (event) => {
-+		const onMessage = async (event) => {
- 			const { id: eventId, ...data } = event.data;
- 			// Only handle responses for this execution ID
- 			if (eventId !== id) return;
-@@ -401,13 +443,32 @@
- 			data['result'] && (result = data['result']);
- 
- 			if (cb) {
-+				let fichiersSortie = [];
-+				try {
-+					const apres = await fsList();
-+					const taillesAvant = new Map(avant.map((e) => [e.name, e.size]));
-+					for (const ent of apres) {
-+						if (ent.type !== 'file') continue;
-+						if (nomsEntree.has(ent.name)) continue;
-+						if (taillesAvant.get(ent.name) === ent.size) continue;
-+						const rep = await fsRequest('fs:read', {
-+							path: `/mnt/uploads/${ent.name}`
-+						});
-+						if (rep?.data && !rep?.error) {
-+							fichiersSortie.push({ name: ent.name, data: toBase64(rep.data) });
-+						}
-+					}
-+				} catch (e) {
-+					console.error('P120 : remontee des fichiers de sortie impossible', e);
-+				}
- 				cb(
- 					JSON.parse(
- 						JSON.stringify(
- 							{
- 								stdout: stdout,
- 								stderr: stderr,
--								result: result
-+								result: result,
-+								files: fichiersSortie
- 							},
- 							(_key, value) => (typeof value === 'bigint' ? value.toString() : value)
- 						)

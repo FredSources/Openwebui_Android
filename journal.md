@@ -4997,3 +4997,24 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
     livré.
 - État final : `master` = `84f4cc3`, tag `v0.0.81_beta` → `84f4cc3`,
   `v0.0.80` → `d9f76d8`, `Latest` = `v0.0.80`.
+
+## 2026-11-23 21:24 UTC — P121 : modules Pyodide « absents » (diagnostic + correctif)
+
+- Signalement : dans Pyodide manqueraient numpy, pandas, matplotlib, scipy,
+  seaborn, sympy, mpmath, PIL, pymupdf/fitz, statsmodels, bs4.
+- **Constat** : les 56 wheels sont bien dans l'APK release vérifié et tous
+  enregistrés dans `assets/frontend/pyodide/pyodide-lock.json` (364 paquets).
+  Les 22 noms proposés par `_pyodide_packages()` sont tous présents dans le
+  lock. Rien ne manque côté artefact.
+- **Cause** : `+layout.svelte` reconstruisait sa propre liste par regex
+  (`import X` / `from X`) et n'utilisait pas `data.packages` envoyé par le
+  backend (`builtin.py` l.899). Un import dynamique (`__import__`, `importlib`,
+  liste de noms) ne chargeait aucun wheel → ModuleNotFoundError pour tous les
+  modules, y compris ceux détectés en apparence par la regex locale.
+  La regex locale omettait en outre mpmath, PIL, fitz/pymupdf, statsmodels.
+- **Correctif** dans `06-pyodide-output-files.patch` (P121) : le handler passe
+  `data.packages` à `executePythonAsWorker`, la liste backend fait foi et est
+  fusionnée avec la détection locale complétée des alias. `apply_patches.sh` :
+  40 appliqués, 0 échec ; `py_compile` OK.
+- `docs/maintenance.typ` : paragraphe P121 ajouté à la section 14.6 ; PDF
+  recompilé (726 316 octets). Release à recréer sur le même tag.

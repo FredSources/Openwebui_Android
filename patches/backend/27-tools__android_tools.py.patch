@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..9f8b86b
 --- /dev/null
 +++ b/tools/android_tools.py
-@@ -0,0 +1,592 @@
+@@ -0,0 +1,613 @@
 +"""OpenWebUI Android — outils et helpers AJOUTÉS (hors amont).
 +
 +Audit de divergence 2026-11-09 : pour rester au plus proche de l'origine
@@ -405,17 +405,38 @@ index 0000000..9f8b86b
 +    """P46a — paquets Pyodide à installer avant exécution. Détection par
 +    simple PRÉSENCE du nom du module dans le code (import littéral, boucle,
 +    importlib, littéral de chaîne — peu importe le style), pour être
-+    insensible à la façon d'importer. Seuls les wheels embarqués dans l'APK
-+    sont proposés (installation hors ligne)."""
++    insensible à la façon d'importer. P122 : table dressée depuis les
++    `imports` du pyodide-lock livré — les 56 wheels et leurs alias
++    (httpx, sniffio, anyio, distro, openai, pydantic, black…) sont couverts.
++    Aucune installation hors ligne non présente dans l'APK."""
 +    noms = {
-+        'numpy': 'numpy', 'pandas': 'pandas', 'matplotlib': 'matplotlib',
-+        'scipy': 'scipy', 'sklearn': 'scikit-learn', 'PIL': 'pillow',
-+        'seaborn': 'seaborn', 'sympy': 'sympy', 'mpmath': 'mpmath',
-+        'bs4': 'beautifulsoup4', 'requests': 'requests', 'lxml': 'lxml',
-+        'docx': 'python-docx', 'pptx': 'python-pptx', 'openpyxl': 'openpyxl',
-+        'pytz': 'pytz', 'regex': 'regex',
-+        'dateutil': 'python-dateutil', 'six': 'six', 'packaging': 'packaging',
-+        'pymupdf': 'pymupdf', 'fitz': 'pymupdf', 'statsmodels': 'statsmodels',
++        'PIL': 'pillow', 'annotated_types': 'annotated-types',
++        'annotated-types': 'annotated-types', 'anyio': 'anyio',
++        'black': 'black', 'bs4': 'beautifulsoup4', 'certifi': 'certifi',
++        'charset_normalizer': 'charset-normalizer', 'click': 'click',
++        'contourpy': 'contourpy', 'cycler': 'cycler', 'dateutil': 'python-dateutil',
++        'distro': 'distro', 'docx': 'python-docx', 'et_xmlfile': 'et-xmlfile',
++        'fitz': 'pymupdf', 'fontTools': 'fonttools', 'httpx': 'httpx',
++        'idna': 'idna', 'isympy': 'sympy', 'jiter': 'jiter', 'joblib': 'joblib',
++        'kiwisolver': 'kiwisolver', 'lxml': 'lxml', 'matplotlib': 'matplotlib',
++        'micropip': 'micropip', 'mpl_toolkits': 'matplotlib', 'mpmath': 'mpmath',
++        'mypy_extensions': 'mypy-extensions', 'mypy-extensions': 'mypy-extensions',
++        'numpy': 'numpy', 'openai': 'openai', 'openpyxl': 'openpyxl',
++        'packaging': 'packaging', 'pandas': 'pandas', 'pathspec': 'pathspec',
++        'patsy': 'patsy', 'platformdirs': 'platformdirs', 'pptx': 'python-pptx',
++        'pydantic': 'pydantic', 'pydantic_core': 'pydantic-core',
++        'pydantic-core': 'pydantic-core', 'pylab': 'matplotlib',
++        'pymupdf': 'pymupdf', 'pyparsing': 'pyparsing',
++        'python_docx': 'python-docx', 'python_pptx': 'python-pptx',
++        'pytokens': 'pytokens', 'pytz': 'pytz', 'regex': 'regex',
++        'requests': 'requests', 'scipy': 'scipy', 'seaborn': 'seaborn',
++        'six': 'six', 'sklearn': 'scikit-learn', 'sniffio': 'sniffio',
++        'soupsieve': 'soupsieve', 'statsmodels': 'statsmodels', 'sympy': 'sympy',
++        'threadpoolctl': 'threadpoolctl', 'tiktoken': 'tiktoken',
++        'tiktoken_ext': 'tiktoken', 'typing_extensions': 'typing-extensions',
++        'typing-inspection': 'typing-inspection',
++        'typing_inspection': 'typing-inspection', 'urllib3': 'urllib3',
++        'xlsxwriter': 'xlsxwriter',
 +    }
 +    texte = code or ''
 +    import re as _re

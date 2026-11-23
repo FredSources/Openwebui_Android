@@ -1073,6 +1073,16 @@ Correctif P120 (même version `0.0.81_beta`). Quatre points indissociables :
   nom dans le code, quel que soit le style d'import, et ne propose que des
   wheels présents dans l'APK. Ne jamais rerenvoyer `micropip.install` vers
   PyPI : tout doit rester résolu par le lock local.
+- *Couverture des imports (P122)* : la table du backend était limitée à 23
+  noms : 16 modules pourtant embarqués (`httpx`, `sniffio`, `anyio`, `distro`,
+  `openai`, `typing_inspection`, `annotated_types`, `click`, `pathspec`,
+  `platformdirs`, `pytokens`, `mypy_extensions`, `black`, `pydantic`,
+  `pydantic_core`, `jiter`) n'étaient jamais demandés à micropip, donc absents
+  à l'import. La table est désormais générée depuis les champs `imports` du
+  `pyodide-lock.json` livré : 61 alias couvrent les 56 wheels et leurs noms
+  d'import (`PIL`, `fitz`, `bs4`, `docx`, `pptx`, `mpl_toolkits`, `pylab`…).
+  Toute nouvelle wheel ajoutée à l'APK doit être ajoutée au lock *et* à
+  cette table, sinon elle restera invisible de `execute_code`.
 
 Le navigateur `/fm` filtrait déjà correctement via `Files.get_file_list(user_id=…)`.
 La régression à surveiller : une exécution qui ne produit aucun fichier doit

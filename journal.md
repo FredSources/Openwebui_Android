@@ -5030,3 +5030,22 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   fitz→pymupdf et statsmodels. Le correctif P120 (fichiers de sortie) reste
   présent dans le même bundle.
 - État final : `master` = `1f85ca2`, tag `v0.0.81_beta` → `1f85ca2`.
+
+## 2026-11-23 21:52 UTC — P122 : 16 modules embarqués invisibles de execute_code
+
+- Signalement : 18 modules « absents » vérifiés par import (liste effective :
+  httpx, sniffio, anyio, distro, openai, typing-inspection, annotated-types,
+  click, pathspec, platformdirs, pytokens, mypy-extensions, black, pydantic,
+  pydantic-core, jiter).
+- **Constat** : wheels réelles et valides dans l'APK (tailles et modules
+  vérifiées), entrées de lock correctes avec `depends`/`imports`. Cause : la
+  table `_pyodide_packages()` ne couvrait que 23 noms — aucun de ces 16
+  n'était transmis à micropip, donc jamais installé.
+- **Correctif** : table régénérée depuis les `imports` du lock livré (61 alias,
+  56 wheels) ; ajout de `docx`, `pptx` et des variantes hyphen/underscore.
+  Vérifié par exécution de la fonction seule :
+  `import httpx` → `['httpx']`, `from openai import OpenAI` → `['openai']`,
+  `__import__('anyio')` → `['anyio']`, `from typing_inspection import …`
+  → `['typing-inspection']`.
+- `docs/maintenance.typ` : paragraphe P122 ajouté ; PDF recompilé (733 193
+  octets). Release à recréer sur le même tag.

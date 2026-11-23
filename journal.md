@@ -5017,4 +5017,16 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   fusionnée avec la détection locale complétée des alias. `apply_patches.sh` :
   40 appliqués, 0 échec ; `py_compile` OK.
 - `docs/maintenance.typ` : paragraphe P121 ajouté à la section 14.6 ; PDF
-  recompilé (726 316 octets). Release à recréer sur le même tag.
+  recompilé (726 316 octets).
+
+## 2026-11-23 21:33 UTC — P121 livré (même tag)
+
+- Release/tag `v0.0.81_beta` recréés sur `1f85ca2`. Run CI `#45269484440`
+  vert (21:32 UTC), 2 APK, `prerelease=true`, `Latest` toujours `v0.0.80`.
+- APK release vérifié (278 400 778 octets) : `_app/` 1 813 fichiers,
+  `preview/` 116 fichiers ; dans le JS minifié livré, la chaîne
+  `execute:python` appelle bien le worker avec `L.packages||[]` et la liste
+  fusionnée `[...new Set([...M||[],...Ie])]` inclut mpmath, PIL→pillow,
+  fitz→pymupdf et statsmodels. Le correctif P120 (fichiers de sortie) reste
+  présent dans le même bundle.
+- État final : `master` = `1f85ca2`, tag `v0.0.81_beta` → `1f85ca2`.

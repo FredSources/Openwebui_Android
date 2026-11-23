@@ -5048,4 +5048,12 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   `__import__('anyio')` → `['anyio']`, `from typing_inspection import …`
   → `['typing-inspection']`.
 - `docs/maintenance.typ` : paragraphe P122 ajouté ; PDF recompilé (733 193
-  octets). Release à recréer sur le même tag.
+  octets).
+
+## 2026-11-23 22:00 UTC — P122 livré (même tag)
+
+- Release/tag `v0.0.81_beta` recréés sur `df000d7`. Run CI `#45274229883`
+  vert (22:00 UTC), 2 APK, `prerelease=true`, `Latest` toujours `v0.0.80`.
+- APK release vérifié (278 417 678 octets) : `_app/` 1 813 fichiers,
+  marqueur `typing-inspection` présent dans `android_tools.pyc` livré.
+- État final : `master` = `df000d7`, tag `v0.0.81_beta` → `df000d7`.

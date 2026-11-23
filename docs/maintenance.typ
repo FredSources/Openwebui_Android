@@ -1106,8 +1106,14 @@ Correctif P120 (même version `0.0.81_beta`). Quatre points indissociables :
     désormais sur la *base* (nom affiché et nom stocké), jamais sur la seule
     présence disque ; un fichier inchangé réutilise son `file_id`, un fichier
     modifié en reçoit un nouveau. Le collecteur du module P123 ne filtre plus
-    les noms d'entrée : un fichier existant *écrasé* par le code change de
-    taille et remonte lui aussi au backend.
+    les noms d'entrée : un fichier existant *écrasé* par le code remonte lui
+    aussi au backend. *P125* achève ce point : le worker n'expose que `size`
+    dans `fs:list`, donc le module capture les *octets* des fichiers ≤ 4 Mo
+    avant l'exécution (`snapshotUploads`) et le collecteur compare les
+    contenus ; côté backend, la déduplication lit le fichier stocké et
+    compare ses octets à ceux remontés. Deux contenus identiques partagent
+    leur `file_id`, un contenu modifié en reçoit un nouveau, même à taille
+    constante — sans aucun patch supplémentaire du code amont.
   - *Typst `file_path`* — `Storage.get_file()` renvoie un *chemin* (`str`) et
     non des octets : `fh.write()` levait « a bytes-like object is required ».
     `file_path` accepte maintenant un chemin disque, `/mnt/uploads/<nom>`
@@ -1117,8 +1123,8 @@ Correctif P120 (même version `0.0.81_beta`). Quatre points indissociables :
   - *PyYAML* — la wheel `pyyaml-6.0.3-cp314-…wasm32.whl` est ajoutée à
     `wheels-extra/` (sha256 conforme au lock Pyodide), `yaml`/`_yaml` rejoignent
     la table de détection (70 alias) et le prompt du bac à sable l'annonce.
-    `check_apk.py` exige désormais sa présence dans l'APK et les marqueurs P124
-    dans `android_tools.pyc`.
+    `check_apk.py` exige désormais sa présence dans l'APK et les marqueurs
+    P124/P125 dans `android_tools.pyc`.
 
 Le navigateur `/fm` filtrait déjà correctement via `Files.get_file_list(user_id=…)`.
 La régression à surveiller : une exécution qui ne produit aucun fichier doit

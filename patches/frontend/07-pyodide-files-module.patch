@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..8d0312e
 --- /dev/null
 +++ b/lib/android/pyodide-files.ts
-@@ -0,0 +1,87 @@
+@@ -0,0 +1,116 @@
 +// P123 — pont entre le systeme de fichiers du bac a sable Pyodide
 +// (/mnt/uploads, persiste en IndexedDB) et le backend Android.
 +//
@@ -56,33 +56,62 @@ index 0000000..8d0312e
 +	return btoa(s);
 +};
 +
++const LIMITE = 4 * 1024 * 1024;
++
 +/**
-+ * Renvoie les fichiers ECRITS pendant l'execution : on compare /mnt/uploads
-+ * avant/apres pour ne pas re-enregistrer les fichiers deja indexes avec un
-+ * file_id cote backend. P124 : un fichier d'entree ECRASE pendant l'execution
-+ * change de taille et remonte donc comme fichier produit (l'ancien filtre par
-+ * nom l'ecartait). Plafond de 4 Mo pour ne pas noyer le canal.
++ * P125 : le worker n'expose que `size` dans fs:list — un fichier ecrase a
++ * taille egale serait sinon invisible. On capture donc les OCTETS des petits
++ * fichiers avant l'execution (plafond 4 Mo, comme pour la remontee).
 + */
-+export const collectOutputFiles = async (
++export const snapshotUploads = async (
 +	worker: Worker,
-+	id: string,
-+	avant: FsEntry[]
-+): Promise<FichierSortie[]> => {
-+	const apres = await listUploads(worker, id);
-+	const taillesAvant = new Map(avant.map((e) => [e.name, e.size]));
-+	const sortie: FichierSortie[] = [];
++	id: string
++): Promise<{ entrees: FsEntry[]; contenus: Map<string, Uint8Array> }> => {
++	const entrees = await listUploads(worker, id);
++	const contenus = new Map<string, Uint8Array>();
 +	let total = 0;
-+	for (const ent of apres) {
-+		if (ent.type !== 'file') continue;
-+		if (taillesAvant.get(ent.name) === ent.size) continue;
-+		if (total + ent.size > 4 * 1024 * 1024) continue;
++	for (const ent of entrees) {
++		if (ent.type !== 'file' || ent.size > LIMITE || total + ent.size > LIMITE) continue;
 +		const rep = await fsRequest(worker, id, 'fs:read', {
 +			path: `/mnt/uploads/${ent.name}`
 +		});
 +		if (rep?.data && !rep?.error) {
-+			sortie.push({ name: ent.name, data: toBase64(rep.data) });
++			contenus.set(ent.name, new Uint8Array(rep.data));
 +			total += ent.size;
 +		}
++	}
++	return { entrees, contenus };
++};
++
++const memeContenu = (a: Uint8Array | undefined, b: Uint8Array): boolean => {
++	if (!a || a.length !== b.length) return false;
++	for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
++	return true;
++};
++
++/**
++ * Renvoie les fichiers ECRITS pendant l'execution : comparaison OCTET PAR
++ * OCTET avec l'instantane P125, donc y compris un ecrasement a taille egale.
++ * Plafond de 4 Mo pour ne pas noyer le canal.
++ */
++export const collectOutputFiles = async (
++	worker: Worker,
++	id: string,
++	avant: { entrees: FsEntry[]; contenus: Map<string, Uint8Array> }
++): Promise<FichierSortie[]> => {
++	const apres = await listUploads(worker, id);
++	const sortie: FichierSortie[] = [];
++	let total = 0;
++	for (const ent of apres) {
++		if (ent.type !== 'file' || ent.size > LIMITE || total + ent.size > LIMITE) continue;
++		const rep = await fsRequest(worker, id, 'fs:read', {
++			path: `/mnt/uploads/${ent.name}`
++		});
++		if (!rep?.data || rep?.error) continue;
++		const octets = new Uint8Array(rep.data);
++		if (memeContenu(avant.contenus.get(ent.name), octets)) continue;
++		sortie.push({ name: ent.name, data: toBase64(rep.data) });
++		total += ent.size;
 +	}
 +	return sortie;
 +};

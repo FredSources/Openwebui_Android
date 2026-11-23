@@ -5171,3 +5171,29 @@ Trois points signalés, trois causes distinctes :
   par noms d'entrée (`h.get(g.name)===g.size` fait seul la distinction), et
   `mergePackages` est complet en fin de module.
 - État final : `master` = `0b0f3ac`, tag `v0.0.81_beta` → `0b0f3ac`.
+
+## 2026-11-23 23:44 UTC — P125 (en cours de livraison)
+
+Suite directe de la limite annoncée après P124 : un fichier écrasé avec
+**exactement la même taille** échappait encore au pont (le worker n'expose que
+`size` dans `fs:list`, et le backend comparait la taille méta).
+
+- *Frontend* (`pyodide-files.ts`, module propre au fork, **zéro patch amont
+  supplémentaire**) : nouveau `snapshotUploads()` qui capture les octets des
+  fichiers ≤ 4 Mo avant l'exécution ; `collectOutputFiles()` compare désormais
+  les contenus octet par octet (`memeContenu`) au lieu des tailles. Le patch
+  `06-pyodide-output-files.patch` importe/appelle `snapshotUploads` (76 lignes,
+  empreinte inchangée sur `+layout.svelte`).
+- *Backend* (`27-tools__android_tools.py.patch`) : la déduplication de
+  `remonte_fichiers_sable()` lit le fichier stocké via `Storage.get_file()` et
+  compare ses octets à ceux remontés ; la taille méta n'est plus utilisée.
+  Deux contenus identiques gardent le même `file_id`, un contenu modifié en
+  reçoit un nouveau — y compris à taille constante. Trace journalisée passée
+  à `P124/P125 fichiers enregistres=…`.
+- *Contrôles* : `scripts/test_p124.py` passe à 9 scénarios (ajout de
+  l'écrasement à taille égale), tous verts ; `check_apk.py` exige le marqueur
+  `P124/P125` dans le `.pyc` (il échoue bien sur l'APK P124, échec attendu
+  vérifié) ; tous les en-têtes de patchs revérifiés (0 divergence) ;
+  `apply_patches.sh` 41/0/0 ; `py_compile` OK.
+- `docs/maintenance.typ` complété, PDF recompilé (748 619 octets, 0
+  avertissement).

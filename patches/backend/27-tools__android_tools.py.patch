@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..9f8b86b
 --- /dev/null
 +++ b/tools/android_tools.py
-@@ -0,0 +1,671 @@
+@@ -0,0 +1,681 @@
 +"""OpenWebUI Android — outils et helpers AJOUTÉS (hors amont).
 +
 +Audit de divergence 2026-11-09 : pour rester au plus proche de l'origine
@@ -617,9 +617,19 @@ index 0000000..9f8b86b
 +                continue
 +            _brut = _b64.b64decode(_don)
 +            _ancien = deja.get(_nom)
-+            if _ancien is not None and int((_ancien.meta or {}).get('size') or -1) == len(_brut):
-+                produits.append({'name': _nom, 'file_id': _ancien.id})
-+                continue
++            if _ancien is not None:
++                # P125 : comparer le CONTENU, pas la taille méta. Un fichier
++                # écrasé à taille égale doit obtenir un nouveau file_id —
++                # sinon le navigateur afficherait l'ancien contenu.
++                _identique = False
++                try:
++                    with open(Storage.get_file(_ancien.path), 'rb') as _fh:
++                        _identique = _fh.read() == _brut
++                except Exception:
++                    _identique = False
++                if _identique:
++                    produits.append({'name': _nom, 'file_id': _ancien.id})
++                    continue
 +            # P124 : la BASE fait foi. L'ancien garde-fou « fichier déjà sur
 +            # disque » sautait un fichier réellement produit quand un ancien
 +            # fichier non enregistré portait le même nom — d'où l'absence de
@@ -646,7 +656,7 @@ index 0000000..9f8b86b
 +            produits.append({'name': _nom, 'file_id': _id})
 +        except Exception:
 +            pass
-+    journal_exec_ligne("P124 fichiers enregistres=%s" % len(produits))
++    journal_exec_ligne("P124/P125 fichiers enregistres=%s" % len(produits))
 +    return produits
 +
 +

@@ -4,7 +4,7 @@
  	import { io } from 'socket.io-client';
  	import { spring } from 'svelte/motion';
  	import { createPyodideWorker } from '$lib/pyodide/createPyodideWorker';
-+	import { collectOutputFiles, listUploads, mergePackages } from '$lib/android/pyodide-files';
++	import { collectOutputFiles, mergePackages, snapshotUploads } from '$lib/android/pyodide-files';
  	import { Toaster, toast } from 'svelte-sonner';
  
  	let loadingProgress = spring(0, {
@@ -31,9 +31,9 @@
  			}
  		}
  
-+		// P120/P123 : instantane de /mnt/uploads avant execution, pour ne
-+		// remonter que les fichiers reellement ecrits pendant celle-ci.
-+		const avant = await listUploads(worker, id);
++		// P120/P123/P125 : instantane OCTET par octet de /mnt/uploads avant
++		// execution — un ecrasement a taille egale doit aussi remonter.
++		const avant = await snapshotUploads(worker, id);
 +
  		worker.postMessage({
  			type: 'execute',

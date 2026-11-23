@@ -155,6 +155,21 @@ try:
     assert len(notes2) == 1 and notes2[0]["file_id"] == notes[0]["file_id"]
     assert len(FauxFiles.enregistres) == avant + 1
     print("OK  {'dedup sans doublon':36s} ->", notes2[0]["file_id"])
+
+    # P125 : écrasement à TAILLE ÉGALE mais contenu différent → nouveau file_id.
+    ecrase = b"col1,col2\n9,9\n"
+    assert len(ecrase) == len(b"col1,col2\n1,2\n")
+    avant3 = len(FauxFiles.enregistres)
+    notes3 = asyncio.run(
+        android_tools.remonte_fichiers_sable(
+            {"files": [{"name": "resultat.csv",
+                        "data": base64.b64encode(ecrase).decode()}]},
+            "u-test",
+        )
+    )
+    assert len(notes3) == 1 and notes3[0]["file_id"] != notes[0]["file_id"]
+    assert len(FauxFiles.enregistres) == avant3 + 1
+    print("OK  {'ecrasement taille egale':36s} ->", notes3[0]["file_id"])
 finally:
     shutil.rmtree(TMP, ignore_errors=True)
 

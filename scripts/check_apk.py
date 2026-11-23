@@ -182,14 +182,14 @@ def check_apk(apk: pathlib.Path) -> None:
                         if not any(b"fm_browser" in bundle.read(n)
                                    for n in noms_b if n.endswith(".pyc")):
                             err(f"{label} : route /fm (fm_browser) absente du code embarqué")
-                        # P124 : le correctif doit être présent dans le .pyc
-                        # embarqué, pas seulement dans les sources du dépôt.
+                        # P124/P125 : le correctif doit être présent dans le
+                        # .pyc embarqué, pas seulement dans les sources du dépôt.
                         outils = [bundle.read(n) for n in noms_b
                                   if n.endswith("android_tools.pyc")]
                         if not outils:
                             err(f"{label} : android_tools.pyc absent")
                         else:
-                            for marqueur in (b"P124 fichiers enregistres", b"pyyaml"):
+                            for marqueur in (b"P124/P125 fichiers enregistres", b"pyyaml"):
                                 if not any(marqueur in o for o in outils):
                                     err(f"{label} : marqueur {marqueur!r} absent de "
                                         f"android_tools.pyc (P124 perdu)")

@@ -4900,3 +4900,28 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
 - État du dépôt : `master` = `4ec1296`, tag `v0.0.81_beta` → `4ec1296`,
   `v0.0.80` → `d9f76d8`. Pour diffuser en stable, il faudra un nouveau tag
   `v0.0.81` (non bêta) — non fait à ce stade.
+
+## 2026-11-23 18:47 UTC — diagnostic (sans modification) : display_file et fichiers execute_code
+
+- Question utilisateur : pourquoi `display_file` n'affiche pas les fichiers écrits
+  par `execute_code` dans `/mnt/uploads` (pas d'identifiant applicatif) ?
+- **Constat** : le comportement observé est celui de la version livrée, mais il
+  vient d'un pont incomplet, pas d'une règle de conception.
+  - `display_file` (amont) accepte un `file_id`, une URL
+    `/api/v1/files/<id>/content` ou un chemin de terminal ; le patch P30 ajoute
+    `/mnt/uploads/<nom>` **uniquement si** le fichier existe physiquement dans
+    le vrai `UPLOAD_DIR` de l'app. Les fichiers Pyodide vivent dans un système
+    de fichiers virtuel (IndexedDB) côté WebView : P30 ne les voit pas.
+  - `remonte_fichiers_sable` (P41/P108) a précisément pour rôle d'enregistrer
+    ces fichiers de sortie et de leur attribuer un `file_id`, mais il lit
+    `output['files']`. Or le callback `executePythonAsWorker` de
+    `vendor/open-webui/src/routes/+layout.svelte` ne renvoie que
+    `{stdout, stderr, result}` — jamais `files`. Le mécanisme P41/P108 est donc
+    inerte dans l'APK : aucun ID créé.
+  - `compile_typst` ne dépend pas de ce pont : il tourne côté serveur dans
+    l'APK et appelle lui-même `Storage.upload_file` + `Files.insert_new_file`,
+    d'où son `file_id` fonctionnel.
+- **Contournement actuel** : navigateur de fichiers du bloc de code
+  (`PyodideFileNav`, bouton Télécharger) puis ré-upload dans l'app, qui crée
+  alors un `file_id`. Correctif possible (non appliqué) : patcher `+layout.svelte`
+  pour renvoyer les fichiers écrits au backend, afin que P41/P108 les enregistre.

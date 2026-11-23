@@ -4977,5 +4977,23 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
 - `docs/maintenance.typ` : nouvelle section 14.6 « Fichiers du bac à sable et
   multi-utilisateur » ; `docs/maintenance.pdf` recompilé (722 808 octets).
 - Version inchangée : `build.gradle` reste en `0.0.81_beta`. Le tag et la
-  release `v0.0.81_beta` seront recréés sur le nouveau commit (comme pour le
+  release `v0.0.81_beta` ont été recréés sur le nouveau commit (comme pour le
   correctif d'assets), sans toucher à `v0.0.80` (Latest).
+
+## 2026-11-23 21:05 UTC — release P120 livrée (même tag)
+
+- Ancienne release/tag `v0.0.81_beta` supprimés (`gh release delete
+  --cleanup-tag`), puis tag recréé sur `84f4cc3`. Run CI `#45264372959` vert
+  (21:04 UTC). Release publiée 21:03:42 UTC : `prerelease=true`, 2 APK.
+  `Latest` reste `v0.0.80`.
+- APK release vérifié (278 389 762 octets) :
+  - `assets/frontend/_app/` : 1 813 fichiers (garde-fou P20 > 500) ;
+  - `assets/preview/` : 116 fichiers / 6 paquets Typst, aucun `assets/typst/` ;
+  - backend embarqué (`app.imy`) : marqueurs `Fichier introuvable ou non
+    autorisé` (builtin.pyc), `_fm_peut_lire` (android_fm.pyc),
+    `get_files_by_user_id` (les trois modules) ;
+  - frontend minifié : `clearTimeout(…)/2e3`, `fs:list` sur `/mnt/uploads`,
+    `fs:read` puis `files:ye` dans le callback — P120 bien présent dans le JS
+    livré.
+- État final : `master` = `84f4cc3`, tag `v0.0.81_beta` → `84f4cc3`,
+  `v0.0.80` → `d9f76d8`, `Latest` = `v0.0.80`.

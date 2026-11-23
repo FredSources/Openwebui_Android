@@ -5157,3 +5157,17 @@ Trois points signalés, trois causes distinctes :
   (41/0/0), module complet (87 lignes) et `scripts/test_p124.py` revérifié.
 - Publication reprise sur le même commit `7544dbf` : le tag pointant sur le
   run échoué est supprimé puis recréé (aucune release n'avait été créée).
+
+## 2026-11-23 23:38 UTC — P124 livré (même tag)
+
+- Correctif de l'en-tête du patch 07 commité en `0b0f3ac`. Tag
+  `v0.0.81_beta` recréé dessus. Run CI `#45289260291` **vert** (23:37 UTC),
+  2 APK, `prerelease=true`, `Latest` toujours `v0.0.80`.
+- APK release vérifiée : 278 535 127 octets, `check_apk.py` vert — y compris
+  les nouveaux contrôles P124 (wheel `pyyaml-` dans `assets/frontend/pyodide/`
+  et marqueurs `P124 fichiers enregistres` + `pyyaml` dans
+  `android_tools.pyc`). Nœud principal `0.D3UkNt07.js` : `fs:list`, `fs:read`,
+  `/mnt/uploads` présents ; le collecteur minifié ne contient plus le filtre
+  par noms d'entrée (`h.get(g.name)===g.size` fait seul la distinction), et
+  `mergePackages` est complet en fin de module.
+- État final : `master` = `0b0f3ac`, tag `v0.0.81_beta` → `0b0f3ac`.

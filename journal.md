@@ -4953,3 +4953,29 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   `/fm/delete-raw` (propriétaire ou admin) ; (4) seulement alors patcher
   `+layout.svelte` pour remonter les fichiers de sortie. Non appliqué : demande
   d'un cycle de version dédié et de tests multi-comptes.
+
+## 2026-11-23 20:54 UTC — P120 appliqué, toujours sur `v0.0.81_beta`
+
+- Demande utilisateur : appliquer les quatre points **sans changer de version**.
+- Patchs source de vérité modifiés :
+  - `patches/frontend/06-pyodide-output-files.patch` (nouveau) :
+    `executePythonAsWorker` compare `/mnt/uploads` avant/après, lit les fichiers
+    créés via `fs:read` et les renvoie en base64 dans `output['files']` ;
+    garde de 2 s sur chaque requête FS pour ne jamais bloquer `sio.call`.
+  - `patches/backend/27-tools__android_tools.py.patch` : `_uploads_pour_sable`
+    est `async`, filtré par `user_id` ; `remonte_fichiers_sable` réutilise un
+    fichier existant (même nom/taille) et renvoie `{name, file_id}`.
+  - `patches/backend/28-tools__builtin.py.patch` : appel await filtré ;
+    `display_file('/mnt/uploads/<nom>')` résout vers un `file_id` détenu par
+    l'utilisateur (tous pour un admin) puis passe par `_has_read_access_to_file`.
+    Le raccourci `/fm/raw` de P30 est supprimé.
+  - `patches/backend/02-android_fm.py.patch` : `_fm_peut_lire()` impose
+    propriétaire ou admin sur `/fm/raw` et `/fm/delete-raw`.
+- Recalcul des en-têtes : patch 27 `@@ -0,0 +1,592 @@`, patch 02 `+1,1374`.
+- `bash scripts/apply_patches.sh` : 40 appliqués, 0 échec ; `--check` :
+  36 déjà appliqués, 0 échec. `py_compile` OK sur les trois modules Python.
+- `docs/maintenance.typ` : nouvelle section 14.6 « Fichiers du bac à sable et
+  multi-utilisateur » ; `docs/maintenance.pdf` recompilé (722 808 octets).
+- Version inchangée : `build.gradle` reste en `0.0.81_beta`. Le tag et la
+  release `v0.0.81_beta` seront recréés sur le nouveau commit (comme pour le
+  correctif d'assets), sans toucher à `v0.0.80` (Latest).

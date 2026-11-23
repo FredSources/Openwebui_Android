@@ -139,7 +139,7 @@ index 0dfa235..ec544de 100644
 +                        'exec_timeout': delai_exec,
                          'session_id': (__metadata__.get('session_id') if __metadata__ else None),
 -                        'files': (__metadata__.get('files', []) if __metadata__ else []),
-+                        'files': ((__metadata__.get('files') or []) if __metadata__ else []) + _uploads_pour_sable(code),
++                        'files': ((__metadata__.get('files') or []) if __metadata__ else []) + await _uploads_pour_sable(code, (__user__ or {}).get('id')),
                      },
                  }
 -            )
@@ -309,21 +309,21 @@ index 0dfa235..ec544de 100644
      try:
          from open_webui.models.files import Files
  
-+        # P30 : fichiers ecrits via la convention /mnt/uploads → uploads reel
++        # P120 : /mnt/uploads/<nom> -> file_id ACL-verifie (plus de /fm/raw).
 +        import os as _os
-+        from urllib.parse import quote as _q
-+        from open_webui.config import UPLOAD_DIR as _UP
 +        if path.startswith('/mnt/uploads/'):
 +            nom = _os.path.basename(path)
-+            if (_UP / nom).is_file():
-+                return JSONCodec.dumps({
-+                    'type': 'file', 'source': 'open_webui', 'exists': True, 'displayed': True,
-+                    'path': f'/fm/raw?name={_q(nom)}', 'full_path': f'/fm/raw?name={_q(nom)}',
-+                    'name': nom, 'content_type': 'application/octet-stream',
-+                    'mime_type': 'application/octet-stream',
-+                }, ensure_ascii=False)
-+            return JSONCodec.dumps(
-+                {'error': f'Fichier introuvable : {nom} (attendu dans /mnt/uploads)', 'exists': False})
++            uid = (__user__ or {}).get('id')
++            propres = await Files.get_files_by_user_id(uid) if uid else []
++            if (__user__ or {}).get('role') == 'admin':
++                propres = await Files.get_files()
++            trouve = next((f for f in propres
++                           if f.filename == nom
++                           or str((f.meta or {}).get('name') or '') == nom), None)
++            if trouve is None:
++                return JSONCodec.dumps(
++                    {'error': 'Fichier introuvable ou non autorisé', 'exists': False})
++            path = f'/api/v1/files/{trouve.id}/content'
          if '/' not in path:
              path = f'/api/v1/files/{path}/content'
          parts = path.split('/')

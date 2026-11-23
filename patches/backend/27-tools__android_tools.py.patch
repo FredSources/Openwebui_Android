@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..9f8b86b
 --- /dev/null
 +++ b/tools/android_tools.py
-@@ -0,0 +1,563 @@
+@@ -0,0 +1,592 @@
 +"""OpenWebUI Android — outils et helpers AJOUTÉS (hors amont).
 +
 +Audit de divergence 2026-11-09 : pour rester au plus proche de l'origine
@@ -425,22 +425,33 @@ index 0000000..9f8b86b
 +            trouves.add(paquet)
 +    return sorted(trouves)
 +
-+def _uploads_pour_sable(code: str = '', max_par: int = 8 * 1024 * 1024, max_total: int = 256 * 1024) -> list:
++async def _uploads_pour_sable(code: str = '', user_id: str = None, max_par: int = 8 * 1024 * 1024, max_total: int = 256 * 1024) -> list:
 +    """P51/P77 — alignement des deux magasins : le dossier uploads de l'app est
 +    injecté dans le /mnt/uploads du bac à sable (les fichiers déjà injectés y
 +    PERSISTENT via IndexedDB).
 +    P77 : seuls les fichiers CITÉS dans le code partent systématiquement ; les
 +    petits fichiers (≤ 64 Ko, budget 256 Ko) suivent pour la découvrabilité —
 +    au-delà, rien ne part : l'expédition totale faisait de CHAQUE appel un
-+    transfert de mégaoctets (print('hello') mettait des secondes)."""
++    transfert de mégaoctets (print('hello') mettait des secondes).
++    P120 : filtrage par utilisateur — seuls ses propres fichiers (enregistrés
++    en base avec son user_id) partent dans son bac à sable."""
++    if not user_id:
++        return []
 +    from open_webui.config import UPLOAD_DIR as _UD
++    from open_webui.models.files import Files as _Files
++
++    try:
++        propres = await _Files.get_files_by_user_id(user_id)
++    except Exception:
++        return []
++    permis = {f.filename for f in propres}
 +
 +    texte = code or ''
 +    sortie = []
 +    total = 0
 +    try:
 +        for ent in (sorted(_UD.iterdir()) if _UD.is_dir() else []):
-+            if not ent.is_file():
++            if not ent.is_file() or ent.name not in permis:
 +                continue
 +            taille = ent.stat().st_size
 +            if taille > max_par:
@@ -493,8 +504,10 @@ index 0000000..9f8b86b
 +    fichier produit est STOCKÉ via le fournisseur de stockage et ENREGISTRÉ
 +    dans la base (visible au gestionnaire /fm, à display_file et à l'API
 +    fichiers) — P108 : l'écriture seule sur disque laissait le fichier
-+    invisible au gestionnaire. Retourne les noms affichables produits ;
-+    ne lève pas sur un fichier invalide."""
++    invisible au gestionnaire. Retourne [{name, file_id}] pour chaque
++    fichier produit ; le file_id est celui de la ligne appartenant à
++    l'utilisateur courant (ACL Open WebUI). Ne lève pas sur un fichier
++    invalide."""
 +    import asyncio as _aio
 +    import base64 as _b64
 +    import io as _io
@@ -506,6 +519,18 @@ index 0000000..9f8b86b
 +    produits = []
 +    if not isinstance(output, dict):
 +        return produits
++    # P120 : pas de doublon en base — un fichier déjà enregistré pour cet
++    # utilisateur avec le même nom et la même taille est réutilisé (son
++    # file_id est renvoyé au modèle, qui peut l'utiliser avec display_file).
++    deja = {}
++    if user_id:
++        try:
++            deja = {
++                str((f.meta or {}).get('name') or f.filename): f
++                for f in await Files.get_files_by_user_id(user_id)
++            }
++        except Exception:
++            deja = {}
 +    for _f in (output.get('files') or []):
 +        try:
 +            import os as _os2
@@ -514,6 +539,10 @@ index 0000000..9f8b86b
 +            if not _nom or not _don:
 +                continue
 +            _brut = _b64.b64decode(_don)
++            _ancien = deja.get(_nom)
++            if _ancien is not None and int((_ancien.meta or {}).get('size') or -1) == len(_brut):
++                produits.append({'name': _nom, 'file_id': _ancien.id})
++                continue
 +            _dest = _UD / _nom
 +            if _dest.exists() and _dest.stat().st_size == len(_brut):
 +                continue  # déjà présent à l'identique (fichier d'entrée)
@@ -536,7 +565,7 @@ index 0000000..9f8b86b
 +                         meta={'name': _nom, 'content_type': _type,
 +                               'size': len(_brut)}),
 +            )
-+            produits.append(_nom)
++            produits.append({'name': _nom, 'file_id': _id})
 +        except Exception:
 +            pass
 +    return produits

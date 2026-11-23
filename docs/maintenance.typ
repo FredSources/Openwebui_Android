@@ -1035,9 +1035,38 @@ pour distinguer chemin disparu, paquet absent et stockage plein.
 Contrôle de non-régression : après modification du patch
 `patches/backend/27-tools__android_tools.py.patch`, recalculer son en-tête
 `@@ -0,0 +1,N @@` (N = nombre de lignes commençant par `+`, moins une), puis
-`bash scripts/apply_patches.sh` (39 patchs, 0 échec) et
+`bash scripts/apply_patches.sh` (40 patchs, 0 échec) et
 `/opt/opencode-venv/bin/python3 -m py_compile src/open_webui/tools/android_tools.py`.
 Un en-tête non recalculé tronque silencieusement la fin du fichier généré.
+
+== Fichiers du bac à sable et multi-utilisateur <sec-sandbox-multiuser>
+
+Correctif P120 (même version `0.0.81_beta`). Quatre points indissociables :
+
+- *Remontée active* : le patch frontend `06-pyodide-output-files.patch` fait
+  renvoyer par `executePythonAsWorker` les fichiers *écrits* dans
+  `/mnt/uploads` (comparaison avant/après, lecture `fs:read`, base64, garde de
+  2 s). Sans lui, `output['files']` restait vide et aucun identifiant n'était
+  créé — c'était le diagnostic du 2026-11-23.
+- *Attribution contrôlée* : `remonte_fichiers_sable()` enregistre chaque sortie
+  avec `user_id = __user__['id']`, un UUID frais et un nom physique préfixé
+  `<uuid>_<nom>`. La réponse `execute_code.files` contient désormais
+  `{name, file_id}` : le modèle peut appeler directement
+  `display_file(<file_id>)`. Un fichier déjà enregistré pour le même
+  utilisateur, de même nom et de même taille, est réutilisé (pas de doublon).
+- *ACL préservée* : `display_file` ne renvoie plus `/fm/raw` pour un chemin
+  `/mnt/uploads/<nom>` ; il résout le nom vers un `file_id` appartenant à
+  l'utilisateur courant (ou à tous les fichiers pour un admin) puis repasse
+  par `_has_read_access_to_file`. Le raccourci P30, qui court-circuitait le
+  contrôle, a disparu.
+- *Périmètre durci* : `_uploads_pour_sable()` n'injecte que les fichiers
+  enregistrés au nom de l'utilisateur ; `/fm/raw` et `/fm/delete-raw`
+  exigent le propriétaire ou le rôle admin (nouveau helper `_fm_peut_lire`).
+
+Le navigateur `/fm` filtrait déjà correctement via `Files.get_file_list(user_id=…)`.
+La régression à surveiller : une exécution qui ne produit aucun fichier doit
+toujours répondre `files: []`, et un `display_file` avec le nom d'autrui doit
+répondre « Fichier introuvable ou non autorisé ».
 
 = Pistes d'évolution
 

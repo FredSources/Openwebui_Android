@@ -5087,3 +5087,16 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
     signale bien 3 erreurs sur l'APK P122.
 - `apply_patches.sh` : 41 appliqués, 0 déjà, 0 échec ; `py_compile` OK.
   `docs/maintenance.typ` : paragraphe P123 ; PDF recompilé (738 766 octets).
+
+## 2026-11-23 22:53 UTC — P123 livré (même tag)
+
+- Release/tag `v0.0.81_beta` recréés sur `61e9bfb`. Run CI `#45282591933`
+  vert (22:52 UTC), 2 APK, `prerelease=true`, `Latest` toujours `v0.0.80`.
+- APK release vérifié (278 422 814 octets) : `check_apk.py` vert, y compris
+  le nouveau garde-fou (marqueurs `fs:list`, `fs:read`, `/mnt/uploads` dans
+  le nœud principal `0.CSa73TZt.js`). Le minifié montre la séquence
+  `[...new Set(...)]`, l'instantané `await Dn(...)` avant `postMessage`,
+  et le callback `{stdout, stderr, result, files: Me}` ; le handler
+  `execute:python` transmet `R.packages||[]`. Dans `android_tools.pyc`,
+  `delete_file` contient bien `/mnt/uploads/` et le message ACL.
+- État final : `master` = `61e9bfb`, tag `v0.0.81_beta` → `61e9bfb`.

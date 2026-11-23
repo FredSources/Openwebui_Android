@@ -5197,3 +5197,16 @@ Suite directe de la limite annoncée après P124 : un fichier écrasé avec
   `apply_patches.sh` 41/0/0 ; `py_compile` OK.
 - `docs/maintenance.typ` complété, PDF recompilé (748 619 octets, 0
   avertissement).
+
+## 2026-11-23 23:53 UTC — P125 livré (même tag)
+
+- Commit `217a9e7`, tag `v0.0.81_beta` recréé dessus. Run CI
+  `#45291459951` **vert** (23:53 UTC), 2 APK, `prerelease=true`, `Latest`
+  toujours `v0.0.80`.
+- APK release vérifiée (278 521 915 octets) : `check_apk.py` vert, marqueur
+  `P124/P125 fichiers enregistres` et `pyyaml` présents dans
+  `android_tools.pyc`. Le nœud principal (`0.BhTwFzIv.js`) contient **deux**
+  `fs:read` : l'instantané avant exécution (`contenus.set(...)`) et la
+  comparaison après (`Ro(n.contenus.get(...), L)`), puis `mergePackages`
+  complet en fin de module.
+- État final : `master` = `217a9e7`, tag `v0.0.81_beta` → `217a9e7`.

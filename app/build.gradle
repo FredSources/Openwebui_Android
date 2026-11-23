@@ -47,7 +47,7 @@ android {
     sourceSets {
         main {
             python.srcDirs = ['src/main/python', "${rootDir}/src"]
-            assets.srcDirs += ["${rootDir}/src-assets"]
+            assets.srcDirs += ["${rootDir}/src-assets", "${rootDir}/typst"]
         }
     }
 

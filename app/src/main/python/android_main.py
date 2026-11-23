@@ -90,6 +90,14 @@ def _prepare_env(files_dir: str | None = None) -> Path:
         d.mkdir(parents=True, exist_ok=True)
         os.environ[var] = str(d)
 
+    # D14 (correctif accès fichiers) : ancrage EXPLICITE du cache Typst.
+    # Sans variable dédiée, la bibliothèque le déduit de XDG_CACHE_HOME/HOME
+    # selon le contexte d'appel → paquets @preview retéléchargés, échecs
+    # intermittents hors ligne. Un seul chemin, dans l'espace privé de l'app.
+    typst_cache = home / "cache" / "typst"
+    typst_cache.mkdir(parents=True, exist_ok=True)
+    os.environ["TYPST_CACHE_DIR"] = str(typst_cache)
+
     data_dir = home / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
 

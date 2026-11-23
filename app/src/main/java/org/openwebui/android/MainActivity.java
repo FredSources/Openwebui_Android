@@ -175,6 +175,7 @@ public class MainActivity extends Activity {
         try {
             writeStatus(3, "Préparation de l'interface…");
             prepareFrontend();
+            prepareTypstPackages();  // D14 — paquets @preview embarqués (hors ligne)
             writeStatus(45, "Démarrage du serveur Open WebUI…");
             Python py = Python.getInstance();
             // P130 — pont de découpage audio (MediaExtractor/MediaMuxer) pour
@@ -275,6 +276,45 @@ public class MainActivity extends Activity {
             w.close();
         } catch (Exception e) {
             writeStatus(100, "Erreur d'extraction de l'interface : " + e);
+        }
+    }
+
+    /**
+     * D14 — extrait les paquets Typst @preview embarqués (assets/typst) dans
+     * filesDir/typst. compile_typst() les copie ensuite dans le cache ancré
+     * ($HOME/cache/typst) : rendu hors ligne, sans téléchargement réseau.
+     * Échec non bloquant : simple repli sur le téléchargement des paquets.
+     */
+    private void prepareTypstPackages() {
+        java.io.File target = new java.io.File(dataHome, "typst");
+        java.io.File marker = new java.io.File(dataHome, "typst.version");
+        long current;
+        try {
+            android.content.pm.PackageManager pm = getPackageManager();
+            current = android.os.Build.VERSION.SDK_INT >= 28
+                    ? pm.getPackageInfo(getPackageName(), 0).getLongVersionCode()
+                    : pm.getPackageInfo(getPackageName(), 0).versionCode;
+        } catch (Exception e) {
+            current = -1;
+        }
+        try {
+            if (target.isDirectory() && marker.exists()) {
+                java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(marker));
+                String v = r.readLine();
+                r.close();
+                if (v != null && v.equals(String.valueOf(current))) {
+                    return; // déjà extrait pour cette version
+                }
+            }
+            deleteRecursive(target);
+            final int total = Math.max(1, countAssets("typst"));
+            final int[] done = {0};
+            copyAssetFolder(getAssets(), "typst", target, done, total);
+            java.io.FileWriter w = new java.io.FileWriter(marker);
+            w.write(String.valueOf(current));
+            w.close();
+        } catch (Exception e) {
+            android.util.Log.w("OpenWebUI", "paquets Typst non extraits : " + e);
         }
     }
 

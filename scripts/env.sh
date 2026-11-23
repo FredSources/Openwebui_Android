@@ -20,6 +20,9 @@ export UV_CACHE_DIR="$PROJ/.uv-cache"
 export npm_config_cache="$PROJ/.npm-cache"
 export TMPDIR="$PROJ/.tmp"
 export XDG_CACHE_HOME="$PROJ/.xdg-cache"
+# Typst : cache ANCRÉ (sinon déduit de XDG_CACHE_HOME/HOME selon le contexte →
+# paquets @preview retéléchargés, échecs hors ligne — correctif D14)
+export TYPST_CACHE_DIR="$XDG_CACHE_HOME/typst"
 export PYTHONDONTWRITEBYTECODE=1
 # Rust : TOUJOURS dans le projet (jamais ~/.cargo ni ~/.rustup — isolation D5)
 export CARGO_HOME="$PROJ/tools/cargo"
@@ -33,7 +36,7 @@ fi
 
 mkdir -p "$ANDROID_HOME" "$GRADLE_USER_HOME" "$UV_PYTHON_INSTALL_DIR" \
          "$UV_CACHE_DIR" "$npm_config_cache" "$TMPDIR" "$XDG_CACHE_HOME" \
-         "$PROJ/dist" "$PROJ/tools" "$PROJ/vendor" "$PROJ/scripts"
+         "$TYPST_CACHE_DIR" "$PROJ/dist" "$PROJ/tools" "$PROJ/vendor" "$PROJ/scripts"
 
 # --- Python outils du projet ---
 VENV="$PROJ/.venv"

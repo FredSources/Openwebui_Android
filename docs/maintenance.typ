@@ -976,7 +976,7 @@ Depuis `0.0.6`, le `versionName` de l'APK suit la numérotation du tag.
 APK _debug_ et _release_ uniquement au push d'un tag `v*`, et publie la Release
 GitHub avec les APK attachés (même chaîne APK ; l'amont est reconstruit par
 `apply_patches.sh` depuis les submodules — voir `REFONTE.md`).
-Le workflow v1 (`build-apk.yml`) a été **supprimé** sur `master` (v2) lors du
+Le workflow v1 (`build-apk.yml`) a été *supprimé* sur `master` (v2) lors du
 nettoyage v0.0.80 ; il reste sur `old` (`workflow_dispatch` uniquement).
 Adaptations automatiques du runner x86_64 : retrait de la surcharge
 `aapt2FromMavenOverride` (qemu), JDK système accepté si `tools/jdk` (aarch64) est
@@ -1000,7 +1000,43 @@ reproduire (tag lu depuis `GITHUB_REF` sous Actions, repli
 chaîne v1 : le `versionCode` daté du CI v2 (voir plus haut) assure la
 progressivité des builds.
 
-== Pistes d'évolution
+== Outil Typst intégré — gestion des fichiers <sec-typst-fichiers>
+
+L'outil `compile_typst` (P11, décision D14) compile un document Typst en PDF
+dans l'espace privé de l'app. Trois règles de gestion de fichiers, issues du
+correctif du 2026-11-23, sont à maintenir :
+
+- *Cache ancré* : `android_main.py` pose `TYPST_CACHE_DIR = <HOME>/cache/typst`
+  avant tout import ; `scripts/env.sh` et `scripts/setup-env.sh` posent la même
+  variable sur le poste (`<projet>/.xdg-cache/typst`). Sans ancrage, la
+  bibliothèque déduit son cache de `HOME` ou `XDG_CACHE_HOME` selon le contexte
+  d'appel : les paquets `@preview` étaient retéléchargés, d'où des échecs
+  intermittents hors ligne. Un seul chemin par environnement.
+- *Paquets embarqués* : les six paquets `@preview` (cetz, fletcher, h-graph,
+  ilm, merman, oxifmt — arbre `typst/preview/`) sont ajoutés aux assets via
+  `app/build.gradle` et extraits par `MainActivity.prepareTypstPackages()` dans
+  `<filesDir>/typst` (marqueur `typst.version`, extraction non bloquante).
+  `compile_typst()` les copie dans le cache ancré au premier appel : rendu hors
+  ligne, sans dépendance au réseau.
+- *Entrée normalisée* : `source` (texte) ou `file_path` (octets via
+  `Storage.get_file`) est toujours écrit dans `<HOME>/typst-work/<uuid>.typ`,
+  puis compilé *par chemin* (`typst_lib.compile(tmp_path)`), le temporaire étant
+  supprimé dans un `finally`. Compiler des octets privait les `#include` et les
+  images relatives de contexte (`error: file not found` / `os error 2`) : c'était
+  la source des erreurs d'accès observées dans l'application.
+
+Les erreurs de rendu remontent un champ `diagnostic` (chemin du cache, présence
+du bundle, espace libre) dans le journal applicatif — à consulter en premier
+pour distinguer chemin disparu, paquet absent et stockage plein.
+
+Contrôle de non-régression : après modification du patch
+`patches/backend/27-tools__android_tools.py.patch`, recalculer son en-tête
+`@@ -0,0 +1,N @@` (N = nombre de lignes commençant par `+`, moins une), puis
+`bash scripts/apply_patches.sh` (39 patchs, 0 échec) et
+`/opt/opencode-venv/bin/python3 -m py_compile src/open_webui/tools/android_tools.py`.
+Un en-tête non recalculé tronque silencieusement la fin du fichier généré.
+
+= Pistes d'évolution
 
 - Mise à jour in-app de l'APK (GitHub Releases) ;
 - profils multiples de configuration (`openwebui.env` prêt) ;

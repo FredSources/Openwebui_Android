@@ -34,13 +34,15 @@ need() { command -v "$1" >/dev/null 2>&1 || { echo "ERREUR : '$1' manquant (pré
 # --- Ancrage d'isolation (jamais en dehors du projet) ---
 export TMPDIR="$PROJ/.tmp"
 export XDG_CACHE_HOME="$PROJ/.xdg-cache"
+# Typst : cache ancré (D14) — évite le retéléchargement des paquets @preview
+export TYPST_CACHE_DIR="$XDG_CACHE_HOME/typst"
 export CARGO_HOME="$PROJ/tools/cargo"
 export RUSTUP_HOME="$PROJ/tools/rustup"
 export GRADLE_USER_HOME="$PROJ/.gradle-cache"
 export ANDROID_HOME="$PROJ/android-sdk"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export PIP_CACHE_DIR="$PROJ/.pip-cache"
-mkdir -p "$TMPDIR" "$XDG_CACHE_HOME" downloads tools vendor wheels dist docs
+mkdir -p "$TMPDIR" "$XDG_CACHE_HOME" "$TYPST_CACHE_DIR" downloads tools vendor wheels dist docs
 
 if [ "$MODE" = "--check" ]; then
   log "=== Audit de l'environnement ==="

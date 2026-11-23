@@ -4806,3 +4806,38 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   maintenance release) mais ne peut être validée réellement que sur un build de
   tag (l'étape Release est conditionnelle `refs/tags/v*`) : montage réservé au
   prochain cycle de version, sans rien changer à la release 0.0.80 livrée.
+
+## 2026-11-23 18:10 UTC — correctif Typst intégré : gestion des fichiers (D14)
+
+- **Contexte** : l'utilisateur signale des erreurs d'accès fichier intermittentes
+  lors de l'usage de l'outil Typst intégré. Analyse d'abord par observation
+  (artefacts APK, répertoires de données, tests du moteur) puis corrections.
+  Les causes identifiées : (1) `compile_typst` compilait des *octets*
+  (`compile(source.encode(...))` / `compile(Storage.get_file(...))`) — sans chemin
+  de base, les `#include` et images relatives échouaient (`file not found`,
+  `os error 2`) ; (2) le cache Typst était déduit de `HOME`/`XDG_CACHE_HOME`
+  selon le contexte (trois caches observés) → retéléchargement des paquets
+  `@preview` et échecs hors ligne ; (3) ni répertoire de travail ni diagnostic.
+- **Corrections** :
+  - `android_main.py` : `TYPST_CACHE_DIR = <HOME>/cache/typst` ancré et créé ;
+    `scripts/env.sh` / `setup-env.sh` : même variable sur le poste
+    (`$XDG_CACHE_HOME/typst`) ;
+  - `patches/backend/27-tools__android_tools.py.patch` (P11) : le `.typ` est
+    toujours écrit dans `<HOME>/typst-work/<uuid>.typ` puis compilé **par chemin**
+    et supprimé en `finally` ; paquets embarqués copiés dans le cache ancré ;
+    champ `diagnostic` (cache/bundle/espace libre) sur erreur. L'en-tête du diff
+    a dû être recalculé (`+1,563`) : un en-tête obsolète tronquait 54 lignes du
+    fichier généré (SyntaxError détectée puis corrigée) ;
+  - `typst/preview/` : 6 paquets `@preview` (cetz, fletcher, h-graph, ilm,
+    merman, oxifmt — 116 fichiers, 9,5 Mo) ajoutés aux assets via
+    `app/build.gradle` ; `MainActivity.prepareTypstPackages()` les extrait dans
+    `<filesDir>/typst` (marqueur versionné, échec non bloquant) ;
+  - `docs/helpers.typ` 600 → 644 ; `**supprimé**` → `*supprimé*` (l.979) => plus
+    de warning Typst ; `docs/maintenance.typ` + section `sec-typst-fichiers`,
+    `maintenance.pdf` recompilé (710 046 octets).
+- **Validations** : `apply_patches.sh` 39 patchs / 0 échec, `py_compile` du
+  fichier généré OK (563 lignes), test moteur `#include` compilé par chemin → PDF
+  produit (l'ancien chemin par octets échouait) ; submodule restauré vierge.
+  **Ces correctifs ne sont PAS dans la release `v0.0.80` déjà livrée** : une
+  validation CI puis un nouveau cycle de version seront nécessaires pour les
+  embarquer.

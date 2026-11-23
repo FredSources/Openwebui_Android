@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..9f8b86b
 --- /dev/null
 +++ b/tools/android_tools.py
-@@ -0,0 +1,509 @@
+@@ -0,0 +1,563 @@
 +"""OpenWebUI Android — outils et helpers AJOUTÉS (hors amont).
 +
 +Audit de divergence 2026-11-09 : pour rester au plus proche de l'origine
@@ -53,6 +53,8 @@ index 0000000..9f8b86b
 +    """
 +    try:
 +        import io
++        import os
++        import shutil
 +        import time
 +        import uuid as uuidlib
 +
@@ -79,22 +81,61 @@ index 0000000..9f8b86b
 +                f"E={_os.environ.get('HOME', '')} | libres={libre}o | paquets={paquets}"
 +            ) from _exc
 +
++        # D14 (correctif accès fichiers) : UN seul cache Typst, ancré dans
++        # l'espace privé de l'app (TYPST_CACHE_DIR posé par android_main.py ;
++        # repli sur XDG_CACHE_HOME/HOME pour les tests hôte). Sans ancrage,
++        # la bibliothèque déduit son cache du contexte d'appel → paquets
++        # @preview retéléchargés, échecs intermittents hors ligne.
++        cache_root = os.environ.get("TYPST_CACHE_DIR")
++        if not cache_root:
++            cache_root = os.path.join(
++                os.environ.get("XDG_CACHE_HOME")
++                or os.path.join(os.environ.get("HOME", "/"), "cache"),
++                "typst",
++            )
++            os.environ["TYPST_CACHE_DIR"] = cache_root
++        packages_dir = os.path.join(cache_root, "packages", "preview")
++        os.makedirs(packages_dir, exist_ok=True)
++
++        # Paquets @preview EMBARQUÉS dans l'APK (extraits par MainActivity
++        # dans $HOME/typst/preview) : copiés une fois dans le cache → rendu
++        # hors ligne, sans téléchargement au premier usage.
++        bundled_dir = os.path.join(os.environ.get("HOME", ""), "typst", "preview")
++        try:
++            if os.path.isdir(bundled_dir):
++                for entry in os.listdir(bundled_dir):
++                    dest = os.path.join(packages_dir, entry)
++                    if not os.path.exists(dest):
++                        shutil.copytree(os.path.join(bundled_dir, entry), dest)
++        except OSError as bundle_exc:
++            log.warning("paquets Typst embarqués non copiés : %s", bundle_exc)
++
 +        from open_webui.models.files import FileForm, Files
 +        from open_webui.storage.provider import Storage
 +
 +        user = __user__ or {}
 +
 +        def _read_and_compile() -> bytes:
-+            # typst.compile : une chaîne (str) est interprétée comme un CHEMIN de
-+            # fichier (→ « os error 2 » si absent) ; le code source doit passer en
-+            # OCTETS, et un fichier doit passer par son vrai chemin (contexte des
-+            # #include et images relatifs).
-+            if source:
-+                return typst_lib.compile(source.encode("utf-8"))
-+            if not file_path:
++            # D14 (correctif accès fichiers) : typst.compile interprète une str
++            # comme un CHEMIN, et des octets comme du source SANS contexte —
++            # les #include et images relatifs échouaient alors (« os error 2 »).
++            # Écrire TOUJOURS le .typ dans un répertoire de travail dédié puis
++            # compiler PAR CHEMIN ; le fichier est nettoyé juste après.
++            if not source and not file_path:
 +                raise ValueError("Fournir 'source' (texte Typst) ou 'file_path' (fichier .typ).")
-+            local = Storage.get_file(file_path)
-+            return typst_lib.compile(local)
++            work = os.path.join(os.environ.get("HOME", "/"), "typst-work")
++            os.makedirs(work, exist_ok=True)
++            tmp_path = os.path.join(work, uuidlib.uuid4().hex + ".typ")
++            try:
++                data = source.encode("utf-8") if source else Storage.get_file(file_path)
++                with open(tmp_path, "wb") as fh:
++                    fh.write(data)
++                return typst_lib.compile(tmp_path)
++            finally:
++                try:
++                    os.unlink(tmp_path)
++                except OSError:
++                    pass
 +
 +        pdf_bytes = await asyncio.to_thread(_read_and_compile)
 +
@@ -131,8 +172,21 @@ index 0000000..9f8b86b
 +            ensure_ascii=False,
 +        )
 +    except Exception as exc:
-+        log.exception(f"compile_typst error: {exc}")
-+        return JSONCodec.dumps({"error": str(exc)})
++        # D14 : tracer le contexte d'accès fichier (cache, bundle, espace)
++        # pour distinguer chemin disparu / paquet manquant / disque plein.
++        try:
++            import os as _os
++            _home = _os.environ.get("HOME", "")
++            _st = _os.statvfs(_home)
++            diag = (
++                f"cache={_os.environ.get('TYPST_CACHE_DIR', '')} | "
++                f"bundle={_os.path.isdir(_os.path.join(_home, 'typst', 'preview'))} | "
++                f"libres={_st.f_bavail * _st.f_frsize}o"
++            )
++        except Exception:
++            diag = "diagnostic indisponible"
++        log.exception("compile_typst error: %s | %s", exc, diag)
++        return JSONCodec.dumps({"error": str(exc), "diagnostic": diag})
 +
 +async def delete_note(
 +    note_id: str,

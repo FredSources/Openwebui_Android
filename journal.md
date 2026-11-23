@@ -4777,3 +4777,32 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
 - Dette CI d'outillage soldée : setup-java v5 + Node 22 + 5 actions runtime
   actualisées. Le prochain build de tag (release) utilisera cet outillage ;
   le tag `v0.0.80_beta` livré reste sur `9df0b44` (inchangé).
+
+## 2026-11-23 07:50 UTC — v0.0.80 en release (fin du suffixe _beta)
+
+- **Contexte** : l'utilisateur confirme que la version validée est fonctionnelle et
+  demande sa sortie en release. Le suffixe `_beta` cesse d'être porté.
+- **`app/build.gradle`** : `versionName '0.0.80_beta'` → **`'0.0.80'`** (le nom d'APK
+  en découle : `OpenWebUI_Android-0.0.80-{debug,release}.apk`). Docs vivantes
+  alignées : bandeau `PATCHES.md`, `docs/maintenance.typ` (vérifs du diff, branche
+  `old`, formule du versionCode), commentaire du workflow (ex. de tag) —
+  `maintenance.pdf` recompilé (695 173 octets) ; les mentions historiques
+  (`REFONTE.md`, lignes de journal, `v0.0.79_beta`) restent telles quelles.
+  Commit `d9f76d8` poussé sur `master`.
+- **Bascule du tag** : release GitHub `v0.0.80_beta` supprimée (`gh release delete
+  --cleanup-tag` → tag distant retiré), tag local `v0.0.80_beta` (9df0b44) supprimé,
+  tag **`v0.0.80`** posé sur `d9f76d8` (dernier commit : `master` = `6e7f745` +
+  versionName release) et poussé.
+- **Build + release (run push 45132939823 VERT)** : `versionCode=26327013`
+  (base datée 26327 du 23/11 + run #13 — installable par-dessus 26326012 ✓) ;
+  **release `v0.0.80` = Latest**, prerelease=false, 2 APK attachés
+  (`OpenWebUI_Android-0.0.80-debug.apk` / `-release.apk`, 262 Mo).
+- **Vérification APK release téléchargé** (880 fichiers scannés) : tous les
+  marqueurs vocaux présents — `__callDictation` ×15, `__callSilent` ×7,
+  `Call STT` ×5, `resumeAfterDictation` ×5, `pauseForDictation` ×4,
+  `__callVadHit`/`__callSpeechGate` ×6, `provider!=="android"` ×1.
+- **Dette CI notée** : `softprops/action-gh-release@v2` reste la dernière action
+  Node 20 (annotation GitHub, forcée sur Node 24) — la v3.0.4 existe (Node 24,
+  maintenance release) mais ne peut être validée réellement que sur un build de
+  tag (l'étape Release est conditionnelle `refs/tags/v*`) : montage réservé au
+  prochain cycle de version, sans rien changer à la release 0.0.80 livrée.

@@ -4857,7 +4857,7 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   cours au moment de cette écriture ; le build du tag `v0.0.81_beta` servira de
   validation finale (même arborescence, avec le suffixe de version en plus).
 
-(à suivre : création du tag et résultat de la release)
+→ suite et résultat final dans l'entrée 18:33 ci-dessous.
 
 ## 2026-11-23 18:33 UTC — prerelease `0.0.81_beta` livrée puis corrigée
 
@@ -4879,6 +4879,24 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   Le patch Python D14 était bien présent dans l'APK (`TYPST_CACHE_DIR`,
   `typst-work` relevés dans `android_tools.pyc`) : seule l'extraction des
   assets était en défaut.
-- La release et le tag `v0.0.81_beta` seront **recréés** sur le commit corrigé
-  pour que la prerelease téléchargeable contienne effectivement les paquets hors
-  ligne. Aucune release publiée antérieurement n'est touchée.
+- La release et le tag `v0.0.81_beta` ont été **supprimés puis recréés** sur le
+  commit corrigé `4ec1296` (`gh release delete --cleanup-tag`, tag local supprimé,
+  repoussé explicitement — jamais `git push --tags`). Aucune release antérieure
+  n'a été touchée.
+
+## 2026-11-23 18:43 UTC — prerelease `v0.0.81_beta` finalisée
+
+- Run de tag `#45239831454` **vert** (commit `4ec1296`, `versionCode=26327016`).
+- Release `v0.0.81_beta` publiée à 18:41:47 UTC : **prerelease=true**, 2 APK
+  (`OpenWebUI_Android-0.0.81_beta-debug.apk` et `-release.apk`, 278 399 694 o).
+  `v0.0.80` reste la release **Latest** (`prerelease=false`) : le mécanisme
+  `prerelease`/`make_latest` du workflow est validé en conditions réelles.
+- **Vérification de l'APK release téléchargé** : `assets/preview/` contient bien
+  116 fichiers / 6 paquets (cetz 0.3.4, fletcher 0.5.8, h-graph 0.1.0, ilm 2.1.0,
+  merman 0.3.0, oxifmt 0.2.1), plus aucun `assets/typst/` erroné ; le patch D14
+  est présent dans `android_tools.pyc` (`TYPST_CACHE_DIR`, `typst-work`,
+  `paquets Typst embarqués`). La prerelease livrée est donc fonctionnelle hors
+  ligne.
+- État du dépôt : `master` = `4ec1296`, tag `v0.0.81_beta` → `4ec1296`,
+  `v0.0.80` → `d9f76d8`. Pour diffuser en stable, il faudra un nouveau tag
+  `v0.0.81` (non bêta) — non fait à ce stade.

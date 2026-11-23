@@ -27,13 +27,12 @@
  
  		const worker = getOrCreateWorker();
  
-@@ -348,6 +352,11 @@
+@@ -348,6 +352,10 @@
  			}
  		}
  
 +		// P120/P123 : instantane de /mnt/uploads avant execution, pour ne
 +		// remonter que les fichiers reellement ecrits pendant celle-ci.
-+		const nomsEntree = new Set(filePayloads.map((f) => f.name));
 +		const avant = await listUploads(worker, id);
 +
  		worker.postMessage({
@@ -54,7 +53,7 @@
  			if (cb) {
 +				// P120/P123 : le backend enregistre ces fichiers en base
 +				// (/fm, display_file, delete_file par ID).
-+				const fichiersSortie = await collectOutputFiles(worker, id, avant, nomsEntree);
++				const fichiersSortie = await collectOutputFiles(worker, id, avant);
  				cb(
  					JSON.parse(
  						JSON.stringify(

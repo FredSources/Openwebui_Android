@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..9f8b86b
 --- /dev/null
 +++ b/tools/android_tools.py
-@@ -0,0 +1,630 @@
+@@ -0,0 +1,671 @@
 +"""OpenWebUI Android — outils et helpers AJOUTÉS (hors amont).
 +
 +Audit de divergence 2026-11-09 : pour rester au plus proche de l'origine
@@ -115,21 +115,55 @@ index 0000000..9f8b86b
 +
 +        user = __user__ or {}
 +
++        # P124 : `file_path` peut être un chemin disque, /mnt/uploads/<nom>,
++        # une URL /api/v1/files/<id>/content ou un file_id renvoyé par
++        # list_files. On résout en AMONT (async) car Files.get_file_by_id est
++        # une coroutine — _read_and_compile tourne, lui, dans un thread.
++        chemin_typ = None
++        if file_path and not source:
++            candidat = str(file_path).strip()
++            if "/files/" in candidat:
++                candidat = candidat.split("/files/", 1)[1].split("/", 1)[0]
++            if candidat.startswith("/mnt/uploads/"):
++                chemin_typ = Storage.get_file(candidat)
++                # Le sable voit le nom AFFICHÉ, le disque porte <uuid>_<nom>.
++                if not os.path.isfile(chemin_typ):
++                    chemin_typ = None
++            elif os.path.isfile(candidat):
++                chemin_typ = candidat
++            if not chemin_typ:
++                try:
++                    cle = candidat.rsplit("/", 1)[-1]
++                    trouve = await Files.get_file_by_id(cle)
++                    if trouve is None:
++                        trouve = next(
++                            (f for f in await Files.get_files_by_user_id(user.get("id", ""))
++                             if f.filename == cle or
++                             str((f.meta or {}).get("name") or "") == cle),
++                            None)
++                    if trouve is not None:
++                        chemin_typ = Storage.get_file(trouve.path)
++                except Exception:
++                    chemin_typ = None
++            if not chemin_typ or not os.path.isfile(chemin_typ):
++                raise ValueError(f"Fichier Typst introuvable : {file_path}")
++
 +        def _read_and_compile() -> bytes:
-+            # D14 (correctif accès fichiers) : typst.compile interprète une str
-+            # comme un CHEMIN, et des octets comme du source SANS contexte —
-+            # les #include et images relatifs échouaient alors (« os error 2 »).
-+            # Écrire TOUJOURS le .typ dans un répertoire de travail dédié puis
-+            # compiler PAR CHEMIN ; le fichier est nettoyé juste après.
++            # D14/P124 : typst.compile interprète une str comme un CHEMIN.
++            # `source` est écrit dans un fichier temporaire ; `file_path` est
++            # compilé à son vrai chemin (contexte #include / images relatif
++            # conservé). Storage.get_file() renvoie un CHEMIN (str), pas des
++            # octets : fh.write(str) levait « a bytes-like object is required ».
 +            if not source and not file_path:
 +                raise ValueError("Fournir 'source' (texte Typst) ou 'file_path' (fichier .typ).")
++            if not source:
++                return typst_lib.compile(chemin_typ)
 +            work = os.path.join(os.environ.get("HOME", "/"), "typst-work")
 +            os.makedirs(work, exist_ok=True)
 +            tmp_path = os.path.join(work, uuidlib.uuid4().hex + ".typ")
 +            try:
-+                data = source.encode("utf-8") if source else Storage.get_file(file_path)
 +                with open(tmp_path, "wb") as fh:
-+                    fh.write(data)
++                    fh.write(source.encode("utf-8"))
 +                return typst_lib.compile(tmp_path)
 +            finally:
 +                try:
@@ -444,6 +478,7 @@ index 0000000..9f8b86b
 +        'pydantic': 'pydantic', 'pydantic_core': 'pydantic-core',
 +        'pydantic-core': 'pydantic-core', 'pylab': 'matplotlib',
 +        'pymupdf': 'pymupdf', 'pyparsing': 'pyparsing',
++        'pyyaml': 'pyyaml', 'yaml': 'pyyaml', '_yaml': 'pyyaml',
 +        'python_docx': 'python-docx', 'python_pptx': 'python-pptx',
 +        'pytokens': 'pytokens', 'pytz': 'pytz', 'regex': 'regex',
 +        'requests': 'requests', 'scipy': 'scipy', 'seaborn': 'seaborn',
@@ -563,12 +598,16 @@ index 0000000..9f8b86b
 +    deja = {}
 +    if user_id:
 +        try:
-+            deja = {
-+                str((f.meta or {}).get('name') or f.filename): f
-+                for f in await Files.get_files_by_user_id(user_id)
-+            }
++            for _connu in await Files.get_files_by_user_id(user_id):
++                # P124 : indexer les DEUX noms (affiché et stocké) — un fichier
++                # injecté dans le sable porte le nom stocké <uuid>_<nom>.
++                for _cle in (_connu.filename,
++                             str((_connu.meta or {}).get('name') or '')):
++                    if _cle:
++                        deja[_cle] = _connu
 +        except Exception:
 +            deja = {}
++    journal_exec_ligne("P124 fichiers sortie recus=%s" % len(output.get('files') or []))
 +    for _f in (output.get('files') or []):
 +        try:
 +            import os as _os2
@@ -581,9 +620,10 @@ index 0000000..9f8b86b
 +            if _ancien is not None and int((_ancien.meta or {}).get('size') or -1) == len(_brut):
 +                produits.append({'name': _nom, 'file_id': _ancien.id})
 +                continue
-+            _dest = _UD / _nom
-+            if _dest.exists() and _dest.stat().st_size == len(_brut):
-+                continue  # déjà présent à l'identique (fichier d'entrée)
++            # P124 : la BASE fait foi. L'ancien garde-fou « fichier déjà sur
++            # disque » sautait un fichier réellement produit quand un ancien
++            # fichier non enregistré portait le même nom — d'où l'absence de
++            # list_files. Les fichiers d'entrée sont déjà exclus par la base.
 +            _id = str(_uuid.uuid4())
 +            _tronc, _point, _ext = _nom.rpartition('.')
 +            _base = ''.join(c if (c.isalnum() or c in '-_. ') else '_'
@@ -606,6 +646,7 @@ index 0000000..9f8b86b
 +            produits.append({'name': _nom, 'file_id': _id})
 +        except Exception:
 +            pass
++    journal_exec_ligne("P124 fichiers enregistres=%s" % len(produits))
 +    return produits
 +
 +

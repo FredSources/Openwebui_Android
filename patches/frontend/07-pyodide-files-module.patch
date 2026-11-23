@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..8d0312e
 --- /dev/null
 +++ b/lib/android/pyodide-files.ts
-@@ -0,0 +1,87 @@
+@@ -0,0 +1,85 @@
 +// P123 — pont entre le systeme de fichiers du bac a sable Pyodide
 +// (/mnt/uploads, persiste en IndexedDB) et le backend Android.
 +//
@@ -58,14 +58,15 @@ index 0000000..8d0312e
 +
 +/**
 + * Renvoie les fichiers ECRITS pendant l'execution : on compare /mnt/uploads
-+ * avant/apres pour ne pas re-enregistrer les fichiers d'entree (deja indexes
-+ * avec un file_id cote backend). Plafond de 4 Mo pour ne pas noyer le canal.
++ * avant/apres pour ne pas re-enregistrer les fichiers deja indexes avec un
++ * file_id cote backend. P124 : un fichier d'entree ECRASE pendant l'execution
++ * change de taille et remonte donc comme fichier produit (l'ancien filtre par
++ * nom l'ecartait). Plafond de 4 Mo pour ne pas noyer le canal.
 + */
 +export const collectOutputFiles = async (
 +	worker: Worker,
 +	id: string,
-+	avant: FsEntry[],
-+	nomsEntree: Set<string>
++	avant: FsEntry[]
 +): Promise<FichierSortie[]> => {
 +	const apres = await listUploads(worker, id);
 +	const taillesAvant = new Map(avant.map((e) => [e.name, e.size]));
@@ -73,7 +74,6 @@ index 0000000..8d0312e
 +	let total = 0;
 +	for (const ent of apres) {
 +		if (ent.type !== 'file') continue;
-+		if (nomsEntree.has(ent.name)) continue;
 +		if (taillesAvant.get(ent.name) === ent.size) continue;
 +		if (total + ent.size > 4 * 1024 * 1024) continue;
 +		const rep = await fsRequest(worker, id, 'fs:read', {

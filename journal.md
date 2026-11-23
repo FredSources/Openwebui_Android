@@ -5100,3 +5100,47 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   `execute:python` transmet `R.packages||[]`. Dans `android_tools.pyc`,
   `delete_file` contient bien `/mnt/uploads/` et le message ACL.
 - État final : `master` = `61e9bfb`, tag `v0.0.81_beta` → `61e9bfb`.
+
+## 2026-11-23 23:25 UTC — P124 (en cours de livraison)
+
+Trois points signalés, trois causes distinctes :
+
+1. **Fichiers `execute_code` absents de `list_files`** — le pont P123 remontait
+   bien les fichiers, mais deux filtres pouvaient encore les écarter :
+   - backend (`27-tools__android_tools.py.patch`, `remonte_fichiers_sable`) :
+     le garde-fou « déjà présent sur disque » sautait l'enregistrement dès
+     qu'un ancien fichier non enregistré portait le même nom. La déduplication
+     porte désormais sur la base, en indexant le **nom affiché** et le **nom
+     stocké** `<uuid>_<nom>` ; un contenu inchangé réutilise son `file_id`,
+     un contenu modifié en reçoit un nouveau. Trace journalisée
+     `P124 fichiers sortie recus=…` / `P124 fichiers enregistres=…` ;
+   - frontend (`pyodide-files.ts`, module propre au fork) : le collecteur
+     excluait tous les noms présents dans les fichiers d'entrée, donc un
+     fichier existant **écrasé** par le code n'était jamais remonté. Le filtre
+     par nom est retiré ; seule la comparaison avant/après fait foi. Le patch
+     `06-pyodide-output-files.patch` passe de 78 à 76 lignes.
+2. **Typst `file_path` : « a bytes-like object is required »** —
+   `Storage.get_file()` renvoie un **chemin** (`str`), pas des octets :
+   `fh.write(str)` levait l'erreur. `_read_and_compile()` compile désormais le
+   vrai chemin pour `file_path` (contexte `#include`/images relatif conservé)
+   et n'écrit un temporaire que pour `source`. La résolution async accepte
+   chemin disque, `/mnt/uploads/<nom>` (résolu vers `<uuid>_<nom>` en base),
+   `file_id`, nom affiché et URL `/api/v1/files/<id>/content`. Le mode `source`
+   reste inchangé (contournement confirmé).
+3. **PyYAML absent** — wheel officielle `pyyaml-6.0.3-cp314-…wasm32.whl`
+   téléchargée depuis le CDN Pyodide v314.0.3 (URL vérifiée 200), sha256
+   `2d30008b…630086b` **conforme** au `pyodide-lock.json`. Ajoutée à
+   `wheels-extra/` (4 wheel versionnées), `pyyaml`/`yaml`/`_yaml` ajoutés à la
+   table de détection (70 alias), prompt du bac à sable mis à jour.
+
+- `check_apk.py` : la liste des wheels garanties inclut `pyyaml-`, et le `.pyc`
+  embarqué doit contenir `P124 fichiers enregistres` et `pyyaml` (justification
+  : éviter qu'un correctif présent seulement dans les sources du dépôt soit
+  livré sans l'être dans l'APK — même piège que P121/P123).
+- `scripts/test_p124.py` (nouveau) : 8 contrôles locaux — 5 formes de
+  `file_path`, non-régression `source`, enregistrement d'une sortie malgré un
+  fichier homonyme sur disque, déduplication sans doublon. Tous verts avec
+  `.venv313/bin/python3`.
+- `apply_patches.sh` : 41 appliqués / 0 déjà / 0 échec (source amont restaurée
+  puis reconstruction complète) ; `py_compile` OK ; `docs/maintenance.typ`
+  mis à jour, PDF recompilé (747 009 octets, 0 avertissement).

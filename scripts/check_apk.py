@@ -122,9 +122,9 @@ def check_apk(apk: pathlib.Path) -> None:
                        "assets/frontend/pyodide/pyodide-lock.json"):
             if requis not in noms:
                 err(f"{apk.name} : absent — {requis}")
-        # P47 : wheels supplémentaires garantis dans l'artefact (statsmodels,
-        # pymupdf — sha256 conformes au lock pyodide)
-        for motif in ("statsmodels-", "pymupdf-", "patsy-"):
+        # P47/P124 : wheels supplémentaires garantis dans l'artefact
+        # (statsmodels, pymupdf, patsy, pyyaml — sha256 conformes au lock).
+        for motif in ("statsmodels-", "pymupdf-", "patsy-", "pyyaml-"):
             if not any(n.startswith("assets/frontend/pyodide/") and motif in n and n.endswith(".whl")
                        for n in noms):
                 err(f"{apk.name} : wheel {motif}* absente de assets/frontend/pyodide/")
@@ -182,6 +182,17 @@ def check_apk(apk: pathlib.Path) -> None:
                         if not any(b"fm_browser" in bundle.read(n)
                                    for n in noms_b if n.endswith(".pyc")):
                             err(f"{label} : route /fm (fm_browser) absente du code embarqué")
+                        # P124 : le correctif doit être présent dans le .pyc
+                        # embarqué, pas seulement dans les sources du dépôt.
+                        outils = [bundle.read(n) for n in noms_b
+                                  if n.endswith("android_tools.pyc")]
+                        if not outils:
+                            err(f"{label} : android_tools.pyc absent")
+                        else:
+                            for marqueur in (b"P124 fichiers enregistres", b"pyyaml"):
+                                if not any(marqueur in o for o in outils):
+                                    err(f"{label} : marqueur {marqueur!r} absent de "
+                                        f"android_tools.pyc (P124 perdu)")
                     elif "requirements-common" in bundle_nom:
                         check_modules(bundle, label, MODULES_PIP)
                     check_noms_so(bundle, label)

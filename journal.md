@@ -4841,3 +4841,20 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   **Ces correctifs ne sont PAS dans la release `v0.0.80` déjà livrée** : une
   validation CI puis un nouveau cycle de version seront nécessaires pour les
   embarquer.
+
+## 2026-11-23 18:17 UTC — préparation prerelease `v0.0.81_beta`
+
+- `app/build.gradle` : `versionName '0.0.80'` → `'0.0.81_beta'` (le `versionCode`
+  reste calculé à la construction : base datée du jour du tag + numéro de run).
+- `.github/workflows/build-apk-submodule.yml` : l'étape Release porte désormais
+  `prerelease: ${{ contains(github.ref_name, '_beta') }}` et
+  `make_latest: ${{ !contains(github.ref_name, '_beta') }}` — un tag `*_beta`
+  est publié en prerelease et ne remplace jamais `v0.0.80` comme *Latest*.
+  Le commentaire d'en-tête cite le nouveau tag d'exemple.
+- Les mentions `v0.0.80` / `v0.0.80_beta` dans `maintenance.typ`, `PATCHES.md` et
+  `REFONTE.md` sont **historiques** et restent telles quelles.
+- Run de validation du correctif Typst `#45235746358` (sur `0e7ba5d`) encore en
+  cours au moment de cette écriture ; le build du tag `v0.0.81_beta` servira de
+  validation finale (même arborescence, avec le suffixe de version en plus).
+
+(à suivre : création du tag et résultat de la release)

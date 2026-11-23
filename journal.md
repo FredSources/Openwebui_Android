@@ -4925,3 +4925,31 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
   (`PyodideFileNav`, bouton Télécharger) puis ré-upload dans l'app, qui crée
   alors un `file_id`. Correctif possible (non appliqué) : patcher `+layout.svelte`
   pour renvoyer les fichiers écrits au backend, afin que P41/P108 les enregistre.
+
+## 2026-11-23 20:21 UTC — diagnostic multi-user (sans modification)
+
+- Question : les `file_id` distinguent-ils les fichiers par utilisateur dans la
+  base, et comment concilier le correctif envisagé avec le multi-utilisateur ?
+- **Réponse** : l'ID est un UUID global ; l'appartenance est portée par
+  `FileModel.user_id`, renseignée par `Files.insert_new_file(user_id, …)`, et
+  vérifiée par `_has_read_access_to_file` (propriétaire, admin, `access_grants`,
+  pièce jointe au modèle). Le contrôle par ID est donc bien réel — **sauf**
+  contours :
+  - P30 dans `display_file` (`/mnt/uploads/<nom>`) court-circuite ce contrôle et
+    renvoie `/fm/raw?name=…` ; or `/fm/raw` et `/fm/delete-raw` n'exigent que
+    `get_verified_user` (tout utilisateur connecté) et agissent sur n'importe
+    quel nom du dossier uploads. Fuite inter-comptes potentielle, préexistante.
+  - `_uploads_pour_sable()` injecte dans le bac à sable les fichiers du dossier
+    uploads dont le nom figure dans le code, **sans filtre `user_id`** : un
+    utilisateur connaissant un nom peut le faire charger dans son propre sandbox.
+  - Le navigateur `/fm`, lui, filtre bien via `Files.get_file_list(user_id=uid)`.
+- **Compatibilité du correctif Typst D14** : `compile_typst` utilise
+  `user_id = __user__['id']`, un UUID frais et un nom physique préfixé
+  `<uuid>_<base>` → conforme au modèle multi-user ; seul le pont P41/P108 reste
+  à activer proprement.
+- **Ordre recommandé avant activation de P41/P108** : (1) neutraliser le
+  raccourci P30 ou le faire résoudre vers un `file_id` ACL-vérifié ; (2) filtrer
+  `_uploads_pour_sable` par utilisateur ; (3) durcir `/fm/raw` et
+  `/fm/delete-raw` (propriétaire ou admin) ; (4) seulement alors patcher
+  `+layout.svelte` pour remonter les fichiers de sortie. Non appliqué : demande
+  d'un cycle de version dédié et de tests multi-comptes.

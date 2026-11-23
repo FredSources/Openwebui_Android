@@ -1,0 +1,93 @@
+diff --git a/src/lib/android/pyodide-files.ts b/src/lib/android/pyodide-files.ts
+new file mode 100644
+index 0000000..8d0312e
+--- /dev/null
++++ b/lib/android/pyodide-files.ts
+@@ -0,0 +1,87 @@
++// P123 — pont entre le systeme de fichiers du bac a sable Pyodide
++// (/mnt/uploads, persiste en IndexedDB) et le backend Android.
++//
++// Tout le code specifique au fork est isole ici : les patchs du fichier amont
++// `src/routes/+layout.svelte` se limitent a un import et a quelques appels.
++
++type FsEntry = { name: string; type: 'file' | 'directory'; size: number };
++type FichierSortie = { name: string; data: string };
++
++/**
++ * Envoie une requete au worker Pyodide et attend sa reponse, avec une borne
++ * de temps : un worker muet ne doit jamais bloquer le callback attendu par
++ * le backend (sio.call). Les reponses FS portent un `id` different de celui
++ * de l'execution, donc le gestionnaire amont les ignore.
++ */
++const fsRequest = (
++	worker: Worker,
++	id: string,
++	type: string,
++	payload: Record<string, unknown>,
++	delai = 2000
++): Promise<any> =>
++	new Promise((resolve) => {
++		const reqId = `${id}:${type}:${Math.random().toString(36).slice(2)}`;
++		const handler = (event: MessageEvent) => {
++			if (event.data?.id !== reqId) return;
++			worker.removeEventListener('message', handler);
++			clearTimeout(garde);
++			resolve(event.data);
++		};
++		const garde = setTimeout(() => {
++			worker.removeEventListener('message', handler);
++			resolve(null);
++		}, delai);
++		worker.addEventListener('message', handler);
++		worker.postMessage({ type, id: reqId, ...payload });
++	});
++
++export const listUploads = async (worker: Worker, id: string): Promise<FsEntry[]> => {
++	const rep = await fsRequest(worker, id, 'fs:list', { path: '/mnt/uploads' });
++	return rep?.entries ?? [];
++};
++
++const toBase64 = (buffer: ArrayBuffer): string => {
++	const bytes = new Uint8Array(buffer);
++	let s = '';
++	for (let i = 0; i < bytes.length; i += 8192) {
++		s += String.fromCharCode(...bytes.subarray(i, i + 8192));
++	}
++	return btoa(s);
++};
++
++/**
++ * Renvoie les fichiers ECRITS pendant l'execution : on compare /mnt/uploads
++ * avant/apres pour ne pas re-enregistrer les fichiers d'entree (deja indexes
++ * avec un file_id cote backend). Plafond de 4 Mo pour ne pas noyer le canal.
++ */
++export const collectOutputFiles = async (
++	worker: Worker,
++	id: string,
++	avant: FsEntry[],
++	nomsEntree: Set<string>
++): Promise<FichierSortie[]> => {
++	const apres = await listUploads(worker, id);
++	const taillesAvant = new Map(avant.map((e) => [e.name, e.size]));
++	const sortie: FichierSortie[] = [];
++	let total = 0;
++	for (const ent of apres) {
++		if (ent.type !== 'file') continue;
++		if (nomsEntree.has(ent.name)) continue;
++		if (taillesAvant.get(ent.name) === ent.size) continue;
++		if (total + ent.size > 4 * 1024 * 1024) continue;
++		const rep = await fsRequest(worker, id, 'fs:read', {
++			path: `/mnt/uploads/${ent.name}`
++		});
++		if (rep?.data && !rep?.error) {
++			sortie.push({ name: ent.name, data: toBase64(rep.data) });
++			total += ent.size;
++		}
++	}
++	return sortie;
++};
++
++/** La liste du backend fait foi (imports dynamiques), la locale ajoute les alias. */
++export const mergePackages = (locaux: string[], amont: string[]): string[] => [
++	...new Set([...(amont || []), ...(locaux || [])])
++];

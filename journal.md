@@ -5057,3 +5057,33 @@ v0.0.80_beta, retry et corrige jusqu'à ce que le build soit ok ».
 - APK release vérifié (278 417 678 octets) : `_app/` 1 813 fichiers,
   marqueur `typing-inspection` présent dans `android_tools.pyc` livré.
 - État final : `master` = `df000d7`, tag `v0.0.81_beta` → `df000d7`.
+
+## 2026-11-23 22:41 UTC — P123 : pont de fichiers restauré + patchs allégés
+
+- Signalement (tableau utilisateur) : fichiers créés par `execute_code`
+  visibles dans `/mnt/uploads` mais **invisibles** dans l'API fichiers ;
+  `display_file` sur ces chemins répondait « Fichier introuvable ou non
+  autorisé » ; `delete_file` demandait un ID indisponible. `compile_typst`
+  et les uploads utilisateur fonctionnaient.
+- **Cause** : le patch `06-pyodide-output-files.patch` régénéré pour P121
+  depuis une source amont vierge avait **effacé** la collecte de fichiers de
+  sortie introduite par P120. Vérifié sur l'APK livrée : `fs:list`, `fs:read`
+  et `/mnt/uploads` absents du nœud principal du bundle (présents seulement
+  dans le worker). Le backend (`remonte_fichiers_sable`) était intact mais ne
+  recevait jamais `output['files']`.
+- **Correctif P123** :
+  - nouveau module `vendor/open-webui/src/lib/android/pyodide-files.ts`
+    (patch `frontend/07-pyodide-files-module.patch`) : requêtes FS bornées à
+    2 s, `listUploads`, `collectOutputFiles` (comparaison avant/après,
+    plafond 4 Mo), `mergePackages` ;
+  - `06-pyodide-output-files.patch` réécrit : 78 lignes au lieu de 101+39,
+    7 hunk (1 import, signature, fusion backend, instantané avant exécution,
+    handler async, collecte + `files:`, transmission `data.packages`). La
+    regex amont de détection n'est plus du tout modifiée (P122 couvre les 61
+    alias côté backend) ;
+  - `delete_file` accepte `/mnt/uploads/<nom>` et résout vers le `file_id`
+    ACL-vérifié (patch `backend/27`) ;
+  - `check_apk.py` : garde-fou sur les marqueurs du nœud principal — il
+    signale bien 3 erreurs sur l'APK P122.
+- `apply_patches.sh` : 41 appliqués, 0 déjà, 0 échec ; `py_compile` OK.
+  `docs/maintenance.typ` : paragraphe P123 ; PDF recompilé (738 766 octets).

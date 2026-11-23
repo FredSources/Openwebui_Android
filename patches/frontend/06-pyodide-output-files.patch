@@ -1,6 +1,14 @@
 --- a/routes/+layout.svelte
 +++ b/routes/+layout.svelte
-@@ -301,7 +301,7 @@
+@@ -9,6 +9,7 @@
+ 	import { io } from 'socket.io-client';
+ 	import { spring } from 'svelte/motion';
+ 	import { createPyodideWorker } from '$lib/pyodide/createPyodideWorker';
++	import { collectOutputFiles, listUploads, mergePackages } from '$lib/android/pyodide-files';
+ 	import { Toaster, toast } from 'svelte-sonner';
+ 
+ 	let loadingProgress = spring(0, {
+@@ -301,7 +302,7 @@
  		return worker;
  	};
  
@@ -9,26 +17,57 @@
  		let result = null;
  		let stdout = null;
  		let stderr = null;
-@@ -324,8 +324,17 @@
- 			/\bimport\s+openpyxl\b|\bfrom\s+openpyxl\b/.test(code) ? 'openpyxl' : null,
- 			/\.(read|to)_excel\(|\.Excel(Writer|File)\(/.test(code) ? 'openpyxl' : null,
+@@ -326,6 +327,9 @@
  			/\bimport\s+pptx\b|\bfrom\s+pptx\b/.test(code) ? 'python-pptx' : null,
--			/\bimport\s+docx\b|\bfrom\s+docx\b/.test(code) ? 'python-docx' : null
-+			/\bimport\s+docx\b|\bfrom\s+docx\b/.test(code) ? 'python-docx' : null,
-+			/\bimport\s+mpmath\b|\bfrom\s+mpmath\b/.test(code) ? 'mpmath' : null,
-+			/\bimport\s+PIL\b|\bfrom\s+PIL\b/.test(code) ? 'pillow' : null,
-+			/\bimport\s+fitz\b|\bfrom\s+fitz\b|\bimport\s+pymupdf\b/.test(code) ? 'pymupdf' : null,
-+			/\bimport\s+statsmodels\b|\bfrom\s+statsmodels\b/.test(code) ? 'statsmodels' : null
+ 			/\bimport\s+docx\b|\bfrom\s+docx\b/.test(code) ? 'python-docx' : null
  		].filter(Boolean);
-+		// P121 : le backend a déjà détecté TOUS les modules cités dans le code
-+		// (import littéral OU dynamique OU chaîne) et ne propose que des wheels
-+		// embarqués dans l'APK. Sa liste fait foi ; on ajoute la détection locale
-+		// pour les alias (PIL -> pillow, fitz -> pymupdf, bs4 -> beautifulsoup4).
-+		packages = [...new Set([...(paquetsAmont || []), ...packages])];
++		// P121/P123 : la liste du backend fait foi (imports dynamiques) ;
++		// le module isole ajoute les alias detectes localement.
++		packages = mergePackages(packages, paquetsAmont);
  
  		const worker = getOrCreateWorker();
  
-@@ -536,7 +545,7 @@
+@@ -348,6 +352,11 @@
+ 			}
+ 		}
+ 
++		// P120/P123 : instantane de /mnt/uploads avant execution, pour ne
++		// remonter que les fichiers reellement ecrits pendant celle-ci.
++		const nomsEntree = new Set(filePayloads.map((f) => f.name));
++		const avant = await listUploads(worker, id);
++
+ 		worker.postMessage({
+ 			type: 'execute',
+ 			id: id,
+@@ -384,7 +393,7 @@
+ 		}, 60000);
+ 
+ 		// Use addEventListener so multiple concurrent executions don't clobber each other
+-		const onMessage = (event) => {
++		const onMessage = async (event) => {
+ 			const { id: eventId, ...data } = event.data;
+ 			// Only handle responses for this execution ID
+ 			if (eventId !== id) return;
+@@ -401,13 +410,17 @@
+ 			data['result'] && (result = data['result']);
+ 
+ 			if (cb) {
++				// P120/P123 : le backend enregistre ces fichiers en base
++				// (/fm, display_file, delete_file par ID).
++				const fichiersSortie = await collectOutputFiles(worker, id, avant, nomsEntree);
+ 				cb(
+ 					JSON.parse(
+ 						JSON.stringify(
+ 							{
+ 								stdout: stdout,
+ 								stderr: stderr,
+-								result: result
++								result: result,
++								files: fichiersSortie
+ 							},
+ 							(_key, value) => (typeof value === 'bigint' ? value.toString() : value)
+ 						)
+@@ -536,7 +549,7 @@
  		if (data?.session_id === $socket.id) {
  			if (type === 'execute:python') {
  				console.log('execute:python', data);

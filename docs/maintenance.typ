@@ -1083,6 +1083,22 @@ Correctif P120 (même version `0.0.81_beta`). Quatre points indissociables :
   d'import (`PIL`, `fitz`, `bs4`, `docx`, `pptx`, `mpl_toolkits`, `pylab`…).
   Toute nouvelle wheel ajoutée à l'APK doit être ajoutée au lock *et* à
   cette table, sinon elle restera invisible de `execute_code`.
+- *Pont de fichiers et empreinte des patchs (P123)* : le patch P121 avait été
+  régénéré depuis une source amont vierge, ce qui a *effacé* la collecte des
+  fichiers de sortie ajoutée par P120 dans `+layout.svelte`. Résultat observé :
+  fichiers écrits par `execute_code` visibles dans `/mnt/uploads` mais absents
+  du gestionnaire `/fm`, `display_file('/mnt/uploads/…')` en « Fichier
+  introuvable ou non autorisé », et `delete_file` sans identifiant utilisable.
+  Les 56 wheels et le lock étaient pourtant intacts — le pont manquait.
+  Correctif : toute la logique propre au fork est isolée dans le nouveau module
+  `src/lib/android/pyodide-files.ts` (`fs:list`/`fs:read` bornés, comparaison
+  avant/après, fusion des listes de paquets). Le patch de `+layout.svelte` passe
+  d'une centaine de lignes à 7 modifications ciblées (un import + des appels), la regex
+  amont de détection n'est plus modifiée. `delete_file` accepte désormais
+  `/mnt/uploads/<nom>` et résout vers le `file_id` ACL-vérifié. Un contrôle
+  `check_apk.py` vérifie que les marqueurs `fs:list`/`fs:read`/`/mnt/uploads`
+  sont présents dans le *nœud principal* du bundle (et pas seulement dans le
+  worker), pour interdire toute nouvelle régression silencieuse.
 
 Le navigateur `/fm` filtrait déjà correctement via `Files.get_file_list(user_id=…)`.
 La régression à surveiller : une exécution qui ne produit aucun fichier doit

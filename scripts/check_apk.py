@@ -133,6 +133,20 @@ def check_apk(apk: pathlib.Path) -> None:
             contenu_index = lire(z, "assets/frontend/index.html") or b""
             if b"/fm" not in contenu_index:
                 err(f"{apk.name} : bouton /fm absent de index.html")
+        # P123 : garde-fou contre la regression P121 — le patch 06 avait ete
+        # regenere depuis une source vierge et la collecte de fichiers de
+        # sortie P120 avait disparu du bundle (fichiers execute_code invisibles
+        # au gestionnaire, display_file « introuvable »). Les appels fs:list /
+        # fs:read doivent etre dans le noeud principal, pas seulement dans le
+        # worker (qui les expose deja).
+        noeuds = b"".join(
+            lire(z, n) or b"" for n in noms
+            if n.startswith("assets/frontend/_app/immutable/nodes/") and n.endswith(".js")
+        )
+        for marqueur in (b"fs:list", b"fs:read", b"/mnt/uploads"):
+            if marqueur not in noeuds:
+                err(f"{apk.name} : marqueur {marqueur!r} absent du noeud principal — "
+                    f"pont de fichiers P120/P123 perdu")
 
     # 4/5. natifs de lib/
 

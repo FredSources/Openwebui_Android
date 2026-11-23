@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..9f8b86b
 --- /dev/null
 +++ b/tools/android_tools.py
-@@ -0,0 +1,613 @@
+@@ -0,0 +1,630 @@
 +"""OpenWebUI Android — outils et helpers AJOUTÉS (hors amont).
 +
 +Audit de divergence 2026-11-09 : pour rester au plus proche de l'origine
@@ -323,6 +323,23 @@ index 0000000..9f8b86b
 +    """
 +    try:
 +        from open_webui.models.files import Files
++
++        # P123 : accepter aussi /mnt/uploads/<nom> — un chemin du bac a sable
++        # n'est pas un identifiant, mais il resout vers le file_id ACL-verifie.
++        if file_id.startswith('/mnt/uploads/'):
++            import os as _os
++            _nom = _os.path.basename(file_id)
++            uid = (__user__ or {}).get('id')
++            _propres = await Files.get_files_by_user_id(uid) if uid else []
++            if (__user__ or {}).get('role') == 'admin':
++                _propres = await Files.get_files()
++            _trouve = next((x for x in _propres if x.filename == _nom or
++                            str((x.meta or {}).get('name') or '') == _nom), None)
++            if _trouve is None:
++                return JSONCodec.dumps(
++                    {'error': 'Fichier introuvable ou non autorisé', 'exists': False},
++                    ensure_ascii=False)
++            file_id = _trouve.id
 +
 +        f = await Files.get_file_by_id(file_id)
 +        if f is None:

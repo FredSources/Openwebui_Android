@@ -142,7 +142,7 @@ rencontré et sa solution, dans l'ordre chronologique.
   amont est un *diff lisible* versionné dans `patches/` et appliqué par
   `patch -p1 --forward` (idempotent). La chaîne v1 (`scripts/prepare_src.py`,
   remplacements par motifs minifiés) a été supprimée lors du nettoyage
-  v0.0.80_beta (voir `REFONTE.md`). Un diff qui ne s'applique plus *échoue fort*
+  v0.0.80 (voir `REFONTE.md`). Un diff qui ne s'applique plus *échoue fort*
   (pas de modification silencieuse).
 - Shims embarqués : `tiktoken` (comptage approximatif), `pycrdt` (collab
   dégradée), `NullVectorDB`, `LocalVectorDB`.
@@ -977,12 +977,12 @@ APK _debug_ et _release_ uniquement au push d'un tag `v*`, et publie la Release
 GitHub avec les APK attachés (même chaîne APK ; l'amont est reconstruit par
 `apply_patches.sh` depuis les submodules — voir `REFONTE.md`).
 Le workflow v1 (`build-apk.yml`) a été **supprimé** sur `master` (v2) lors du
-nettoyage v0.0.80_beta ; il reste sur `old` (`workflow_dispatch` uniquement).
+nettoyage v0.0.80 ; il reste sur `old` (`workflow_dispatch` uniquement).
 Adaptations automatiques du runner x86_64 : retrait de la surcharge
 `aapt2FromMavenOverride` (qemu), JDK système accepté si `tools/jdk` (aarch64) est
 absent, `.venv313` recréé en CPython 3.13, SearXNG cloné au commit figé. En v1,
 le `versionCode` CI vaut `10000 + numéro d'exécution` *du workflow v1* ;
-depuis v0.0.80_beta (v2), il vaut `(année 2 chiffres + jour de l'année) × 1000
+depuis v0.0.80 (v2), il vaut `(année 2 chiffres + jour de l'année) × 1000
 + numéro d'exécution` (`$(date -u +%y%j)`) — schéma strictement croissant entre
 releases, indépendant du workflow émetteur, qui garantit l'installation par-dessus
 les versions précédentes (le compteur `GITHUB_RUN_NUMBER` est propre à chaque

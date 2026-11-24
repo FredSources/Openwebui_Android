@@ -5252,3 +5252,14 @@ Correctifs :
 - `apply_patches.sh` : 41 appliqués / 0 déjà / 0 échec ; en-têtes de patchs
   revérifiés (0 divergence) ; `py_compile` OK ; `docs/maintenance.typ` complété
   et PDF recompilé (755 562 octets, 0 avertissement).
+
+## 2026-11-24 00:28 UTC — P126 livré (même tag)
+
+- Commit `e5e0047`, tag `v0.0.81_beta` recréé dessus. Run CI `#45296268540`
+  **vert** (00:27 UTC), 2 APK, `prerelease=true`, `Latest` toujours `v0.0.80`.
+- APK release vérifiée (278 529 579 octets) : `check_apk.py` vert. Dans
+  `android_tools.pyc` : `P126 echec enregistrement`, `P124/P125 fichiers
+  enregistres` et `pyyaml` présents ; dans `android_fm.pyc` : `rglob` et
+  `get_file_list` présents. Nœud principal du frontend : `fs:list`, `fs:read`,
+  `/mnt/uploads` intacts.
+- État final : `master` = `e5e0047`, tag `v0.0.81_beta` → `e5e0047`.

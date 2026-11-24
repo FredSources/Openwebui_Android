@@ -1126,7 +1126,23 @@ Correctif P120 (même version `0.0.81_beta`). Quatre points indissociables :
     `check_apk.py` exige désormais sa présence dans l'APK et les marqueurs
     P124/P125 dans `android_tools.pyc`.
 
-Le navigateur `/fm` filtrait déjà correctement via `Files.get_file_list(user_id=…)`.
+- *Périmètre « utilisateur courant » (P126)* — l'utilisateur a précisé que la
+  référence est le filesystem vu par `list_files` : les fichiers de
+  l'utilisateur courant, pas ceux de tous les comptes. Trois écarts furent
+  identifiés : `/fm` et l'outil `list_files` utilisaient `user_id=None` pour un
+  administrateur (donc tous les fichiers), l'outil plafonnait à 200 entrées, et
+  `/fm` paginait seulement les fiches en base en ajoutant *tous* les orphelins
+  à chaque page. Désormais : `uid = user.id` partout (y compris admin),
+  `list_files` pagine jusqu'à épuisement (garde-fou 10 000), les orphelins sont
+  cherchés récursivement dans `uploads/` et sont paginés avec les fiches dans une
+  liste unique triée par date. Le pont P124/P125 journalise enfin chaque échec
+  d'enregistrement (`P126 echec enregistrement …`) au lieu de l'avaler : un
+  fichier écrit dans le sable mais non enregistré ne peut plus disparaître
+  silencieusement de l'explorateur et de `/fm`. `scripts/test_p126.py` vérifie
+  les 450 fichiers sur 3 pages, l'absence de contournement admin, la trace
+  d'échec et les quatre marqueurs de `/fm`. `check_apk.py` exige le marqueur
+  `P126 echec enregistrement` dans `android_tools.pyc`.
+
 La régression à surveiller : une exécution qui ne produit aucun fichier doit
 toujours répondre `files: []`, et un `display_file` avec le nom d'autrui doit
 répondre « Fichier introuvable ou non autorisé ».

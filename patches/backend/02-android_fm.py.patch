@@ -1,7 +1,7 @@
 --- a/android_fm.py
 new file mode 100644
 +++ b/android_fm.py
-@@ -0,0 +1,1374 @@
+@@ -0,0 +1,1382 @@
 +"""OpenWebUI Android — navigateur de fichiers /fm + maintenance (P27/P31/P36).
 +
 +Module AJOUTÉ hors amont (audit de divergence 2026-11-09) : ces routes
@@ -611,7 +611,9 @@ new file mode 100644
 +        if not _UP.is_dir():
 +            return []
 +        orphelins = []
-+        for p in _UP.iterdir():
++        # P126 : rglob (et non iterdir) — les fichiers ecrits dans un sous-
++        # dossier de uploads etaient invisibles de /fm.
++        for p in _UP.rglob('*'):
 +            try:
 +                if p.is_file() and _os.path.realpath(p) not in deja_references:
 +                    orphelins.append(p)
@@ -688,7 +690,9 @@ new file mode 100644
 +            _journaux_on = _journaux_actifs()
 +            page = max(1, int(request.query_params.get('page') or 1))
 +            per_page = 50
-+            uid = None if user.role == 'admin' else user.id
++            # P126 : perimetre = utilisateur COURANT, y compris pour un admin —
++            # la reference est list_files, qui n'ouvre pas les autres comptes.
++            uid = user.id
 +            result = await Files.get_file_list(user_id=uid, skip=0, limit=10000)
 +            items = []
 +            for f in result.items:
@@ -728,18 +732,20 @@ new file mode 100644
 +                orph.append((p, nom_aff))
 +            if src == 'base':
 +                orph = []  # P109 : origine « en base » — on masque les orphelins du disque
-+            total = len(items) + len(orph)
-+            page_items = items[(page - 1) * per_page: page * per_page]
-+            rows_l = [_fm_row(f) for f in page_items]
++            # P126 : une SEULE liste triee (fiches base + orphelins disque) ;
++            # la pagination porte sur l'union, sinon les orphelins s'ajoutent
++            # a CHAQUE page et le compteur total ne correspondait pas au contenu.
++            entrees = [(_key(f), _fm_row(f)) for f in items]
 +            for p, nom_aff in orph:
 +                try:
 +                    st = p.stat()
 +                    taille = _fm_size(st.st_size)
 +                    quand = _dt.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M")
++                    instant = st.st_mtime
 +                except Exception:
-+                    taille, quand = "\u2014", ""
++                    taille, quand, instant = "\u2014", "", 0.0
 +                kind_o = _fm_kind(nom_aff, '')
-+                rows_l.append(
++                entrees.append((instant,
 +                    f"<tr><td class=\"ico\">{_FM_ICO[kind_o]}</td>"
 +                    f"<td><a href=\"/fm/raw?name={_quote(p.name)}\">{_html.escape(nom_aff)}</a></td>"
 +                    f"<td>{taille}</td><td>{quand}</td><td>sur disque</td><td>"
@@ -748,8 +754,10 @@ new file mode 100644
 +                    f"onsubmit=\"return confirm('Supprimer ce fichier ?')\">"
 +                    f"<input type=\"hidden\" name=\"name\" value=\"{_html.escape(p.name)}\">"
 +                    f"<button class=\"del\">Suppr.</button></form></td></tr>"
-+                )
-+            body = "".join(rows_l) or "<tr><td colspan=\"6\" class=\"empty\">Aucun fichier ici pour le moment.</td></tr>"
++                ))
++            entrees.sort(key=lambda e: e[0], reverse=True)
++            total = len(entrees)
++            body = "".join(row for _, row in entrees[(page - 1) * per_page:page * per_page]) or "<tr><td colspan=\"6\" class=\"empty\">Aucun fichier ici pour le moment.</td></tr>"
 +            # P109 — la sidebar (arbre) est fournie par _fm_page ; ici, le sélecteur
 +            # d'origine des fichiers : en base, sur disque, ou les deux.
 +            src_liens = (

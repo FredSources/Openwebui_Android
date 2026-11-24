@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..9f8b86b
 --- /dev/null
 +++ b/tools/android_tools.py
-@@ -0,0 +1,681 @@
+@@ -0,0 +1,694 @@
 +"""OpenWebUI Android — outils et helpers AJOUTÉS (hors amont).
 +
 +Audit de divergence 2026-11-09 : pour rester au plus proche de l'origine
@@ -321,23 +321,33 @@ index 0000000..9f8b86b
 +        from open_webui.models.files import Files
 +
 +        user = __user__ or {}
-+        result = await Files.get_file_list(
-+            user_id=(None if user.get('role') == 'admin' else user.get('id')),
-+            skip=0,
-+            limit=200,
-+        )
++        uid = user.get('id') or ''
++        if not uid:
++            return JSONCodec.dumps([])
++        # P126 : la reference est le filesystem de l'utilisateur COURANT —
++        # pas de privilege admin (les autres comptes restent invisibles) et
++        # plus de plafond de 200 : on pagine jusqu'a epuisement (garde-fou
++        # 10 000 fichiers). C'est cet outil qui fait foi pour l'explorateur.
 +        out = []
 +        q = (query or '').strip().lower()
-+        for f in (result.items if result else []):
-+            if q and q not in (f.filename or '').lower():
-+                continue
-+            meta = getattr(f, 'meta', None)
-+            out.append({
-+                'id': f.id,
-+                'filename': f.filename,
-+                'size': getattr(meta, 'size', None),
-+                'updated_at': f.updated_at,
-+            })
++        taille_page = 200
++        for _page in range(50):
++            lot = await Files.get_file_list(user_id=uid, skip=_page * taille_page, limit=taille_page)
++            rang = list(lot.items) if lot else []
++            for f in rang:
++                if q and q not in (f.filename or '').lower():
++                    continue
++                meta = getattr(f, 'meta', None)
++                _cle = meta.get if isinstance(meta, dict) else lambda k, d=None: getattr(meta, k, d)
++                out.append({
++                    'id': f.id,
++                    'filename': f.filename,
++                    'name': str(_cle('name') or '') or None,
++                    'size': _cle('size'),
++                    'updated_at': f.updated_at,
++                })
++            if len(rang) < taille_page:
++                break
 +        return JSONCodec.dumps(out, ensure_ascii=False)
 +    except Exception as e:
 +        log.exception(f'list_files error: {e}')
@@ -654,8 +664,11 @@ index 0000000..9f8b86b
 +                               'size': len(_brut)}),
 +            )
 +            produits.append({'name': _nom, 'file_id': _id})
-+        except Exception:
-+            pass
++        except Exception as _exc:
++            # P126 : ne plus avaler l'echec. Sans cette trace, un fichier ecrit
++            # dans le sable disparait de l'explorateur ET de /fm sans explication.
++            journal_exec_ligne("P126 echec enregistrement %s: %s: %s" % (
++                _nom, type(_exc).__name__, _exc))
 +    journal_exec_ligne("P124/P125 fichiers enregistres=%s" % len(produits))
 +    return produits
 +

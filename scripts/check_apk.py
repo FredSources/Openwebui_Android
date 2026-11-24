@@ -189,10 +189,11 @@ def check_apk(apk: pathlib.Path) -> None:
                         if not outils:
                             err(f"{label} : android_tools.pyc absent")
                         else:
-                            for marqueur in (b"P124/P125 fichiers enregistres", b"pyyaml"):
+                            for marqueur in (b"P124/P125 fichiers enregistres",
+                                             b"P126 echec enregistrement", b"pyyaml"):
                                 if not any(marqueur in o for o in outils):
                                     err(f"{label} : marqueur {marqueur!r} absent de "
-                                        f"android_tools.pyc (P124 perdu)")
+                                        f"android_tools.pyc (P124/P126 perdu)")
                     elif "requirements-common" in bundle_nom:
                         check_modules(bundle, label, MODULES_PIP)
                     check_noms_so(bundle, label)

@@ -5210,3 +5210,45 @@ Suite directe de la limite annoncée après P124 : un fichier écrasé avec
   comparaison après (`Ro(n.contenus.get(...), L)`), puis `mergePackages`
   complet en fin de module.
 - État final : `master` = `217a9e7`, tag `v0.0.81_beta` → `217a9e7`.
+
+## 2026-11-24 00:19 UTC — P126 (en cours de livraison)
+
+Signalement : l'explorateur Open WebUI et `/fm` ne montrent pas l'ensemble des
+fichiers de l'utilisateur. L'utilisateur a précisé le périmètre attendu :
+**le filesystem affiche les fichiers de l'utilisateur courant** — `list_files`
+est la référence.
+
+Diagnostic (quatre causes distinctes) :
+
+1. `/fm` (`02-android_fm.py.patch`) et l'outil `list_files`
+   (`27-tools__android_tools.py.patch`) posaient `user_id=None` pour un
+   administrateur, donc tous les comptes — contrairement à l'explorateur
+   (`/files/user/search`, toujours `user.id`). Quatre écrans, quatre ensembles.
+2. `list_files` plafonnait à 200 fichiers sans pagination.
+3. `/fm` paginait les 50 fiches de base par page mais ajoutait **tous** les
+   orphelins disque à chaque page ; le compteur `Nom ({total})` ne
+   correspondait pas au contenu affiché. De plus `_fm_orphelins` ne scannait
+   que le premier niveau de `uploads/`.
+4. Le pont P124/P125 avalait les exceptions d'enregistrement (`except: pass`) :
+   un fichier écrit dans le sable mais non enregistré disparaissait sans trace
+   de l'explorateur **et** de `/fm`.
+
+Correctifs :
+
+- `uid = user.id` dans `/fm` (y compris admin) ; `list_files` utilise
+  `user.get('id')`, rend `[]` sans identifiant et pagine par 200 jusqu'à
+  épuisement (garde-fou 10 000), en exposant aussi `meta.name`.
+- `/fm` : `_UP.rglob('*')` (orphelins récursifs), union base + orphelins dans
+  une seule liste triée par date, pagination sur l'union (le `total` et les
+  liens précédent/suivant reflètent enfin le contenu).
+- Pont : `journal_exec_ligne("P126 echec enregistrement …")` sur chaque échec,
+  nom du fichier et exception inclus.
+- `scripts/test_p126.py` (nouveau) : 6 contrôles verts — 450 fichiers sur 3
+  pages, aucun appel avec un autre `user_id` malgré `role=admin`, absence du
+  fichier d'autrui, trace d'échec d'enregistrement, 4 marqueurs `/fm`.
+- `check_apk.py` exige le marqueur `P126 echec enregistrement` dans
+  `android_tools.pyc` (justification : éviter qu'un correctif livré seulement
+  dans les sources du dépôt soit absent de l'APK — même piège que P121/P123).
+- `apply_patches.sh` : 41 appliqués / 0 déjà / 0 échec ; en-têtes de patchs
+  revérifiés (0 divergence) ; `py_compile` OK ; `docs/maintenance.typ` complété
+  et PDF recompilé (755 562 octets, 0 avertissement).

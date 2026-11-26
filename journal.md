@@ -5354,4 +5354,14 @@ Validation locale : reconstruction propre → **45 appliqués / 0 déjà / 0 éc
 `tools.builtin`, `utils.oauth` OK ; régressions P124, P126, P151 vertes.
 `check_apk.py` exige désormais `asyncssh` dans le bundle pip et
 `## [0.13.5]` dans le changelog embarqué. `docs/maintenance.typ` complété et
-PDF recompilé.
+PDF recompilé (776 240 octets, 0 avertissement, contrôle grammatical OK).
+
+Livraison : commit `d498691`, tag `v0.0.81_beta` recréé dessus, CI
+`#45902427541` **verte** (22:11 UTC), release prerelease recréée à 22:10 UTC
+avec 2 APK, `Latest` toujours `v0.0.80`. APK release vérifiée (280 470 200
+octets, SHA-256 `b72362b8…8970`) : `check_apk.py` vert, signature
+`CN=OpenWebUI Android, O=FredSources` / `7fa258…dc34e4` identique aux versions
+précédentes, changelog `## [0.13.5]` et module `asyncssh` bien embarqués.
+`versionCode` calculé sur le même jour UTC avec les runs 24 → 25 : il est donc
+strictement supérieur à celui de l'APK remplacée (`#45897766408`, run 24), ce
+qui garantit l'installation par-dessus sans désinstallation.

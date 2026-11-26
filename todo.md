@@ -312,4 +312,5 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       `http://127.0.0.1:8888/`), paramètre `sub` avec repli sur `service`,
       rappel dans Service du moteur `searxng` et de l'URL de requête à configurer
       dans Open WebUI, 6 cas de `test_p155.py` verts ; `check_apk.py` étendu ;
-      livraison groupée avec P154 en cours
+      livrés ensemble sous `v0.0.81_beta` (CI #45911506476 verte, tag recréé,
+      APK vérifiées, `Latest` = `v0.0.80`)

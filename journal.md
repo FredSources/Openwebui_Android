@@ -5496,4 +5496,35 @@ Ces deux valeurs sont relues depuis `routers/retrieval.py` et `android_main.py`
 (aucune URL inventée). La sonde P155 vérifie leur présence dans le HTML rendu.
 
 Livraison groupée avec P154 : un seul commit, un seul tag `v0.0.81_beta`
-écrasé, une seule release prerelease régénérée — détail ajouté après la CI.
+écrasé, une seule release prerelease régénérée — détail ci-dessous.
+
+## 2026-11-26 23:40 UTC — livraison groupée P154/P155 sous `v0.0.81_beta`
+
+Un seul commit de code (`e2b6814`, message « P154/P155 — OpenAI aiohttp 3.10
+et sous-onglets SearXNG dans /fm ») a été poussé sur `master`, puis l'ancien tag
+et l'ancienne release `v0.0.81_beta` ont été supprimés (`gh release delete
+--yes --cleanup-tag`) et recréés sur ce commit : le tag annoté pointe bien sur
+`e2b68146a0b2e27c814f8b5cd3f07cd8817e7c2f`. CI `#45911506476` **verte** à
+23:39 UTC (47 patchs appliqués / 0 échec dans le run, APK debug + release,
+vérification de la chaîne). Release publiée à 23:38:51 UTC avec
+`isPrerelease=true` ; `Latest` reste `v0.0.80` (vérifié via l'API GitHub
+`/releases/latest`), aucune release `v0.0.81` stable ni `v0.0.82_beta`.
+
+APK release : 280 477 840 octets, SHA-256
+`d8f27652d882ebe8b01476f2c4501ada3bc0dd51517be5783a0a2c50a9bcde2d`.
+APK debug : 291 529 433 octets, SHA-256
+`cea405c0c23785cde78fcdf69f108f1d97b8fa539a9a2d9f9ea04650d818e520`.
+`check_apk.py` vert sur les deux ; signature `CN=OpenWebUI Android,
+O=FredSources`, empreinte `7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4`
+identique aux livraisons précédentes (mise à jour sans désinstallation).
+`versionCode=26330028` (run 28, contre 26330026 en P153) : toujours croissant
+sur le même jour UTC.
+
+Contrôle direct du bytecode embarqué (archive `assets/chaquopy/app.imy`, 704
+`.pyc`) sur **les deux APK** : marqueur P154 dans `utils/aws.pyc`, marqueur P153
+dans `machines/managed.pyc`, et dans `android_fm.pyc` les marqueurs P155,
+`class="subtabs"`, `class="sxcfg"`, `http://127.0.0.1:8888/`, la valeur interne
+`embedded-searxng` et l'URL de requête `http://127.0.0.1:8888/search?q=<query>`
+— le rappel demandé dans la carte Service est donc bien dans l'APK livré.
+Aucun serveur de test résiduel (`pgrep -f 'venv313/bin/pyth[o]n'` vide) ; le
+port 8080 de l'appli n'a jamais été utilisé par un harnais.

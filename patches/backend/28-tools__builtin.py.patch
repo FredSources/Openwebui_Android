@@ -1,9 +1,7 @@
-diff --git a/tools/builtin.py b/tools/builtin.py
-index 0dfa235..ec544de 100644
 --- a/tools/builtin.py
 +++ b/tools/builtin.py
-@@ -71,6 +71,14 @@ from open_webui.tools.knowledge_fs import kb_exec  # noqa: F401 — re-exported
- from open_webui.utils.access_control.files import has_access_to_note_files
+@@ -75,6 +75,14 @@
+ from open_webui.utils.access_control.notes import has_note_access
  from open_webui.utils.chat_id import is_saved_chat_id
  from open_webui.utils.json_codec import JSONCodec
 +# P0 : code ajouté Android isolé dans un module hors amont (audit de
@@ -17,7 +15,7 @@ index 0dfa235..ec544de 100644
  from open_webui.utils.notifications import notify_target
  from open_webui.utils.sanitize import sanitize_code
  from open_webui.utils.skill_files import SkillFile, SkillFileOperation, skill_content_page, skill_overview
-@@ -329,7 +337,17 @@ async def search_web(
+@@ -317,7 +325,17 @@
          )
      except Exception as e:
          log.exception(f'search_web error: {e}')
@@ -36,7 +34,7 @@ index 0dfa235..ec544de 100644
  
  
  async def fetch_url(
-@@ -347,7 +365,26 @@ async def fetch_url(
+@@ -335,7 +353,26 @@
          return JSONCodec.dumps({'error': 'Request context not available'})
  
      try:
@@ -64,7 +62,7 @@ index 0dfa235..ec544de 100644
  
          # Truncate if configured (WEB_FETCH_MAX_CONTENT_LENGTH)
          # Guard: content may be None if the web loader silently failed
-@@ -358,7 +395,17 @@ async def fetch_url(
+@@ -346,7 +383,17 @@
          else:
              content = ''
  
@@ -83,7 +81,7 @@ index 0dfa235..ec544de 100644
      except Exception as e:
          log.warning(f'fetch_url error: {e}')
          return JSONCodec.dumps({'error': str(e)})
-@@ -762,6 +809,7 @@ async def ask_user(
+@@ -748,6 +795,7 @@
  
  async def execute_code(
      code: str,
@@ -91,7 +89,7 @@ index 0dfa235..ec544de 100644
      __request__: Request = None,
      __user__: dict = None,
      __event_emitter__: callable = None,
-@@ -787,6 +835,16 @@ async def execute_code(
+@@ -773,6 +821,16 @@
          # Sanitize code (strips ANSI codes and markdown fences)
          code = sanitize_code(code)
  
@@ -108,7 +106,7 @@ index 0dfa235..ec544de 100644
          # Import blocked modules from config (same as middleware)
          from open_webui.config import CODE_INTERPRETER_BLOCKED_MODULES
  
-@@ -816,6 +874,7 @@ async def execute_code(
+@@ -802,6 +860,7 @@
              code = blocking_code + '\n' + code
  
          engine = await Config.get('code_interpreter.engine', 'pyodide')
@@ -116,7 +114,7 @@ index 0dfa235..ec544de 100644
          if engine == 'pyodide':
              # Execute via frontend pyodide using bidirectional event call
              if __event_call__ is None:
-@@ -823,17 +882,33 @@ async def execute_code(
+@@ -809,17 +868,33 @@
                      {'error': 'Event call not available. WebSocket connection required for pyodide execution.'}
                  )
  
@@ -153,7 +151,7 @@ index 0dfa235..ec544de 100644
  
              # Parse the output - pyodide returns dict with stdout, stderr, result
              if isinstance(output, dict):
-@@ -871,6 +946,12 @@ async def execute_code(
+@@ -857,6 +932,12 @@
          else:
              return JSONCodec.dumps({'error': f'Unknown code interpreter engine: {engine}'})
  
@@ -166,7 +164,7 @@ index 0dfa235..ec544de 100644
          # Handle image outputs (base64 encoded) - replace with uploaded URLs
          # Get actual user object for image upload (upload_image requires user.id attribute)
          if __user__ and __user__.get('id'):
-@@ -909,16 +990,29 @@ async def execute_code(
+@@ -895,16 +976,29 @@
                              result_lines[idx] = f'![Output Image]({image_url})'
                  result = '\n'.join(result_lines)
  
@@ -197,7 +195,7 @@ index 0dfa235..ec544de 100644
          return JSONCodec.dumps({'error': str(e)})
  
  
-@@ -1447,6 +1541,11 @@ async def write_note(
+@@ -1419,6 +1513,11 @@
  
          user_id = __user__.get('id')
  
@@ -209,7 +207,7 @@ index 0dfa235..ec544de 100644
          form = NoteForm(
              title=title,
              data={'content': {'md': content}},
-@@ -1461,6 +1560,17 @@ async def write_note(
+@@ -1433,6 +1532,17 @@
          if not new_note:
              return JSONCodec.dumps({'error': 'Failed to create note'})
  
@@ -227,7 +225,7 @@ index 0dfa235..ec544de 100644
          return JSONCodec.dumps(
              {
                  'status': 'success',
-@@ -1540,6 +1650,15 @@ async def replace_note_content(
+@@ -1512,6 +1622,15 @@
          current_content = page['content'].get('md') or ''
          applied_operation_count = 0
          range_operations = []
@@ -243,7 +241,7 @@ index 0dfa235..ec544de 100644
          if operations is not None:
              if not isinstance(operations, list) or len(operations) == 0:
                  return JSONCodec.dumps({'error': 'operations must be a non-empty list', 'code': 'invalid_operations'})
-@@ -2414,6 +2533,27 @@ async def search_knowledge_bases(
+@@ -2440,6 +2559,27 @@
                  }
              )
  
@@ -271,7 +269,7 @@ index 0dfa235..ec544de 100644
          return JSONCodec.dumps(knowledge_bases, ensure_ascii=False)
      except Exception as e:
          log.exception(f'search_knowledge_bases error: {e}')
-@@ -2495,10 +2635,15 @@ async def search_knowledge_files(
+@@ -2521,10 +2661,15 @@
                  ):
                      continue
  
@@ -288,7 +286,7 @@ index 0dfa235..ec544de 100644
                      skip=0,
                      limit=count + skip,
                  )
-@@ -2552,7 +2697,7 @@ async def search_knowledge_files(
+@@ -2578,7 +2723,7 @@
              result = await Knowledges.search_files_by_id(
                  knowledge_id=knowledge_id,
                  user_id=user_id,
@@ -297,7 +295,7 @@ index 0dfa235..ec544de 100644
                  skip=skip,
                  limit=count,
              )
-@@ -2560,6 +2705,7 @@ async def search_knowledge_files(
+@@ -2586,6 +2731,7 @@
              result = await Knowledges.search_knowledge_files(
                  filter={
                      'query': query,
@@ -305,7 +303,7 @@ index 0dfa235..ec544de 100644
                      'user_id': user_id,
                      'group_ids': user_group_ids,
                  },
-@@ -3306,6 +3452,21 @@ async def display_file(
+@@ -3332,6 +3478,21 @@
      try:
          from open_webui.models.files import Files
  
@@ -327,7 +325,7 @@ index 0dfa235..ec544de 100644
          if '/' not in path:
              path = f'/api/v1/files/{path}/content'
          parts = path.split('/')
-@@ -3316,6 +3477,14 @@ async def display_file(
+@@ -3342,6 +3503,14 @@
  
          file = await Files.get_file_by_id(parts[4])
          if not file:
@@ -342,7 +340,7 @@ index 0dfa235..ec544de 100644
              return JSONCodec.dumps({'error': 'File not found', 'exists': False})
  
          if not await _has_read_access_to_file(file, __user__, __model_knowledge__):
-@@ -3774,6 +3943,22 @@ async def query_knowledge_bases(
+@@ -3782,6 +3951,22 @@
  
              accessible_ids = [kb.id for kb in accessible_knowledge_bases.items]
  
@@ -365,7 +363,7 @@ index 0dfa235..ec544de 100644
              search_results = await ASYNC_VECTOR_DB_CLIENT.search(
                  collection_name=KNOWLEDGE_BASES_COLLECTION,
                  vectors=[query_embedding],
-@@ -3817,6 +4002,27 @@ async def query_knowledge_bases(
+@@ -3825,6 +4010,27 @@
                      }
                  )
  
@@ -393,7 +391,7 @@ index 0dfa235..ec544de 100644
          return JSONCodec.dumps(matching_knowledge_bases, ensure_ascii=False)
  
      except Exception as e:
-@@ -4057,8 +4263,9 @@ async def create_tool(
+@@ -4064,8 +4270,9 @@
      """Create a private Python tool in the workspace.
      Source must define a Tools class with public methods, type hints, and descriptive docstrings.
      Use Valves or UserValves for credentials; do not embed secrets. Saving executes the Python module on the server.
@@ -404,18 +402,18 @@ index 0dfa235..ec544de 100644
      :param name: Display name.
      :param description: Short description of what the tool does.
      :param content: Complete Python source, without Markdown fences.
-@@ -4457,6 +4664,10 @@ async def create_automation(
+@@ -4465,7 +4672,10 @@
          except ValueError as e:
              return JSONCodec.dumps({'error': str(e)})
  
 +        # P45 : \n littéraux convertis (la docstring les montre ainsi — les
 +        # LLM la copient ; le parseur RRULE exige de vrais sauts de ligne)
-+        if rrule:
+         if rrule:
 +            rrule = rrule.replace('\\r', '').replace('\\n', '\n').replace('\\t', ' ')
-         # Validate the RRULE
-         try:
-             await validate_rrule(rrule, tz=user.timezone)
-@@ -4553,6 +4764,9 @@ async def update_automation(
+             try:
+                 await validate_rrule(rrule, tz=user.timezone)
+             except ValueError as e:
+@@ -4580,6 +4790,9 @@
          new_name = name if name is not None else automation.name
          new_prompt = prompt if prompt is not None else automation.data.get('prompt', '')
          new_model_id = model_id.strip() if model_id and model_id.strip() else automation.data.get('model_id', '')
@@ -425,7 +423,7 @@ index 0dfa235..ec544de 100644
          new_rrule = rrule if rrule is not None else automation.data.get('rrule', '')
          if folder_id is None:
              new_folder_id = None
-@@ -5068,7 +5282,9 @@ async def update_calendar_event(
+@@ -5105,7 +5318,9 @@
  ) -> str:
      """
      Update an existing calendar event. Only provided fields are changed;

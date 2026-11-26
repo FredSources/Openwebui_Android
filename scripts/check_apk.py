@@ -26,8 +26,9 @@ import tempfile
 import zipfile
 
 MODULES_PIP = ["typst", "pycrdt", "msgspec", "pydantic_core", "jiter", "orjson",
-               "rpds", "uuid_utils"]
+               "rpds", "uuid_utils", "asyncssh"]  # P152 : asyncssh requis par routers/machines
 MODULES_APP = ["open_webui", "searx", "tiktoken", "re2"]
+VERSION_AMONT = b"## [0.13.5]"  # P152 : changelog embarqué = version amont réellement livrée
 SUFFIXES_VALIDES = (".abi3.so", ".cpython-313-aarch64-linux-android.so", ".so")
 GLIBC = re.compile(r"lib(c|m|dl)\.so\.[0-9]")
 
@@ -178,6 +179,14 @@ def check_apk(apk: pathlib.Path) -> None:
                             if requis not in noms_b:
                                 err(f"{label} : absent — {requis} (piège git SearXNG)")
                         check_modules(bundle, label, MODULES_APP)
+                        # P152 : le changelog sert à l'UI (pkgutil.get_data).
+                        # Vérifier la version amont réellement embarquée évite de
+                        # livrer une APK v0.13.4 sous une étiquette v0.13.5.
+                        changelog = bundle.read("open_webui/CHANGELOG.md") \
+                            if "open_webui/CHANGELOG.md" in noms_b else b""
+                        if VERSION_AMONT not in changelog:
+                            err(f"{label} : changelog embarqué sans {VERSION_AMONT.decode()} "
+                                f"(montée amont P152 perdue)")
                         # route /fm : chercher dans les .pyc (le zip est compressé)
                         if not any(b"fm_browser" in bundle.read(n)
                                    for n in noms_b if n.endswith(".pyc")):

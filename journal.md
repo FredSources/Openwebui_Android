@@ -5303,3 +5303,55 @@ masquage Svelte, garde-fou runtime, marqueur) ; régressions `test_p124.py` et
 `pdf.pyc` (justification : comme P124/P126, éviter un correctif livré seulement
 dans les sources du dépôt). `docs/maintenance.typ` complété et PDF recompilé
 (761 996 octets, 0 avertissement, contrôle grammatical OK).
+
+## 2026-11-26 21:48 UTC — P151 livrée
+
+Secret GitHub réparé : le mot de passe réel du keystore est celui de
+`~/.openwebui-release/.password` (identique pour le store et la clé), alors que
+les secrets contenaient la valeur différente des lignes `export` de
+`CREDENTIALS.txt`. Les 4 secrets ont été reposés depuis le keystore local
+(empreinte SHA-256 `7fa258…dc34e4`, identique à l'APK P126 connue) sans rien
+afficher ni demander de renvoi. CI `#45897766408` **verte** au 3e essai,
+release `v0.0.81_beta` recréée en prerelease, 2 APK, `check_apk.py` vert sur
+l'APK release (278 540 459 octets), signature inchangée, `Latest` = `v0.0.80`.
+
+## 2026-11-26 22:01 UTC — P152 : montée amont v0.13.5 (tag v0.0.81_beta conservé)
+
+Demande : « upgrade openwebui à la dernière version, applique les patchs et
+mets-les à jour si nécessaire ». Après question, l'utilisateur a choisi de
+**conserver le numéro `v0.0.81_beta`** plutôt que d'ouvrir une v0.0.82_beta :
+le tag et la release existants sont donc recréés (les APK P151 sont remplacées,
+le `versionCode` restant strictement croissant via date + numéro de run).
+
+Amont : `v0.13.4` (`0666e59d2`) → **`v0.13.5` (`926f826ea`)**, 786 fichiers,
+66 322 insertions / 31 988 suppressions. Cinq patchs étaient à régénérer :
+
+- `01-CHANGELOG.md.patch` : nouveau changelog embarqué (7 170 lignes, blob
+  `dabfc0a`, première entrée `## [0.13.5] - 2026-11-25`) — il est lu par
+  l'UI via `pkgutil.get_data('open_webui', 'CHANGELOG.md')` ;
+- `21-routers__configs.py.patch`, `28-tools__builtin.py.patch`,
+  `31-utils__oauth.py.patch`, `06-pyodide-output-files.patch` : fusion à trois
+  voies (base v0.13.4 / correctif fork / amont v0.13.5) ; un conflit par
+  fichier, résolu en conservant **l'import amont et le correctif fork**
+  (`MANAGED_SCHEMES` + import lazy MCPClient, `StarletteOAuth2App` + repli
+  `encode_basic_auth`, `Toaster` local + module Android, P45 + validation
+  RRULE amont).
+
+Deux incompatibilités nouvelles avec l'environnement Android :
+
+1. `utils/aws.py` annotait `aiohttp.ClientHandlerType`, absent de l'aiohttp
+   3.10 épinglé → nouveau patch `36-utils__aws.py.patch` ajoutant
+   `from __future__ import annotations` (annotations différées, aucun changement
+   de comportement).
+2. `routers/machines.py` importe `asyncssh` au démarrage ; l'amont demande
+   2.24.1, qui exige `cryptography>=48.0.1` alors que le fork épingle 42.0.8.
+   `requirements-min.txt` ajoute donc **`asyncssh==2.23.0`** (mêmes API
+   utilisées, prérequis `cryptography>=39`). `redis` reste à 8.0.1 : aucun
+   nouveau code n'utilise les API 8.2.
+
+Validation locale : reconstruction propre → **45 appliqués / 0 déjà / 0 échec** ;
+`compileall` muet ; import effectif de `open_webui.main`, `routers.machines`,
+`tools.builtin`, `utils.oauth` OK ; régressions P124, P126, P151 vertes.
+`check_apk.py` exige désormais `asyncssh` dans le bundle pip et
+`## [0.13.5]` dans le changelog embarqué. `docs/maintenance.typ` complété et
+PDF recompilé.

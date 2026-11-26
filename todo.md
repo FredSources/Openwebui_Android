@@ -296,3 +296,7 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [ ] Test appareil v0.0.79_beta : migration 0.13.4 + P148 (login OAuth si
       configuré) + rétroactions ouvertes P145 (bip tiling), P146 (relance
       conversation), P147 (faux « aucun son »)
+- [x] Montée amont v0.13.5 (P152) sous le tag *v0.0.81_beta* conservé :
+      5 patchs régénérés, `asyncssh==2.23.0`, repli `aiohttp.ClientHandlerType`,
+      45 patchs appliqués / 0 échec, imports et P124/P126/P151 verts,
+      `check_apk.py` étendu, journal + `maintenance.typ`/PDF mis à jour

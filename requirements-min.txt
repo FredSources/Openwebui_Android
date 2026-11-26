@@ -40,6 +40,7 @@ frozenlist==1.4.1            # [PIN-REPO]
 aiosignal==1.4.0
 aiocache==0.12.3
 aiofiles==25.1.0
+asyncssh==2.23.0          # [ANDROID] amont 2.24.1 exige cryptography>=48 (PIN-REPO 42.0.8)
 Brotli                       # [PIN-REPO] version la plus récente du dépôt Android
 httpx[brotli,http2,socks]==0.28.1   # [ANDROID] sans zstd/cli
 httpx2==2.16.0

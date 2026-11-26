@@ -1,8 +1,6 @@
-diff --git a/utils/oauth.py b/utils/oauth.py
-index 36db31b..70c13aa 100644
 --- a/utils/oauth.py
 +++ b/utils/oauth.py
-@@ -16,6 +16,15 @@ from typing import Literal, Optional
+@@ -17,6 +17,15 @@
  
  import aiohttp
  import jwt
@@ -15,6 +13,6 @@ index 36db31b..70c13aa 100644
 +        return _BasicAuth(login, password, encoding).encode()
 +
 +    aiohttp.encode_basic_auth = _encode_basic_auth
- from authlib.integrations.starlette_client import OAuth
+ from authlib.integrations.starlette_client import OAuth, StarletteOAuth2App
  from authlib.oauth2.rfc6749.errors import OAuth2Error
  from authlib.oidc.core import UserInfo

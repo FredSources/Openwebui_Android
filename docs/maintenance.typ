@@ -1166,6 +1166,46 @@ La régression à surveiller : une exécution qui ne produit aucun fichier doit
 toujours répondre `files: []`, et un `display_file` avec le nom d'autrui doit
 répondre « Fichier introuvable ou non autorisé ».
 
+= Montée amont v0.13.5 (P152)
+
+Le submodule `vendor/open-webui` passe de *v0.13.4* (`0666e59d2`) à
+*v0.13.5* (`926f826ea`) : 786 fichiers, 66 322 insertions et 31 988
+suppressions. Le numéro du fork reste *v0.0.81_beta* sur demande explicite :
+le tag et la release sont recréés, l'APK précédente étant remplacée ; le
+`versionCode` reste croissant (date UTC + numéro d'exécution). La version
+stable *Latest* demeure *v0.0.80*.
+
+Cinq patchs ont dû être régénérés. Le changelog embarqué
+(`01-CHANGELOG.md.patch`) contient désormais 7 170 lignes et débute par
+`## [0.13.5] - 2026-11-25` : l'UI le lit via
+`pkgutil.get_data('open_webui', 'CHANGELOG.md')`. Quatre patchs
+(`21-routers__configs.py.patch`, `28-tools__builtin.py.patch`,
+`31-utils__oauth.py.patch`, `06-pyodide-output-files.patch`) ont été adaptés
+par fusion à trois voies ; dans chaque fichier, le conflit unique a été
+résolu en conservant à la fois l'apport amont et le correctif du fork :
+`MANAGED_SCHEMES` et import lazy de `MCPClient`, `StarletteOAuth2App` et
+repli `encode_basic_auth`, composant `Toaster` amont et module Android
+`pyodide-files`, enfin conversion des `\n` littéraux et validation RRULE.
+
+Deux incompatibilités avec l'environnement Android ont été traitées. Le
+nouveau `utils/aws.py` annotait `aiohttp.ClientHandlerType`, inexistant dans
+l'aiohttp 3.10 épinglé : le patch `36-utils__aws.py.patch` ajoute
+`from __future__ import annotations`, ce qui diffère l'évaluation des
+annotations sans changer le comportement. Le routeur `machines`, importé au
+démarrage par `main.py`, exige `asyncssh` : la version amont 2.24.1 demandant
+`cryptography>=48.0.1`, incompatible avec le 42.0.8 épinglé, le fork retient
+*asyncssh 2.23.0*, qui expose les mêmes API avec un prérequis plus souple.
+`redis` reste verrouillé en 8.0.1, aucun nouveau code n'utilisant les API 8.2.
+
+La reconstruction propre donne *45 patchs appliqués, 0 échec*. Le contrôle
+`compileall` est muet et les imports effectifs de `open_webui.main`,
+`open_webui.routers.machines`, `open_webui.tools.builtin` et
+`open_webui.utils.oauth` réussissent. Les régressions P124, P126 et P151
+restent vertes. `check_apk.py` vérifie désormais la présence d'`asyncssh`
+dans le bundle des dépendances et l'en-tête `## [0.13.5]` du changelog
+embarqué, afin qu'une APK étiquetée v0.13.5 ne puisse pas livrer l'amont
+précédent.
+
 = Pistes d'évolution
 
 - Mise à jour in-app de l'APK (GitHub Releases) ;

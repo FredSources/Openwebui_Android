@@ -5365,3 +5365,29 @@ précédentes, changelog `## [0.13.5]` et module `asyncssh` bien embarqués.
 `versionCode` calculé sur le même jour UTC avec les runs 24 → 25 : il est donc
 strictement supérieur à celui de l'APK remplacée (`#45897766408`, run 24), ce
 qui garantit l'installation par-dessus sans désinstallation.
+
+## 2026-11-26 22:24 UTC — P153 : PermissionError `/tmp/open-webui-…` au démarrage
+
+Signalement utilisateur : « Erreur au démarrage: PermissionError: [Errno 13]
+Permission denied: '/tmp/open-webui-71ndqf72' ».
+
+Cause : le nouvel amont `v0.13.5` contient, dans
+`utils/machines/managed.py:48`, une création au chargement du module :
+`RUN_DIR = Path(tempfile.mkdtemp(prefix='open-webui-', dir='/tmp'))`. Ce chemin
+est écrit en dur et contourne `TMPDIR`, alors qu'`android_main.py::_prepare_env`
+place explicitement tous les temporaires dans `<files>/tmp` (variable `TMPDIR`)
+avant même d'importer `open_webui.main`. Le répertoire `/tmp` du sandbox Android
+n'étant pas accessible en écriture, l'import échoue avant le serveur. C'est le
+seul `/tmp` en dur du backend (`grep` exhaustif).
+
+Correctif : `patches/backend/37-utils__machines__managed.py.patch` importe `os`
+et utilise `dir=os.environ.get('TMPDIR') or None` — `None` conservant le
+comportement standard hors Android. Un marqueur `P153 : RUN_DIR suit TMPDIR`
+est ajouté au docstring du module (donc présent dans le `.pyc` embarqué).
+
+Validation : reconstruction propre → **46 appliqués / 0 échec** ; `py_compile`
+OK ; `scripts/test_p153.py` vert (aucun `/tmp` en dur, `RUN_DIR` effectivement
+créé sous le `TMPDIR` simulé) ; P124, P126 et P151 toujours verts.
+`check_apk.py` exige désormais le marqueur P153 dans `machines/managed.pyc`,
+pour interdire la réapparition du chemin en dur. `docs/maintenance.typ` complété
+et PDF recompilé.

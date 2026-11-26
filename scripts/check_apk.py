@@ -210,6 +210,16 @@ def check_apk(apk: pathlib.Path) -> None:
                         elif not any(b"P151 OCR PDF ignore" in o for o in pdfs):
                             err(f"{label} : marqueur P151 absent de pdf.pyc "
                                 f"(garde-fou OCR PDF perdu)")
+                        # P153 : v0.13.5 créait RUN_DIR dans /tmp en dur
+                        # (PermissionError au démarrage sur Android). Le
+                        # marqueur du docstring doit être dans le .pyc livré.
+                        managed = [bundle.read(n) for n in noms_b
+                                   if n.endswith("machines/managed.pyc")]
+                        if not managed:
+                            err(f"{label} : machines/managed.pyc absent")
+                        elif not any(b"P153 : RUN_DIR suit TMPDIR" in o for o in managed):
+                            err(f"{label} : marqueur P153 absent de managed.pyc "
+                                f"(chemin /tmp en dur restauré)")
                     elif "requirements-common" in bundle_nom:
                         check_modules(bundle, label, MODULES_PIP)
                     check_noms_so(bundle, label)

@@ -1,0 +1,25 @@
+--- a/utils/machines/managed.py
++++ b/utils/machines/managed.py
+@@ -5,10 +5,13 @@
+ on. Open Terminal listens on a Unix socket (no TCP port). The machine lives in
+ machines.connections with url ssh://<id> or local://<id>, so every machine feature works
+ unchanged.
++
++P153 : RUN_DIR suit TMPDIR (sur Android <files>/tmp), jamais /tmp en dur.
+ """
+ 
+ import asyncio
+ import logging
++import os
+ import re
+ import secrets
+ import shlex
+@@ -45,7 +48,7 @@
+ BOOTSTRAP = Path(__file__).with_name('bootstrap.sh').read_text()
+ 
+ # Local ends of SSH tunnels. Unix socket paths max out around 104 characters on macOS, so keep this short.
+-RUN_DIR = Path(tempfile.mkdtemp(prefix='open-webui-', dir='/tmp'))
++RUN_DIR = Path(tempfile.mkdtemp(prefix='open-webui-', dir=os.environ.get('TMPDIR') or None))  # P153
+ 
+ 
+ def describe(error: BaseException) -> str:

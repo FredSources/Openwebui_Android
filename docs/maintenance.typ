@@ -1206,6 +1206,29 @@ dans le bundle des dépendances et l'en-tête `## [0.13.5]` du changelog
 embarqué, afin qu'une APK étiquetée v0.13.5 ne puisse pas livrer l'amont
 précédent.
 
+= Démarrage Android et répertoire temporaire (P153)
+
+Après la montée en `v0.13.5`, le démarrage affichait
+`PermissionError: [Errno 13] Permission denied: '/tmp/open-webui-71ndqf72'`.
+La cause est une ligne ajoutée par l'amont dans
+`utils/machines/managed.py` : `tempfile.mkdtemp(prefix='open-webui-', dir='/tmp')`
+est évaluée dès l'import du module. Or `android_main.py::_prepare_env` pose
+`TMPDIR` sur `<files>/tmp` *avant* d'importer `open_webui.main` : toute
+écriture directe dans `/tmp` est interdite par le sandbox Android. C'était le
+seul chemin `/tmp` en dur du backend.
+
+Le patch `37-utils__machines__managed.py.patch` importe `os` et remplace
+`dir='/tmp'` par `dir=os.environ.get('TMPDIR') or None`. Sur l'appareil, le
+répertoire est donc créé dans l'espace privé de l'application ; ailleurs,
+`None` conserve le comportement standard de `tempfile`. Le docstring du module
+porte un marqueur `P153 : RUN_DIR suit TMPDIR`, vérifié dans le `.pyc` livré par
+`check_apk.py`, afin qu'une régression ne repasse pas inaperçue.
+
+`scripts/test_p153.py` contrôle la source (aucun `/tmp` en dur) et l'import
+réel : `RUN_DIR` doit exister sous le `TMPDIR` simulé. La reconstruction donne
+*46 patchs appliqués, 0 échec* et les régressions P124, P126 et P151 restent
+vertes.
+
 = Pistes d'évolution
 
 - Mise à jour in-app de l'APK (GitHub Releases) ;

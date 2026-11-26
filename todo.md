@@ -300,3 +300,6 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       5 patchs régénérés, `asyncssh==2.23.0`, repli `aiohttp.ClientHandlerType`,
       45 patchs appliqués / 0 échec, imports et P124/P126/P151 verts,
       `check_apk.py` étendu, journal + `maintenance.typ`/PDF mis à jour
+- [x] Correction P153 : `PermissionError` sur `/tmp/open-webui-…` au démarrage
+      (amont v0.13.5) — `managed.py` suit désormais `TMPDIR`, sonde dédiée,
+      `check_apk.py` étendu, 46 patchs / 0 échec

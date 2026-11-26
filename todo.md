@@ -314,3 +314,8 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       dans Open WebUI, 6 cas de `test_p155.py` verts ; `check_apk.py` étendu ;
       livrés ensemble sous `v0.0.81_beta` (CI #45911506476 verte, tag recréé,
       APK vérifiées, `Latest` = `v0.0.80`)
+- [x] P156/P157 : lien « Tester la recherche » corrigé vers le service SearXNG
+      (`http://127.0.0.1:8888/search?q=test`, l'ancienne route `/search` était
+      un 404) ; sous-onglet Moteur réduit à la seule iframe, tout le reste
+      regroupé dans Service ; livraison en cours par écrasement de
+      `v0.0.81_beta`

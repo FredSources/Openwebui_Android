@@ -5528,3 +5528,31 @@ dans `machines/managed.pyc`, et dans `android_fm.pyc` les marqueurs P155,
 — le rappel demandé dans la carte Service est donc bien dans l'APK livré.
 Aucun serveur de test résiduel (`pgrep -f 'venv313/bin/pyth[o]n'` vide) ; le
 port 8080 de l'appli n'a jamais été utilisé par un harnais.
+
+## 2026-11-26 23:47 UTC — P156/P157 : lien de test corrigé et vue Moteur épurée
+
+Deux retours utilisateur après la livraison groupée :
+
+1. « dans parametre searngx le lien est casse , il doit aller ver searngx
+   services » : le bouton « Tester la recherche » de la carte Service pointait
+   sur `/search?q=test&format=json`. Vérification par énumération des routes de
+   `open_webui.main` : `/search` n'existe pas (seules les routes
+   `/api/v1/.../search` existent) — le lien renvoyait donc un 404. Corrigé pour
+   viser le service SearXNG embarqué `http://127.0.0.1:8888/search?q=test`
+   (`target="_blank" rel="noopener"`), libellé « Tester la recherche
+   (SearXNG) ». La même URL erronée figurait dans la procédure de test de fumée
+   de `docs/maintenance.typ` : elle est corrigée aussi.
+2. « dans moteur de recherche je ne veux que l'iframe le reste est du côté
+   service » : la vue `sub=engine` ne contient plus que les barres d'onglets
+   (indispensables pour revenir en arrière) et l'unique iframe. État, boutons
+   Démarrer/Arrêter/Redémarrer, lien de test, rappel de configuration et
+   messages `svcmsg` restent exclusivement dans `sub=service`, y compris quand
+   le service est arrêté (plus de bouton « Démarrer le service » dans Moteur).
+
+`src/open_webui/android_fm.py` porte les marqueurs P156 et P157 dans son
+docstring ; `scripts/test_p155.py` vérifie la cible du lien, la présence des
+actions côté Service, l'unicité de l'iframe et l'absence de tout élément de
+Service dans la vue Moteur. Le patch « fichier entier »
+`02-android_fm.py.patch` est régénéré. `docs/maintenance.typ` complété, PDF
+recompilé. Ces deux corrections sont livrées en écrasant une nouvelle fois le
+tag et la release `v0.0.81_beta` (détail de livraison ajouté après la CI).

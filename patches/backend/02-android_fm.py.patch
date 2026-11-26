@@ -1,11 +1,13 @@
 --- a/android_fm.py
 new file mode 100644
 +++ b/android_fm.py
-@@ -0,0 +1,1461 @@
+@@ -0,0 +1,1453 @@
 +"""OpenWebUI Android — navigateur de fichiers /fm + maintenance (P27/P31/P36).
 +
 +P155 : /fm SearXNG expose deux sous-onglets — « Service » (page historique)
 +et « Moteur de recherche » (webview intégrée de l'instance locale 127.0.0.1:8888).
++P156 : le test de recherche pointe sur le service SearXNG, pas sur /search (404).
++P157 : le sous-onglet Moteur ne contient que l'iframe ; tout le reste est dans Service.
 +
 +Module AJOUTÉ hors amont (audit de divergence 2026-11-09) : ces routes
 +vivent ici pour garder main.py identique à l'origine Open WebUI.
@@ -868,30 +870,16 @@ new file mode 100644
 +                        + '&#8635; Redémarrer</button>'
 +                    )
 +                    if sub == 'engine':
-+                        # P155 — webview intégrée : l'interface web de SearXNG
-+                        # (127.0.0.1:8888) s'affiche dans /fm, sans quitter
-+                        # l'application ni ouvrir le navigateur système.
-+                        webview = (
-+                            '<iframe class="sxframe" src="http://127.0.0.1:8888/" '
-+                            'title="Moteur de recherche SearXNG" loading="lazy"></iframe>'
-+                            if st.get('searxng') == 'actif'
-+                            else '<div class="card"><p class="sub">Service arrêté : '
-+                                 'démarrez-le pour afficher le moteur de recherche.</p>'
-+                                 '<button type="button" class="primary" '
-+                                 'onclick="svc(&quot;searxng&quot;,&quot;run&quot;)">'
-+                                 '&#9654; Démarrer le service</button></div>'
-+                        )
++                        # P155/P157 — demande utilisateur : le sous-onglet
++                        # « Moteur de recherche » ne contient QUE l'iframe du
++                        # service local. État, boutons de service, lien
++                        # d'ouverture et messages restent dans « Service ».
++                        # Les seuls autres éléments sont les barres d'onglets,
++                        # indispensables pour revenir à la page Service.
 +                        page = (
 +                            onglets + sous_onglets
-+                            + '<h1>&#128269; Moteur de recherche &mdash; SearXNG</h1>'
-+                            + '<p class="sub"><span class="dot" style="background:' + dot_sx + '"></span> '
-+                            + 'État : <b>' + _html.escape(st.get('searxng', 'arrêt')) + '</b> &mdash; '
-+                            + 'instance locale <code>http://127.0.0.1:8888/</code></p>'
-+                            + '<div class="svcbar">' + svcbar
-+                            + '<a class="btn" href="http://127.0.0.1:8888/" target="_blank" '
-+                            'rel="noopener">&#128279; Ouvrir dans un nouvel onglet</a>'
-+                            + '</div>' + webview
-+                            + '<p id="svcmsg" class="sub"></p>' + _js
++                            + '<iframe class="sxframe" src="http://127.0.0.1:8888/" '
++                            'title="Moteur de recherche SearXNG" loading="lazy"></iframe>'
 +                        )
 +                    else:
 +                        sx = _am.searxng_settings_load()
@@ -918,8 +906,12 @@ new file mode 100644
 +                            + _html.escape('http://127.0.0.1:8888/search?q=<query>')
 +                            + '</code></p></div>'
 +                            + '<div class="svcbar">' + svcbar
-+                            + '<a class="btn" href="/search?q=test&amp;format=json" target="_blank">'
-+                            + '&#128269; Tester la recherche</a>'
++                            # P156 — l'ancien lien /search?q=test n'existe pas
++                            # dans Open WebUI (404) : il doit ouvrir le SERVICE
++                            # SearXNG embarqué, pas une route du backend.
++                            + '<a class="btn" href="http://127.0.0.1:8888/search?q=test" '
++                            + 'target="_blank" rel="noopener">'
++                            + '&#128269; Tester la recherche (SearXNG)</a>'
 +                            + '</div></div>'
 +                            + '<div class="card"><h2>&#128269; Recherche</h2>'
 +                            + '<p class="sub">Formats de réponse de l’instance embarquée.</p>'

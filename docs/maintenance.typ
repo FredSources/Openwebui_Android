@@ -650,7 +650,7 @@ journal v0.0.79_beta). Chaque étape a un contrôle associé.
   [Scan d'imports : vérifier que chaque nom importé de chaque paquet existe bien dans la version épinglée (0.13.4 : `aiohttp.encode_basic_auth`, ajouté en aiohttp 3.11 → repli P148).],
 
   [7.],
-  [Test de fumée hôte : `scripts/smoke.sh` (port *8090*) puis vérifier `/`, `/health`, `/api/config`, la recherche web et SearXNG (`/search?q=test&format=json`).],
+  [Test de fumée hôte : `scripts/smoke.sh` (port *8090*) puis vérifier `/`, `/health`, `/api/config`, la recherche web et SearXNG (`http://127.0.0.1:8888/search?q=test`).],
 
   [8.],
   [Chaîne de validation : `bash scripts/apply_patches.sh --check` (0 échec) → `node --check` des polyfills et sources front patchés → `javac` des classes Java autonomes (`AndroidSpeech`/`AndroidTTS`/`AndroidAudio`, classpath `android-sdk/platforms/android-34/android.jar`) → sonde globale de non-régression.],
@@ -1268,25 +1268,29 @@ recherche et réglages des formats de réponse. La carte Service rappelle en plu
 les valeurs à reporter dans *Open WebUI → Réglages → Web* : moteur `searxng`
 (la valeur interne `embedded-searxng` étant forcée au démarrage) et URL de
 requête `http://127.0.0.1:8888/search?q=<query>` pour le champ « SearXNG Query
-URL ». « *Moteur de recherche* » affiche
-l'interface web de SearXNG dans une iframe intégrée à `/fm`
-(`http://127.0.0.1:8888/`) : l'utilisateur reste dans l'application et peut
-lancer une recherche depuis le navigateur local. Si le service est arrêté, la
-webview est remplacée par un bouton de démarrage explicite ; les boutons de
-service et un lien « Ouvrir dans un nouvel onglet » restent accessibles dans
-les deux vues.
+URL ». Le bouton « *Tester la recherche* » (P156) pointe désormais sur le
+service local `http://127.0.0.1:8888/search?q=test` : l'ancienne cible
+`/search?q=test&format=json` n'est une route d'aucun routeur Open WebUI et
+renvoyait un 404.
+
+À la demande suivante de l'utilisateur (P157), le sous-onglet « *Moteur de
+recherche* » ne contient *que* l'iframe intégrée de `http://127.0.0.1:8888/`
+— ni titre, ni état, ni boutons de service, ni lien d'ouverture, ni messages.
+Tous ces éléments sont regroupés dans « *Service* », y compris quand le service
+est arrêté. Seules les deux barres d'onglets restent visibles dans la vue
+Moteur, afin de pouvoir revenir à Service.
 
 La sélection passe par le paramètre `sub` (`service` ou `engine`). Une valeur
 inconnue revient à `service`, si bien qu'un signet ancien continue d'ouvrir la
 page historique. Le patch `02-android_fm.py.patch` a été régénéré depuis la
 source patchée : la reconstruction complète donne *47 patchs appliqués,
 0 échec*. `scripts/test_p155.py` appelle directement la route `/fm` avec un
-`android_main` simulé : six cas sont vérifiés, dont l'égalité exacte entre la
-vue par défaut et `sub=service`, la présence de l'iframe quand le service est
-actif et son remplacement quand il est arrêté. P124, P126, P151, P153 et P154
-restent verts. Le contrôle `check_apk.py` exige désormais le marqueur P155 dans
-`android_fm.pyc` afin qu'une reconstruction ne fasse pas disparaître les
-sous-onglets.
+`android_main` simulé : l'égalité exacte entre la vue par défaut et
+`sub=service`, le lien SearXNG corrigé, la présence des actions côté Service,
+l'unicité de l'iframe et l'absence de tout autre élément dans la vue Moteur y
+sont vérifiés. P124, P126, P151, P153, P154 et P155 restent verts. Le contrôle
+`check_apk.py` exige le marqueur P155 dans `android_fm.pyc` afin qu'une
+reconstruction ne fasse pas disparaître les sous-onglets.
 
 = Pistes d'évolution
 

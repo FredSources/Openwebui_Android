@@ -34,6 +34,7 @@ print('=== P155 — sous-onglets SearXNG de /fm ===')
 
 src = (PROJ / 'src/open_webui/android_fm.py').read_text(encoding='utf-8')
 for marqueur in ('P155 : /fm SearXNG expose deux sous-onglets',
+                 'P156 : le test de recherche', 'P157 : le sous-onglet Moteur',
                  'class="subtabs"', 'class="subtab', 'class="sxframe"',
                  'class="sxcfg"', 'http://127.0.0.1:8888/"',
                  "sub not in ('service', 'engine')"):
@@ -98,24 +99,38 @@ assert 'http://127.0.0.1:8888/search?q=&lt;query&gt;' in html_service
 assert 'subtab on' in html_service and 'sub=service' in html_service
 assert 'sub=engine' in html_service
 assert '<iframe' not in html_service
-print('OK  /fm sans sub : sous-onglet Service actif, page historique conservée')
+# P156 — le lien de test doit viser le SERVICE SearXNG (la route /search
+# du backend n'existe pas : elle renvoyait un 404).
+assert 'href="http://127.0.0.1:8888/search?q=test"' in html_service
+assert 'Tester la recherche (SearXNG)' in html_service
+assert 'href="/search?q=test' not in html_service
+# P157 — tout le reste (état, boutons, messages) est bien côté Service.
+for present in ('Redémarrer', 'svc(&quot;searxng&quot;,&quot;restart&quot;)',
+                'svcmsg', 'État :'):
+    assert present in html_service, f'élément Service absent : {present}'
+print('OK  /fm sans sub : Service actif, lien SearXNG corrigé, actions conservées')
 
 assert rendre(base + b'&sub=service') == html_service, 'sub=service doit être idempotent'
 print('OK  /fm?sub=service identique au défaut')
 
 html_engine = rendre(base + b'&sub=engine')
-assert 'Moteur de recherche &mdash; SearXNG' in html_engine
 assert '<iframe class="sxframe" src="http://127.0.0.1:8888/"' in html_engine
+assert html_engine.count('<iframe') == 1, 'une seule iframe autorisée'
 assert 'subtab on' in html_engine and 'sub=engine' in html_engine
-assert 'SX_json' not in html_engine, "la page moteur ne doit pas être le formulaire Service"
-print('OK  /fm?sub=engine : iframe SearXNG intégrée, sans le formulaire Service')
+# P157 — aucune autre carte ni action dans la vue Moteur.
+for absent in ('SX_json', 'Paramètres &mdash; SearXNG', 'État :', 'Redémarrer',
+               'svc(', 'svcmsg', 'Ouvrir dans un nouvel onglet',
+               'Tester la recherche'):
+    assert absent not in html_engine, f'élément Service présent dans Moteur : {absent}'
+print('OK  /fm?sub=engine : uniquement l’iframe (les barres d’onglets restent)')
 
 etat['searxng'] = 'arrêt'
 html_arret = rendre(base + b'&sub=engine')
-assert '<iframe' not in html_arret
-assert 'Démarrer le service' in html_arret
-assert 'Service arrêté' in html_arret
-print('OK  service arrêté : bouton de démarrage à la place de l’iframe')
+assert '<iframe class="sxframe" src="http://127.0.0.1:8888/"' in html_arret
+assert 'Service arrêté' not in html_arret and 'Démarrer le service' not in html_arret
+html_service_arret = rendre(base + b'&sub=service')
+assert '<b>arrêt</b>' in html_service_arret and 'Démarrer' in html_service_arret
+print('OK  service arrêté : l’iframe reste seule, l’état est dans Service')
 
 etat['searxng'] = 'actif'
 html_bizarre = rendre(base + b'&sub=inconnu')

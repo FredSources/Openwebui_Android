@@ -1229,6 +1229,65 @@ réel : `RUN_DIR` doit exister sous le `TMPDIR` simulé. La reconstruction donne
 *46 patchs appliqués, 0 échec* et les régressions P124, P126 et P151 restent
 vertes.
 
+= Provider OpenAI : erreur réseau et aiohttp (P154)
+
+Après la montée en *v0.13.5*, la liste des modèles configurés via Réglages →
+Connexions n'apparaissait plus et le frontend affichait
+`OpenAI: Network Problem`, alors que la même configuration fonctionnait avec
+la version précédente. L'amont a ajouté le paramètre
+`middlewares=(sign_aws_request,)` à quatre constructeurs
+`aiohttp.ClientSession` : trois dans `routers/openai.py` pour la liste des
+modèles, un dans `utils/session_pool.py` pour le pool partagé. Le fork épingle
+*aiohttp 3.10.10* : les middlewares côté client n'existent que depuis la
+version 3.11, si bien que la création de session levait une `TypeError` avant
+même l'envoi de la requête. Le middleware ajouté ne concerne que Bedrock
+(`Authorization: AWS4-HMAC-SHA256`), inutilisé dans l'APK.
+
+Le patch `38-compat-aiohttp-middlewares.patch` ajoute le helper
+`client_session_kwargs()` dans `utils/aws.py` : il n'ajoute le middleware que
+si la version installée le prend en charge, préservant le comportement amont
+sur aiohttp 3.11 et ultérieur. Les quatre appels l'utilisent. Le marqueur
+`P154 : aiohttp 3.10` est vérifié dans `utils/aws.pyc`.
+
+`scripts/test_p154.py` démarre un faux provider sur `127.0.0.1:8090` (jamais
+8080) et appelle réellement `get_models_request()` : la liste de modèles doit
+revenir. La reconstruction donne *47 patchs appliqués, 0 échec* ; P124, P126,
+P151 et P153 restent verts.
+
+Le libellé `searngx_local` n'a jamais figuré dans la liste des moteurs des APK
+P151 et P153 : celle-ci est identique et ne contient que `searxng`. Le moteur
+embarqué reste donc disponible sous ce nom, `android_main.py` forçant la valeur
+interne `web.search.engine` à `embedded-searxng` au démarrage.
+
+= SearXNG dans /fm : deux sous-onglets (P155)
+
+À la demande de l'utilisateur, la page *Paramètres → SearXNG* de `/fm` est
+divisée en deux sous-onglets. « *Service* » conserve la page précédente à
+l'identique : état de l'instance, boutons Démarrer/Arrêter/Redémarrer, test de
+recherche et réglages des formats de réponse. La carte Service rappelle en plus
+les valeurs à reporter dans *Open WebUI → Réglages → Web* : moteur `searxng`
+(la valeur interne `embedded-searxng` étant forcée au démarrage) et URL de
+requête `http://127.0.0.1:8888/search?q=<query>` pour le champ « SearXNG Query
+URL ». « *Moteur de recherche* » affiche
+l'interface web de SearXNG dans une iframe intégrée à `/fm`
+(`http://127.0.0.1:8888/`) : l'utilisateur reste dans l'application et peut
+lancer une recherche depuis le navigateur local. Si le service est arrêté, la
+webview est remplacée par un bouton de démarrage explicite ; les boutons de
+service et un lien « Ouvrir dans un nouvel onglet » restent accessibles dans
+les deux vues.
+
+La sélection passe par le paramètre `sub` (`service` ou `engine`). Une valeur
+inconnue revient à `service`, si bien qu'un signet ancien continue d'ouvrir la
+page historique. Le patch `02-android_fm.py.patch` a été régénéré depuis la
+source patchée : la reconstruction complète donne *47 patchs appliqués,
+0 échec*. `scripts/test_p155.py` appelle directement la route `/fm` avec un
+`android_main` simulé : six cas sont vérifiés, dont l'égalité exacte entre la
+vue par défaut et `sub=service`, la présence de l'iframe quand le service est
+actif et son remplacement quand il est arrêté. P124, P126, P151, P153 et P154
+restent verts. Le contrôle `check_apk.py` exige désormais le marqueur P155 dans
+`android_fm.pyc` afin qu'une reconstruction ne fasse pas disparaître les
+sous-onglets.
+
 = Pistes d'évolution
 
 - Mise à jour in-app de l'APK (GitHub Releases) ;

@@ -303,3 +303,13 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [x] Correction P153 : `PermissionError` sur `/tmp/open-webui-…` au démarrage
       (amont v0.13.5) — `managed.py` suit désormais `TMPDIR`, sonde dédiée,
       `check_apk.py` étendu, 46 patchs / 0 échec
+- [x] Correction P154 : « OpenAI: Network Problem » (amont v0.13.5 :
+      `middlewares=` incompatible avec aiohttp 3.10 épinglé) — helper
+      `client_session_kwargs()`, 47 patchs / 0 échec, test du provider factice
+      sur 8090, P124/P126/P151/P153 verts
+- [x] P155 : `/fm` → SearXNG en deux sous-onglets (« Service » = page
+      actuelle inchangée, « Moteur de recherche » = iframe de
+      `http://127.0.0.1:8888/`), paramètre `sub` avec repli sur `service`,
+      rappel dans Service du moteur `searxng` et de l'URL de requête à configurer
+      dans Open WebUI, 6 cas de `test_p155.py` verts ; `check_apk.py` étendu ;
+      livraison groupée avec P154 en cours

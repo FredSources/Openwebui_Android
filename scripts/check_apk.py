@@ -220,6 +220,28 @@ def check_apk(apk: pathlib.Path) -> None:
                         elif not any(b"P153 : RUN_DIR suit TMPDIR" in o for o in managed):
                             err(f"{label} : marqueur P153 absent de managed.pyc "
                                 f"(chemin /tmp en dur restauré)")
+                        # P154 : l'amont v0.13.5 passe `middlewares=` aux
+                        # ClientSession aiohttp ; l'aiohttp 3.10 épinglé ne le
+                        # supporte pas (« OpenAI: Network Problem »). La
+                        # docstring du helper correctif est compilée dans aws.pyc.
+                        aws = [bundle.read(n) for n in noms_b
+                               if n.endswith("utils/aws.pyc")]
+                        if not aws:
+                            err(f"{label} : utils/aws.pyc absent")
+                        elif not any(b"P154 : aiohttp 3.10" in o for o in aws):
+                            err(f"{label} : marqueur P154 absent de aws.pyc "
+                                f"(middlewares aiohttp restauré)")
+                        # P155 — demande utilisateur : /fm → SearXNG doit
+                        # proposer « Service » et « Moteur de recherche ».
+                        # Le marqueur du docstring prouve que le patch
+                        # android_fm.py n'a pas été écrasé à la reconstruction.
+                        fm = [bundle.read(n) for n in noms_b
+                              if n.endswith("android_fm.pyc")]
+                        if not fm:
+                            err(f"{label} : android_fm.pyc absent")
+                        elif not any(b"P155 : /fm SearXNG expose deux sous-onglets" in o for o in fm):
+                            err(f"{label} : marqueur P155 absent de android_fm.pyc "
+                                f"(sous-onglets SearXNG perdus)")
                     elif "requirements-common" in bundle_nom:
                         check_modules(bundle, label, MODULES_PIP)
                     check_noms_so(bundle, label)

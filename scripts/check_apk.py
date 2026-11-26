@@ -194,6 +194,13 @@ def check_apk(apk: pathlib.Path) -> None:
                                 if not any(marqueur in o for o in outils):
                                     err(f"{label} : marqueur {marqueur!r} absent de "
                                         f"android_tools.pyc (P124/P126 perdu)")
+                        # P151 : le garde-fou OCR PDF doit accompagner le .pyc embarque.
+                        pdfs = [bundle.read(n) for n in noms_b if n.endswith("pdf.pyc")]
+                        if not pdfs:
+                            err(f"{label} : retrieval/loaders/pdf.pyc absent")
+                        elif not any(b"P151 OCR PDF ignore" in o for o in pdfs):
+                            err(f"{label} : marqueur P151 absent de pdf.pyc "
+                                f"(garde-fou OCR PDF perdu)")
                     elif "requirements-common" in bundle_nom:
                         check_modules(bundle, label, MODULES_PIP)
                     check_noms_so(bundle, label)

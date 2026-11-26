@@ -5263,3 +5263,43 @@ Correctifs :
   `get_file_list` présents. Nœud principal du frontend : `fs:list`, `fs:read`,
   `/mnt/uploads` intacts.
 - État final : `master` = `e5e0047`, tag `v0.0.81_beta` → `e5e0047`.
+
+## 2026-11-26 21:22 UTC — P151 (en cours de livraison)
+
+Demande : détailler puis corriger les éléments de *Admin → Documents →
+extraction* qui supposent un service ou un moteur local.
+
+Diagnostic :
+
+1. « PDF Extract Images (OCR) » (`PDF_EXTRACT_IMAGES`, visible car
+   `USE_SLIM_DOCKER` n'est jamais posé → `features.slim=false`) appelait
+   `rapidocr.RapidOCR` + ONNX Runtime, absents de l'APK : `ModuleNotFoundError`
+   au premier PDF contenant des images. Les modes *Page*/*Single* de `pypdf`
+   n'ont, eux, aucun problème.
+2. MinerU démarrait avec `MINERU_API_MODE=local` et
+   `MINERU_API_URL=http://localhost:8000` : port non servi sur l'appareil
+   (8080 = WebUI, 8888 = SearXNG), et l'UI n'exige de clé qu'en mode `cloud`
+   → configuration invalide enregistrable sans erreur.
+3. Tika (`http://tika:9998`) et Docling (`http://docling:5001`) utilisaient
+   des noms d'hôte Docker, non résolus dans l'APK.
+
+Correctifs (3 patchs, aucun fichier amont réécrit à la main) :
+
+- `patches/frontend/08-Documents.svelte.patch` : masque l'interrupteur OCR
+  (`{#if false && …}`), laisse le sélecteur de mode PDF intact.
+- `patches/backend/34-config__extraction_defaults.py.patch` : MinerU passe en
+  `cloud` avec URL vide, Tika et Docling ont une URL vide (l'UI exige une URL
+  explicite à la sauvegarde).
+- `patches/backend/35-loaders__pdf.py.patch` : `PDFLoader._extract_images()`
+  intercepte l'`ImportError` de `rapidocr`, trace `P151 OCR PDF ignore` et
+  ignore l'OCR — y compris quand une ancienne configuration avait
+  `PDF_EXTRACT_IMAGES=true`.
+
+Validation locale : reconstruction propre (`git -C vendor/open-webui checkout
+-- src` + `apply_patches.sh`) → **44 appliqués / 0 déjà / 0 échec** ; 0
+divergence d'en-tête ; `py_compile` OK ; `scripts/test_p151.py` vert (4 défauts,
+masquage Svelte, garde-fou runtime, marqueur) ; régressions `test_p124.py` et
+`test_p126.py` vertes. `check_apk.py` exige désormais le marqueur P151 dans
+`pdf.pyc` (justification : comme P124/P126, éviter un correctif livré seulement
+dans les sources du dépôt). `docs/maintenance.typ` complété et PDF recompilé
+(761 996 octets, 0 avertissement, contrôle grammatical OK).

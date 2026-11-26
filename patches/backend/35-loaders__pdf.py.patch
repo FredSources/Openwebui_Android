@@ -1,0 +1,22 @@
+--- a/retrieval/loaders/pdf.py
++++ b/retrieval/loaders/pdf.py
+@@ -94,9 +94,16 @@
+                 continue
+ 
+             if self.ocr is None:
+-                from rapidocr import RapidOCR
+-
+-                self.ocr = RapidOCR(params=RAPIDOCR_PARAMS)
++                try:
++                    from rapidocr import RapidOCR
++                except ImportError:
++                    # P151 : OCR PDF ignore — moteur local non embarque.
++                    log.warning('P151 OCR PDF ignore : rapidocr absent (moteur local non embarque)')
++                    self.ocr = False
++                else:
++                    self.ocr = RapidOCR(params=RAPIDOCR_PARAMS)
++            if self.ocr is False:
++                return ''
+             result = self.ocr(pixels)
+             if result and result.txts:
+                 texts.append('\n'.join(result.txts).strip())

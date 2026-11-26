@@ -1143,6 +1143,25 @@ Correctif P120 (même version `0.0.81_beta`). Quatre points indissociables :
   d'échec et les quatre marqueurs de `/fm`. `check_apk.py` exige le marqueur
   `P126 echec enregistrement` dans `android_tools.pyc`.
 
+- *Extraction sans service local implicite (P151)* — l'écran
+  *Admin → Documents → Moteur d'extraction de contenu* offrait encore trois
+  pièges : l'interrupteur « PDF Extract Images (OCR) » lançait `rapidocr` +
+  ONNX Runtime, absents de l'APK (`ModuleNotFoundError` à l'usage) ; MinerU
+  démarrait en mode `local` sur `http://localhost:8000`, port non servi sur
+  l'appareil ; Tika et Docling utilisaient les noms Docker `tika:9998` et
+  `docling:5001`. Le patch frontend `08-Documents.svelte.patch` masque
+  l'interrupteur OCR (les modes *Page* et *Single* de `pypdf` restent disponibles) ;
+  `34-config__extraction_defaults.py.patch` neutralise les trois valeurs par
+  défaut (MinerU en `cloud` sans URL, Tika et Docling vides — l'UI exige
+  désormais une URL explicite) ; `35-loaders__pdf.py.patch` ignore proprement
+  l'OCR si `rapidocr` manque, même quand une ancienne configuration avait
+  `PDF_EXTRACT_IMAGES=true`, et trace `P151 OCR PDF ignore`. Aucun moteur de
+  modèle local ne subsiste dans cette section : les extractions sont soit du
+  parsing local (`pypdf`, `python-docx`, BS4), soit des services distants.
+  `scripts/test_p151.py` valide les quatre défauts, le masquage Svelte et le
+  garde-fou runtime ; `check_apk.py` exige le marqueur P151 dans `pdf.pyc`.
+  La chaîne passe à 44 patchs appliqués, 0 échec ; P124 et P126 restent verts.
+
 La régression à surveiller : une exécution qui ne produit aucun fichier doit
 toujours répondre `files: []`, et un `display_file` avec le nom d'autrui doit
 répondre « Fichier introuvable ou non autorisé ».

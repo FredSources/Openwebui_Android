@@ -1,0 +1,19 @@
+--- a/lib/components/admin/Settings/Documents.svelte
++++ b/lib/components/admin/Settings/Documents.svelte
+@@ -646,6 +646,8 @@
+ 				</AdminSettingField>
+ 
+ 				{#if RAGConfig.CONTENT_EXTRACTION_ENGINE === '' && $config?.features?.slim !== true}
++					<!-- P151 : OCR PDF local (rapidocr/ONNX) absent de l'APK — option masquee -->
++					{#if false && RAGConfig.CONTENT_EXTRACTION_ENGINE === ''}
+ 					<AdminSettingRow
+ 						label={$i18n.t('settings.admin.documents.pdfExtractImagesOcr.label')}
+ 						description={$i18n.t('settings.admin.documents.pdfExtractImagesOcr.description')}
+@@ -653,6 +655,7 @@
+ 					>
+ 						<Switch bind:state={RAGConfig.PDF_EXTRACT_IMAGES} ariaLabelledbyId={labelId} />
+ 					</AdminSettingRow>
++					{/if}
+ 
+ 					<AdminSettingRow
+ 						label={$i18n.t('settings.admin.documents.pdfLoaderMode.label')}

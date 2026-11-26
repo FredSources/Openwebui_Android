@@ -1,0 +1,31 @@
+--- a/config.py
++++ b/config.py
+@@ -875,9 +875,10 @@
+ 
+ DATALAB_MARKER_OUTPUT_FORMAT = os.getenv('DATALAB_MARKER_OUTPUT_FORMAT', 'markdown')
+ 
+-MINERU_API_MODE = os.getenv('MINERU_API_MODE', 'local')
++# P151 : aucun service local implicite (localhost:8000) dans l'APK.
++MINERU_API_MODE = os.getenv('MINERU_API_MODE', 'cloud')
+ 
+-MINERU_API_URL = os.getenv('MINERU_API_URL', 'http://localhost:8000')
++MINERU_API_URL = os.getenv('MINERU_API_URL', '')
+ 
+ MINERU_API_TIMEOUT = os.getenv('MINERU_API_TIMEOUT', '300')
+ 
+@@ -907,11 +908,13 @@
+ 
+ EXTERNAL_DOCUMENT_LOADER_HEADERS = external_document_loader_headers
+ 
+-TIKA_SERVER_URL = os.getenv('TIKA_SERVER_URL', 'http://tika:9998')
++# P151 : URL Docker inutilisable sur l'appareil ; laisser vide (UI l'exige).
++TIKA_SERVER_URL = os.getenv('TIKA_SERVER_URL', '')
+ 
+ TIKA_SERVER_VERSION = os.getenv('TIKA_SERVER_VERSION', '3')
+ 
+-DOCLING_SERVER_URL = os.getenv('DOCLING_SERVER_URL', 'http://docling:5001')
++# P151 : idem Docling.
++DOCLING_SERVER_URL = os.getenv('DOCLING_SERVER_URL', '')
+ 
+ DOCLING_API_KEY = os.getenv('DOCLING_API_KEY', '')
+ 

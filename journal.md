@@ -5390,4 +5390,14 @@ OK ; `scripts/test_p153.py` vert (aucun `/tmp` en dur, `RUN_DIR` effectivement
 créé sous le `TMPDIR` simulé) ; P124, P126 et P151 toujours verts.
 `check_apk.py` exige désormais le marqueur P153 dans `machines/managed.pyc`,
 pour interdire la réapparition du chemin en dur. `docs/maintenance.typ` complété
-et PDF recompilé.
+et PDF recompilé (785 886 octets, 0 avertissement, contrôle grammatical OK).
+
+Livraison : commit `b593f85`, tag `v0.0.81_beta` recréé dessus, CI
+`#45904782842` **verte** (22:33 UTC), release prerelease recréée à 22:32 UTC
+avec 2 APK, `Latest` toujours `v0.0.80`. APK release vérifiée (280 470 496
+octets, SHA-256 `b3cf5a3c…dff5`) : `check_apk.py` vert, signature
+`CN=OpenWebUI Android, O=FredSources` / `7fa258…dc34e4` identique aux versions
+précédentes. Contrôle direct du bytecode embarqué : marqueur P153 présent dans
+`open_webui/utils/machines/managed.pyc` et chaîne `dir='/tmp'` absente. Le
+`versionCode` passe du run 25 au run 26 (même jour UTC) : l'APK reste
+installable par-dessus la version précédente sans désinstallation.

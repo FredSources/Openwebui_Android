@@ -5803,4 +5803,32 @@ Android : écart structurel, non erreur de version.
 
 L'utilisateur a retenu **M0 + M1 + M2** : références corrigées, 4 patchs
 supprimés (48 → 44) et changelog copié depuis `vendor/open-webui/CHANGELOG.md`
-lors de la reconstruction. Détail de livraison après la CI.
+lors de la reconstruction. La question complémentaire sur aiohttp a conduit à
+chiffrer la dette restante — 3 patchs complets (`31`, `36`, `38`) et 1 hunk de
+`20`, soit un gain maximal de 3 patchs + 1 hunk — et à documenter les risques
+de rebasing. L'utilisateur a choisi de livrer sans ajouter le garde-fou de
+détection ni tenter la recompilation ; aucun patch aiohttp n'a été retiré.
+
+### Livraison — 2026-11-27 21:49 UTC
+
+Tag `v0.0.81` recréé sur `3a80fcc` ; CI `#46071915201` **verte**, release
+stable `prerelease=false`, `Latest = v0.0.81`, publiée le
+`2026-11-27T21:49:18Z`. La CI rapporte *44 appliqués, 0 déjà, 0 échec* et
+`versionCode=26331036`. Les hashes précédents sont obsolètes ; valeurs retenues :
+
+- release : 280 473 736 octets, SHA-256
+  `4603651db518784552b21dc58734cdca4cf2667d72b76596a421826a79a49886` ;
+- debug : 291 521 605 octets, SHA-256
+  `bc09ca0a56956476c33fbb5a31e98a6491748f17b53b621bfb68d2109782dd7b` ;
+- signature release inchangée :
+  `7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4`.
+
+`check_apk.py` vert sur les deux APK. Le corps de release annonce désormais
+`Open WebUI v0.13.5` (repli `describe --tags` corrigé). Contrôle direct des APK :
+marqueurs R163, P155, P157, P159 et `0.0.81` présents dans `android_fm.pyc` ;
+`Tester la recherche`, `@@ONGLETS@@`, `0.0.80_beta`, `search?q=test` et la
+barre d'onglets supprimée absents ; `## [0.13.5]` présent dans le changelog
+embarqué (1 754 301 octets, copié depuis l'amont) ; `embedded-searxng` présent
+dans les chunks frontend.
+
+Le compte rendu de livraison est commité à part, sans toucher au tag.

@@ -339,4 +339,9 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [x] R164 : alignement amont vérifié (`v0.13.5` = dernier tag et `HEAD`) ; 4
       patchs retirés (changelog copié + 3 changements de mode seuls), 48 → 44
       patchs, reconstruction 44/0/0, 8 tests verts, PDF sans avertissement,
-      références `v0.13.4` corrigées ; livraison `v0.0.81` en cours
+      références `v0.13.4` corrigées ; `v0.0.81` recréé sur `3a80fcc`, CI
+      #46071915201 verte, `Latest` = `v0.0.81`, APK vérifiées
+      (`versionCode=26331036`, changelog amont embarqué)
+- [ ] Dette aiohttp (non retenue) : `31`, `36`, `38` + 1 hunk de `20`
+      supprimables uniquement après fourniture d'un wheel aiohttp ≥ 3.11
+      pour Chaquopy ; risque de réintroduire P154 si le retrait précède le wheel

@@ -1349,6 +1349,14 @@ routes et détecte tout placeholder résiduel, tandis que `check_apk.py` interdi
 Service. `test_p155.py` et `test_p159.py` vérifient son absence sur toutes les
 vues, et `check_apk.py` interdit la chaîne dans `android_fm.pyc`.
 
+`R163` : le surlignement de la liste « Paramètres » suit désormais la page
+réellement affichée. Le rendu GET de `/fm?folder=settings&tab=searxng` ne
+transmettait pas `tab` à `_fm_page()`, qui retombait sur sa valeur par défaut
+`owui` : la page SearXNG s'affichait mais *Open WebUI* restait surligné. Le
+paramètre est maintenant transmis ; `test_p159.py` contrôle la classe active
+sur trois vues et `check_apk.py` exige le marqueur correspondant dans le
+bytecode livré.
+
 = Pistes d'évolution
 
 - Mise à jour in-app de l'APK (GitHub Releases) ;

@@ -268,6 +268,9 @@ def check_apk(apk: pathlib.Path) -> None:
                         elif any(b'Tester la recherche' in o for o in fm):
                             err(f"{label} : bouton « Tester la recherche » "
                                 f"toujours embarqué (R162)")
+                        elif not any(b"R163 : surlignement" in o for o in fm):
+                            err(f"{label} : marqueur R163 absent de android_fm.pyc "
+                                f"(surlignement Paramètres non corrigé)")
                         # P160 : la trace P101 portait encore 0.0.80_beta et
                         # faisait échouer le run 45916306148. Corrigé à la
                         # source (P101 version=0.0.81), le contrôle reste

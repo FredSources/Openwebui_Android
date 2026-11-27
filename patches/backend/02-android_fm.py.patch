@@ -1,7 +1,7 @@
 --- a/android_fm.py
 new file mode 100644
 +++ b/android_fm.py
-@@ -0,0 +1,1445 @@
+@@ -0,0 +1,1451 @@
 +"""OpenWebUI Android — navigateur de fichiers /fm + maintenance (P27/P31/P36).
 +
 +P155 : /fm SearXNG expose deux sous-onglets — « Service » (page historique)
@@ -9,6 +9,8 @@ new file mode 100644
 +P156 : le test de recherche pointe sur le service SearXNG, pas sur /search (404).
 +P157 : le sous-onglet Moteur ne contient que l'iframe ; tout le reste est dans Service.
 +P159 : premier niveau d'onglets supprimé ; état des services dans la sidebar.
++R162 : bouton « Tester la recherche » retiré de la carte Service.
++R163 : surlignement Paramètres aligné sur la page rendue (tab transmis).
 +
 +Module AJOUTÉ hors amont (audit de divergence 2026-11-09) : ces routes
 +vivent ici pour garder main.py identique à l'origine Open WebUI.
@@ -968,7 +970,11 @@ new file mode 100644
 +                    page = page.replace('@@RESTE@@', _html.escape(reste))
 +                    page = page.replace('@@ST_OW@@', st.get('openwebui', 'arrêt'))
 +                    page = page.replace('@@DOT_OW@@', dot_ow)
-+                return _HTMLResponse(_fm_page(page, 'Paramètres', folder='settings', src=src))
++                # R163 — transmettre `tab` à _fm_page : sans cela la sidebar
++                # recevait la valeur par défaut « owui » et surlignait Open
++                # WebUI alors que la page SearXNG était bien affichée.
++                return _HTMLResponse(_fm_page(
++                    page, 'Paramètres', folder='settings', src=src, tab=tab))
 +            if folder == 'logs':
 +                from open_webui import android_logs as _al
 +                sel = (request.query_params.get('log') or '').strip() or 'TOUS'

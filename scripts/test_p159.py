@@ -118,6 +118,24 @@ assert 'background:#22c55e"></span> Open WebUI' in html, 'point vert Open WebUI 
 assert 'background:#ef4444"></span> SearXNG' in html, 'point rouge SearXNG manquant'
 print('OK  sidebar : point vert Open WebUI, point rouge SearXNG')
 
+
+def classe_lien(page: str, titre: str) -> str:
+    i = page.index(f'title="{titre}"')
+    return page[page.rfind('<a ', 0, i):i]
+
+
+# R163 — le surlignement de la liste Paramètres doit suivre la page réellement
+# rendue. Le GET /fm?tab=searxng oubliait de transmettre `tab` à _fm_page :
+# la page SearXNG s'affichait mais Open WebUI restait surligné.
+assert 'class="on"' in classe_lien(html, 'SearXNG'), 'SearXNG non surligné'
+assert 'class="on"' not in classe_lien(html, 'Open WebUI'), 'Open WebUI surligné à tort'
+html_owui = rendre(b'folder=settings&tab=owui')
+assert 'class="on"' in classe_lien(html_owui, 'Open WebUI')
+assert 'class="on"' not in classe_lien(html_owui, 'SearXNG')
+html_engine = rendre(b'folder=settings&tab=searxng&sub=engine')
+assert 'class="on"' in classe_lien(html_engine, 'SearXNG')
+print('OK  R163 : surlignement aligné sur la page rendue (3 vues vérifiées)')
+
 etat['openwebui'] = 'arrêt'
 etat['searxng'] = 'actif'
 html2 = rendre(b'folder=settings&tab=searxng&sub=service')

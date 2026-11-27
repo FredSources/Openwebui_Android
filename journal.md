@@ -5726,3 +5726,21 @@ de P155/P156/P157/P159 et de `0.0.81`, absence de `Tester la recherche`,
 `@@ONGLETS@@`, `0.0.80_beta`, `search?q=test` et de la barre d'onglets de
 premier niveau ; `embedded-searxng` présent dans les chunks frontend. Les huit
 routes `/fm` sont rendues sans `NameError` par `test_p159.py`.
+
+## 2026-11-27 06:36 UTC — R163 : surlignement Paramètres aligné sur la page
+
+Signalement utilisateur : « la selection se searxng pass sur un surlignement
+de openwebui mais avec le bonne page ». La page SearXNG s'affichait bien, mais
+la liste « Paramètres » de la sidebar surlignait *Open WebUI*. Cause : le GET
+`/?folder=settings&tab=searxng` construisait sa réponse avec
+`_fm_page(page, 'Paramètres', folder='settings', src=src)` sans transmettre
+`tab` ; `_fm_page()` recevait donc sa valeur par défaut `owui` et `_fm_side()`
+calculait l'état actif sur cette valeur. La branche de rendu, elle, lisait bien
+le `tab` de la requête — d'où la page correcte avec le mauvais surlignement.
+
+Correctif : `tab=tab` transmis à `_fm_page()`. `test_p159.py` vérifie désormais
+la classe `on` des deux entrées sur trois vues (SearXNG service, SearXNG Moteur,
+Open WebUI). `check_apk.py` exige le marqueur `R163 : surlignement` dans
+`android_fm.pyc` pour garantir que le patch n'est pas perdu à la reconstruction.
+Aucun contrôle existant n'est affaibli. Version conservée à `0.0.81` ; tag
+stable recréé (détail après la CI).

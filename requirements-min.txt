@@ -4,7 +4,8 @@
 #   [RAG]        = supprimé (demande : « enlevant juste le RAG »)
 #   [ANDROID]    = supprimé car indisponible sur Android (natif absent du dépôt Chaquopy)
 #   [PIN-REPO]   = version calée sur le dépôt de wheels Android de Chaquopy
-#   [WHEEL-LOCAL] = fourni dans wheels/ (cross-build maturin, voir scripts/build-wheels.sh)
+#   [WHEEL-LOCAL] = fourni dans wheels/ (cross-build maturin, voir scripts/build-wheels.sh ;
+#                   aiohttp et ses dépendances natives : scripts/build-aiohttp-wheels.sh, R165)
 # Tout le reste suit les pins officielles du requirements-slim.txt d'open-webui.
 
 # ---------- Cœur web ----------
@@ -34,11 +35,15 @@ joserfc==1.5.0               # [PIN-REPO] 1.6+ exige cryptography>=45 (plafond A
 # ---------- HTTP / réseau ----------
 requests==2.34.2
 regex==2024.9.11             # [PIN-REPO] slim: 2026.5.9
-aiohttp==3.10.10             # [PIN-REPO] slim: 3.14.5 (« do not update to 3.13.3 » — 3.10 OK)
-multidict==6.1.0             # [PIN-REPO]
-yarl==1.16.0                 # [PIN-REPO]
-frozenlist==1.4.1            # [PIN-REPO]
+aiohttp==3.14.5              # [WHEEL-LOCAL] R165 : cross-build Cython/NDK (plus de plafond 3.10)
+multidict==7.2.1             # [WHEEL-LOCAL] sources C pré-générées dans le sdist
+yarl==1.25.1                 # [WHEEL-LOCAL] Cython 3.3.0, voir scripts/build-aiohttp-wheels.sh
+frozenlist==1.8.0            # [WHEEL-LOCAL] Cython 3.1.4
+propcache==0.5.4             # [WHEEL-LOCAL] nouvelle dépendance d'aiohttp >= 3.11
+aiohappyeyeballs==2.7.1      # [WHEEL-LOCAL] dépendance d'aiohttp >= 3.11 (wheel pur)
 aiosignal==1.4.0
+attrs==26.1.0                # [WHEEL-LOCAL] dépendance d'aiohttp (wheel pur)
+idna==3.20                   # [WHEEL-LOCAL] requis par yarl (wheel pur)
 aiocache==0.12.3
 aiofiles==25.1.0
 asyncssh==2.23.0          # [ANDROID] amont 2.24.1 exige cryptography>=48 (PIN-REPO 42.0.8)

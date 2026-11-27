@@ -576,7 +576,7 @@ sur le submodule `vendor/open-webui`. Résumé opérationnel (intentions) :
 
   [P148],
   [`routers/auths.py` + `utils/oauth.py`],
-  [`encode_basic_auth` : repli RFC 7617 pour aiohttp épinglé — nouveau besoin de 0.13.4 : l'introspection OAuth2 (`auths.py`) et le refresh de token (`oauth.py`) appellent `encode_basic_auth`, absent d'aiohttp 3.10.10 (ajouté en 3.11) ; le pin `aiohttp==3.10.10` est une décision de dépôt (`[PIN-REPO]`) qu'on ne touche pas — repli fidèle `BasicAuth(login, password, encoding).encode()` (RFC 7617, équivalence vérifiée) ; `oauth.py` expose la fonction par garde `hasattr` (les appels amont `aiohttp.encode_basic_auth(...)` restent intacts) — découvert par le smoke test 8090 (`ImportError` au chargement de `main.py`) — contrôle `check_p148_aiohttp` — journal v0.0.79_beta],
+  [`encode_basic_auth` : repli RFC 7617 pour aiohttp épinglé — nouveau besoin de 0.13.4 : l'introspection OAuth2 (`auths.py`) et le refresh de token (`oauth.py`) appellent `encode_basic_auth`, absent d'aiohttp 3.10.10 (ajouté en 3.11) ; le pin `aiohttp==3.10.10` est une décision de dépôt (`[PIN-REPO]`) qu'on ne touche pas — repli fidèle `BasicAuth(login, password, encoding).encode()` (RFC 7617, équivalence vérifiée) ; `oauth.py` expose la fonction par garde `hasattr` (les appels amont `aiohttp.encode_basic_auth(...)` restent intacts) — découvert par le smoke test 8090 (`ImportError` au chargement de `main.py`) — contrôle `check_p148_aiohttp` — journal v0.0.79_beta ; repli devenu inutile et retiré en R165 après la montée à aiohttp 3.14.5],
 
   [P149],
   [`nodes/2.Dki0jDRo.js` + `chunks/BnHPywC-.js` (frontend) + `routers/audio/__init__.py` + `routers/audio/realtime.py`],
@@ -646,10 +646,10 @@ journal v0.0.79_beta). Chaque étape a un contrôle associé.
   [*Frontend `_app/`* : la minification renomme les `chunks/*.js` à chaque build — en v2 les patchs front s'appliquent aux *sources* Svelte, les chemins hashés ne sont donc plus à traquer ; seuls `check_apk.py` et les éventuelles sondes mentionnent des chemins du front compilé.],
 
   [5.],
-  [Adapter `requirements-min.txt` : tout nouveau paquet *natif* doit être (a) présent dans le dépôt de wheels Chaquopy (`https://chaquo.com/pypi-13.1/`), ou (b) cross-buildé via `build-wheels.sh`, ou (c) remplacé par un repli documenté. Vérifier les plafonds connus : `numpy≤1.26.2`, `cryptography≤42.0.8`, `bcrypt≤3.2.2`, `argon2-cffi` = 23.1.0, `authlib≤1.6.4`, `joserfc≤1.5.0`, `aiohttp==3.10.10` (pin `[PIN-REPO]` — ne pas bouger).],
+  [Adapter `requirements-min.txt` : tout nouveau paquet *natif* doit être (a) présent dans le dépôt de wheels Chaquopy (`https://chaquo.com/pypi-13.1/`), ou (b) cross-buildé via `build-wheels.sh` (Cython/NDK : `scripts/build-aiohttp-wheels.sh` pour aiohttp et ses dépendances), ou (c) remplacé par un repli documenté. Vérifier les plafonds connus : `numpy≤1.26.2`, `cryptography≤42.0.8`, `bcrypt≤3.2.2`, `argon2-cffi` = 23.1.0, `authlib≤1.6.4`, `joserfc≤1.5.0`. Depuis R165, `aiohttp==3.14.5` est cross-buildé localement : le plafond `[PIN-REPO]` 3.10.10 a disparu (`docs/aiohttp-android.typ`).],
 
   [6.],
-  [Scan d'imports : vérifier que chaque nom importé de chaque paquet existe bien dans la version épinglée (0.13.4 : `aiohttp.encode_basic_auth`, ajouté en aiohttp 3.11 → repli P148).],
+  [Scan d'imports : vérifier que chaque nom importé de chaque paquet existe bien dans la version épinglée (0.13.4 : `aiohttp.encode_basic_auth`, absent de l'ancien aiohttp 3.10 → repli P148, devenu inutile après la montée R165 à 3.14.5).],
 
   [7.],
   [Test de fumée hôte : `scripts/smoke.sh` (port *8090*) puis vérifier `/`, `/health`, `/api/config`, la recherche web et SearXNG (`http://127.0.0.1:8888/search?q=test`).],
@@ -1254,12 +1254,20 @@ Le patch `38-compat-aiohttp-middlewares.patch` ajoute le helper
 `client_session_kwargs()` dans `utils/aws.py` : il n'ajoute le middleware que
 si la version installée le prend en charge, préservant le comportement amont
 sur aiohttp 3.11 et ultérieur. Les quatre appels l'utilisent. Le marqueur
-`P154 : aiohttp 3.10` est vérifié dans `utils/aws.pyc`.
+`P154 : aiohttp 3.10` était vérifié dans `utils/aws.pyc`.
 
-`scripts/test_p154.py` démarre un faux provider sur `127.0.0.1:8090` (jamais
-8080) et appelle réellement `get_models_request()` : la liste de modèles doit
-revenir. La reconstruction donne *47 patchs appliqués, 0 échec* ; P124, P126,
-P151 et P153 restent verts.
+`scripts/test_p154.py` démarrait un faux provider sur `127.0.0.1:8090` (jamais
+8080) et appelait réellement `get_models_request()` : la liste de modèles
+devait revenir. La reconstruction donnait alors *47 patchs appliqués, 0 échec*
+; P124, P126, P151 et P153 restaient verts.
+
+*Situation après R165* : cette solution de repli a été retirée. aiohttp 3.14.5
+est désormais cross-buildé pour Android, le comportement amont (`middlewares=`)
+est restauré et les patchs `31`, `36`, `38` ainsi que le hunk P148 de `20` ont
+disparu. `scripts/test_p154.py` a été réécrit pour vérifier ce retrait sans
+démarrer de serveur (les extensions Android ne sont pas importables par le
+Python hôte) et `check_apk.py` exige les `dist-info` des versions reconstruites
+et l'absence de `client_session_kwargs` dans le bytecode livré.
 
 Le libellé `searngx_local` n'a jamais figuré dans la liste des moteurs des APK
 P151 et P153 : celle-ci est identique et ne contient que `searxng`. Le moteur
@@ -1334,7 +1342,9 @@ des fichiers (base / disque / les deux) conservent leurs onglets propres.
 `/fm` (`_FM_VERSION`) valent `0.0.81`. Le tag `v0.0.81` n'est plus une
 prerelease et devient `Latest` ; le workflow publie les artefacts avec
 `prerelease=false` et `make_latest=true` dès que le tag ne contient pas
-`_beta`. `scripts/test_p159.py` vérifie l'absence de l'ancienne barre, les
+`_beta`. Depuis R165, les commits de développement sont publiés sous le tag
+*prerelease `v0.0.82_beta`* ; `v0.0.81` demeure la release stable `Latest`.
+`scripts/test_p159.py` vérifie l'absence de l'ancienne barre, les
 points d'état (y compris leur inversion quand l'état change), la persistance
 des sous-onglets et du sélecteur de fichiers, ainsi que la version du pied de
 page. `check_apk.py` contrôle le marqueur P159, l'absence de la barre
@@ -1388,12 +1398,44 @@ Trois actions sans risque ont été retenues et appliquées :
   l'APK et la CI vérifie désormais le fichier copié avant le build frontend.
 
 La chaîne passe ainsi de *48 à 44 patchs* (34 backend, 9 frontend, 1 searx)
-sans retirer aucun garde-fou. Les écarts de dépendances restants (`aiohttp`,
-`cryptography`, `asyncssh`, `redis`, `bcrypt`) sont *structurels* : l'index
-de wheels Chaquopy plafonne ces paquets et aiohttp ≥ 3.11 exigerait une
-recompilation Cython avec plusieurs dépendances natives supplémentaires, au
-risque de réintroduire P154. Cette piste reste documentée comme dette
-technique ; elle n'a pas été retenue.
+sans retirer aucun garde-fou. Les autres écarts de dépendances (`cryptography`,
+`asyncssh`, `redis`, `bcrypt`) restent *structurels* : l'index de wheels
+Chaquopy plafonne ces paquets. La dette aiohttp, initialement laissée ouverte,
+a été traitée en R165 (section suivante).
+
+= Montée aiohttp 3.14.5 et fin des patchs de compatibilité (R165)
+
+La tentative de recompilation menée dans un répertoire temporaire a réussi :
+*aiohttp 3.14.5* — version exacte demandée par `requirements-slim.txt` du
+submodule `v0.13.5` — et ses dépendances natives ont été cross-buildées pour
+`android_24_arm64_v8a` avec le clang du NDK (API 24), les en-têtes du prefix
+PyO3 et `libpython3.13.so`. Deux versions de Cython ont été nécessaires (3.1.4
+pour `frozenlist`, 3.3.0 pour `yarl` et `propcache`) ; `aiohttp` et `multidict`
+embarquent leurs sources C pré-générées. La méthode complète, les neuf wheels
+et leurs empreintes SHA-256 sont consignés dans `docs/aiohttp-android.typ`
+(PDF associé) et rejouables via `scripts/build-aiohttp-wheels.sh`, qui travaille
+exclusivement dans l'arbre du projet.
+
+Les pins de `requirements-min.txt` remplacent le plafond `[PIN-REPO]` 3.10.10
+par `aiohttp==3.14.5`, `multidict==7.2.1`, `yarl==1.25.1`,
+`frozenlist==1.8.0`, `propcache==0.5.4`, `aiohappyeyeballs==2.7.1`,
+`attrs==26.1.0` et `idna==3.20`. Les quatre patchs liés au non-montage de
+version sont retirés : `31-utils__oauth.py.patch`, `36-utils__aws.py.patch`,
+`38-compat-aiohttp-middlewares.patch` et le hunk P148 de
+`20-routers__auths.py.patch`, régénéré par `diff -u` depuis la source amont.
+La chaîne passe de *44 à 41 patchs* (31 backend, 9 frontend, 1 searx) avec
+*32 appliqués, 9 déjà, 0 échec*.
+
+Les garde-fous évoluent sans être affaiblis : `check_apk.py` exige désormais
+les `dist-info` des six paquets natifs reconstruits et l'absence du helper
+`client_session_kwargs` dans `utils/aws.pyc` ; il vérifie en outre le marqueur
+de version `0.0.82_beta` et l'absence de `0.0.81` dans `android_fm.pyc`.
+`test_p154.py` contrôle les pins, les wheels (tags, suffixes `.so`), le retrait
+des patchs et le retour du code amont ; `test_p159.py` est aligné sur la nouvelle
+version. Le numéro de version de l'application est relevé dans
+`app/build.gradle` (`versionName '0.0.82_beta'`) et dans le pied de page `/fm`
+(`_FM_VERSION`, trace P101). Le tag `v0.0.82_beta` est une *prerelease* : la
+release stable `v0.0.81` reste `Latest`.
 
 = Pistes d'évolution
 

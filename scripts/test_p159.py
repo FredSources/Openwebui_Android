@@ -31,7 +31,7 @@ assert 'P159 : premier niveau' in src
 assert '_fm_onglets' not in src.replace(
     "# P159 — l'ancienne barre d'onglets de premier niveau (_fm_onglets) est", '')
 assert '<div class="tabs">' not in src, 'barre de premier niveau encore construite'
-assert 'P101 version=0.0.81' in src, 'trace P101 avec version obsolète'
+assert 'P101 version=0.0.82_beta' in src, 'trace P101 avec version obsolète'
 assert '0.0.80_beta' not in src, 'ancienne version encore présente dans /fm'
 assert 'st.get(\'openwebui\') == \'actif\'' in src
 assert 'st.get(\'searxng\') == \'actif\'' in src
@@ -82,12 +82,12 @@ def rendre(query: bytes) -> str:
 
 
 html = rendre(b'folder=settings&tab=searxng&sub=service')
-assert 'OpenWebUI Android 0.0.81</footer>' in html, 'pied de page /fm non à jour'
+assert 'OpenWebUI Android 0.0.82_beta</footer>' in html, 'pied de page /fm non à jour'
 assert '0.0.80_beta' not in html
 assert '<div class="tabs">' not in html, 'onglets de premier niveau rendus'
 assert 'class="subtabs"' in html, 'les sous-onglets SearXNG doivent rester'
 assert 'Paramètres &mdash; SearXNG' in html
-print('OK  /fm Paramètres : pied de page 0.0.81, aucun onglet de premier niveau')
+print('OK  /fm Paramètres : pied de page 0.0.82_beta, aucun onglet de premier niveau')
 
 # R161 : la page Open WebUI gardait @@ONGLETS@@ et sa substitution vers une
 # variable supprimée -> NameError au rendu. Tester TOUTES les routes /fm, pas
@@ -101,7 +101,7 @@ for query in (b'folder=settings&tab=owui',
     page = rendre(query)
     assert '@@' not in page, f'placeholder non substitué dans /fm?{query.decode()}'
     assert 'Tester la recherche' not in page, 'bouton de test SearXNG toujours rendu'
-    assert 'OpenWebUI Android 0.0.81</footer>' in page
+    assert 'OpenWebUI Android 0.0.82_beta</footer>' in page
     assert '0.0.80_beta' not in page
     if query.startswith(b'folder=settings'):
         assert '<div class="tabs">' not in page, \

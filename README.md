@@ -21,13 +21,13 @@ Le **LLM reste distant** : Ollama ou API OpenAI-compatible sur ton PC/serveur.
 | `todo.md` / `journal.md` | Suivi des tâches / historique horodaté |
 | `PATCHES.md` | Toutes les modifications du code Open WebUI |
 | `requirements-min.txt` | Dépendances Python embarquées (slim, RAG léger `LocalVectorDB`) |
-| `vendor/open-webui/` | Submodule Open WebUI v0.13.4 (source vierge des patchs) |
+| `vendor/open-webui/` | Submodule Open WebUI v0.13.5 (source vierge des patchs) |
 | `patches/` | Patchs en diff (backend, frontend, compléments, searx) appliqués par `scripts/apply_patches.sh` |
 | `vendor/searxng/` | SearXNG figé (commit `a30b2d4749`) — copié dans `src/searx/` |
 | `src/` | Code Python embarqué (Open WebUI patché + SearXNG + shims) |
 | `app/` | Projet Android (Java + Chaquopy) |
-| `wheels/` | Wheels Rust cross-buildés (pydantic-core, jiter) |
-| `scripts/` | `env.sh`, `apply_patches.sh`, `setup-sdk.sh`, `build-wheels.sh`, `build.sh`, `smoke.sh` |
+| `wheels/` | Wheels Android cross-buildés (Rust, C et Cython — dont aiohttp 3.14.5) |
+| `scripts/` | `env.sh`, `apply_patches.sh`, `setup-sdk.sh`, `build-wheels.sh`, `build-aiohttp-wheels.sh`, `build.sh`, `smoke.sh` |
 | `dist/` | APK produits |
 
 **Isolation** : tout vit dans ce dossier (SDK, Gradle, Rust, NDK, venv).
@@ -142,6 +142,11 @@ des conversations et l'outil de recherche intégré.
   absents du dépôt Chaquopy) sont cross-buildés par `scripts/build-wheels.sh`
   (rustup + NDK + Python Android via l'artefact Maven `com.chaquo.python:python`,
   clang hôte + sysroot du NDK — le NDK officiel est x86_64).
+- `aiohttp 3.14.5` (version demandée par Open WebUI `v0.13.5`), `multidict`,
+  `yarl`, `frozenlist` et `propcache` sont cross-buildés en C/Cython par
+  `scripts/build-aiohttp-wheels.sh` (méthode et empreintes :
+  `docs/aiohttp-android.typ`) ; les patchs de compatibilité avec l'ancien
+  aiohttp 3.10 ont été supprimés.
 - Les outils Android x86_64 (`aapt2`, `zipalign`) tournent via **qemu-user-static**
   (`tools/qemu/`, wrappers branchés par `android.aapt2FromMavenOverride`) —
   indispensable sur machine aarch64.

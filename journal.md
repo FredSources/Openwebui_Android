@@ -5832,3 +5832,60 @@ embarqué (1 754 301 octets, copié depuis l'amont) ; `embedded-searxng` présen
 dans les chunks frontend.
 
 Le compte rendu de livraison est commité à part, sans toucher au tag.
+
+## R165 — montée aiohttp 3.14.5, retrait des patchs de compatibilité et prerelease `v0.0.82_beta` — 2026-11-27 22:22 UTC
+
+À la demande de l'utilisateur, une tentative de recompilation a été menée dans
+`/tmp/opencode/aiohttp-rebuild`, sans toucher au dépôt. Cible : *aiohttp 3.14.5*,
+version exacte de `requirements-slim.txt` au tag `v0.13.5`, contre le plafond
+`aiohttp==3.10.10` imposé par l'index Chaquopy. Chaîne employée : venv Python
+3.13 isolé, Cython 3.1.4 (`frozenlist`) puis 3.3.0 (`yarl`, `propcache`), sources
+C pré-générées pour `aiohttp` et `multidict`, wrapper NDK
+`tools/ndk-cc/aarch64-linux-android24-clang` (API 24), en-têtes et
+`libpython3.13.so` du prefix PyO3. Résultat : cinq wheels natifs (`aiohttp`,
+`multidict`, `yarl`, `frozenlist`, `propcache`) et quatre wheels purs
+(`aiohappyeyeballs`, `aiosignal`, `attrs`, `idna`). Résolution hors ligne
+`pip --platform android_24_arm64_v8a --python-version 3.13` des neuf paquets,
+`readelf -h` = AArch64, `readelf -d` = `libpython3.13.so` + bionic, aucune
+chaîne `GLIBC`. Limite : pas d'exécution sur appareil.
+
+L'utilisateur a ensuite demandé de *sauvegarder la méthode et les résultats dans
+l'arbre du projet*, puis d'intégrer et livrer sous **`v0.0.82_beta`** en
+rappelant de retirer les patchs liés au non-montage des paquets. Sont donc
+versionnés : `scripts/build-aiohttp-wheels.sh` (méthode idempotente, tous les
+chemins dans le projet), `docs/aiohttp-android.typ` + PDF (procédure, neuf
+empreintes SHA-256, vérifications, limites) et les 9 wheels dans `wheels/`.
+
+Intégration appliquée :
+
+- `requirements-min.txt` : `aiohttp==3.14.5`, `multidict==7.2.1`,
+  `yarl==1.25.1`, `frozenlist==1.8.0`, `propcache==0.5.4`,
+  `aiohappyeyeballs==2.7.1`, `attrs==26.1.0`, `idna==3.20` ; plus de pin
+  `[PIN-REPO]` 3.10.10 ;
+- suppression de `31-utils__oauth.py.patch`, `36-utils__aws.py.patch` et
+  `38-compat-aiohttp-middlewares.patch` ; retrait du hunk P148 de
+  `20-routers__auths.py.patch`, régénéré par `diff -u` depuis la source amont
+  (la première réécriture manuelle avait produit un hunk invalide, détecté par
+  `apply_patches.sh` puis corrigé) ; **44 → 41 patchs** ;
+- `check_apk.py` : au lieu d'exiger le marqueur P154, exiger les `dist-info`
+  `aiohttp-3.14.5`, `multidict-7.2.1`, `yarl-1.25.1`, `frozenlist-1.8.0`,
+  `propcache-0.5.4`, `aiohappyeyeballs-2.7.1` et l'absence de
+  `client_session_kwargs` dans `utils/aws.pyc` ; module `aiohttp` et ses
+  dépendances ajoutés à `MODULES_PIP` ; garde-fou de version durci à
+  `0.0.82_beta` présent / `0.0.81` absent ;
+- `scripts/test_p154.py` réécrit (pins, wheels, retrait des patchs, code amont
+  restauré, version) et `scripts/test_p159.py` aligné sur `0.0.82_beta` ;
+- version d'application : `versionName '0.0.82_beta'` dans `app/build.gradle`,
+  `_FM_VERSION` et trace P101 à `0.0.82_beta` dans `02-android_fm.py.patch` ;
+- documentation : `docs/maintenance.typ` (chapitre R165, états corrigés),
+  `docs/environnement.typ` (13 wheels natifs + 4 purs, submodule v0.13.5),
+  `README.md` ; trois PDF recompilés sans avertissement.
+
+Reconstruction : *32 appliqués, 9 déjà, 0 échec* (41 patchs). Tests verts :
+`compileall`, `test_p124`, `test_p126`, `test_p151`, `test_p153`, `test_p154`,
+`test_p155`, `test_p158`, `test_p159`, `bash -n scripts/*.sh`. Le venv hôte
+`.venv313` a été aligné sur aiohttp 3.14.5 pour que `test_p153` puisse importer
+l'annotation amont `aiohttp.ClientHandlerType` (le Python hôte ne charge pas les
+extensions Android). Détail de livraison après la CI.
+
+### Livraison — à compléter

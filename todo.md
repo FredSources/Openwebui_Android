@@ -342,6 +342,9 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       références `v0.13.4` corrigées ; `v0.0.81` recréé sur `3a80fcc`, CI
       #46071915201 verte, `Latest` = `v0.0.81`, APK vérifiées
       (`versionCode=26331036`, changelog amont embarqué)
-- [ ] Dette aiohttp (non retenue) : `31`, `36`, `38` + 1 hunk de `20`
-      supprimables uniquement après fourniture d'un wheel aiohttp ≥ 3.11
-      pour Chaquopy ; risque de réintroduire P154 si le retrait précède le wheel
+- [x] Dette aiohttp soldée en R165 : recompilation croisée réussie (aiohttp
+      3.14.5 + 4 dépendances natives), méthode et empreintes dans
+      `docs/aiohttp-android.typ`, script `scripts/build-aiohttp-wheels.sh`
+- [ ] R165 : pins aiohttp remplacés, 4 patchs de compatibilité retirés
+      (44 → 41), reconstruction 32/9/0, 9 tests verts, 3 PDF recompilés,
+      version relevée en `v0.0.82_beta` ; livraison prerelease en cours

@@ -26,7 +26,8 @@ import tempfile
 import zipfile
 
 MODULES_PIP = ["typst", "pycrdt", "msgspec", "pydantic_core", "jiter", "orjson",
-               "rpds", "uuid_utils", "asyncssh"]  # P152 : asyncssh requis par routers/machines
+               "rpds", "uuid_utils", "asyncssh", "aiohttp", "multidict", "yarl",
+               "frozenlist", "propcache", "aiohappyeyeballs"]  # P152 : asyncssh ; R165 : aiohttp 3.14.5
 MODULES_APP = ["open_webui", "searx", "tiktoken", "re2"]
 VERSION_AMONT = b"## [0.13.5]"  # P152 : changelog embarqué = version amont réellement livrée
 SUFFIXES_VALIDES = (".abi3.so", ".cpython-313-aarch64-linux-android.so", ".so")
@@ -234,17 +235,30 @@ def check_apk(apk: pathlib.Path) -> None:
                         elif not any(b"P153 : RUN_DIR suit TMPDIR" in o for o in managed):
                             err(f"{label} : marqueur P153 absent de managed.pyc "
                                 f"(chemin /tmp en dur restauré)")
-                        # P154 : l'amont v0.13.5 passe `middlewares=` aux
-                        # ClientSession aiohttp ; l'aiohttp 3.10 épinglé ne le
-                        # supporte pas (« OpenAI: Network Problem »). La
-                        # docstring du helper correctif est compilée dans aws.pyc.
+                        # R165 : aiohttp 3.14.5 remplace le 3.10.10 épinglé.
+                        # Les patchs de compatibilité 31/36/38 et le hunk de 20
+                        # ont été retirés : exiger les dist-info reconstruites
+                        # ET l'absence du helper de repli P154 dans aws.pyc.
+                        dist_infos = {
+                            "aiohttp": "3.14.5",
+                            "multidict": "7.2.1",
+                            "yarl": "1.25.1",
+                            "frozenlist": "1.8.0",
+                            "propcache": "0.5.4",
+                            "aiohappyeyeballs": "2.7.1",
+                        }
+                        for module, version in dist_infos.items():
+                            prefixe = f"{module}-{version}.dist-info/"
+                            if not any(n.startswith(prefixe) for n in noms_b):
+                                err(f"{label} : {prefixe} absent "
+                                    f"(montée aiohttp R165 perdue)")
                         aws = [bundle.read(n) for n in noms_b
                                if n.endswith("utils/aws.pyc")]
                         if not aws:
                             err(f"{label} : utils/aws.pyc absent")
-                        elif not any(b"P154 : aiohttp 3.10" in o for o in aws):
-                            err(f"{label} : marqueur P154 absent de aws.pyc "
-                                f"(middlewares aiohttp restauré)")
+                        elif any(b"client_session_kwargs" in o for o in aws):
+                            err(f"{label} : helper P154 encore embarqué "
+                                f"(patch 38 non retiré)")
                         # P155 — demande utilisateur : /fm → SearXNG doit
                         # proposer « Service » et « Moteur de recherche ».
                         # Le marqueur du docstring prouve que le patch
@@ -273,13 +287,13 @@ def check_apk(apk: pathlib.Path) -> None:
                                 f"(surlignement Paramètres non corrigé)")
                         # P160 : la trace P101 portait encore 0.0.80_beta et
                         # faisait échouer le run 45916306148. Corrigé à la
-                        # source (P101 version=0.0.81), le contrôle reste
-                        # strict : nouvelle constante présente ET ancienne
-                        # absente — aucun garde-fou n'est affaibli.
-                        elif not any(b"0.0.81" in o for o in fm) or any(
-                                b"0.0.80_beta" in o for o in fm):
+                        # source, le contrôle reste strict : nouvelle constante
+                        # présente ET ancienne absente — aucun garde-fou n'est
+                        # affaibli. R165 : passage à 0.0.82_beta.
+                        elif not any(b"0.0.82_beta" in o for o in fm) or any(
+                                b"0.0.81" in o for o in fm):
                             err(f"{label} : version du pied de page /fm non à jour "
-                                f"(attendu 0.0.81, sans 0.0.80_beta)")
+                                f"(attendu 0.0.82_beta, sans 0.0.81)")
                     elif "requirements-common" in bundle_nom:
                         check_modules(bundle, label, MODULES_PIP)
                     check_noms_so(bundle, label)

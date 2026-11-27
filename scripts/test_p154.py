@@ -1,81 +1,80 @@
-"""Validation locale P154 : sessions aiohttp compatibles avec la version épinglée.
+"""Validation locale R165 : aiohttp 3.14.5 sans patchs de compatibilité.
 
 Usage : .venv313/bin/python3 scripts/test_p154.py
 
-Régression signalée : « OpenAI: Network Problem » après la montée en v0.13.5.
-L'amont ajoute `middlewares=(sign_aws_request,)` aux `aiohttp.ClientSession`,
-paramètre introduit dans aiohttp 3.11 alors que le fork épingle 3.10.10 : chaque
-création de session levait `TypeError`, avant même toute requête réseau.
+Anciennement P154 : l'amont v0.13.5 passe `middlewares=` aux `ClientSession`
+aiohttp, paramètre ajouté en 3.11 alors que le fork épinglait 3.10.10. Quatre
+patchs compensaient cet écart (`31`, `36`, `38` et un hunk de `20`). La montée
+à aiohttp 3.14.5 (wheels cross-buildés, R165) les rend inutiles : ce test
+vérifie qu'ils ont été retirés et que les pins, les wheels et la version de
+livraison sont cohérents. Aucun serveur n'est démarré : les extensions Android
+ne sont pas importables par le Python hôte.
 """
-import asyncio
-import os
-import sys
-import tempfile
 from pathlib import Path
+import zipfile
 
 PROJ = Path(__file__).resolve().parents[1]
-TMP = Path(tempfile.mkdtemp(prefix='p154-', dir='/tmp/opencode'))
-os.environ.update(
-    WEBUI_SECRET_KEY='test-local-p154',
-    HOME=str(TMP),
-    DATA_DIR=str(TMP / 'data'),
-    UPLOAD_DIR=str(TMP / 'uploads'),
-    TMPDIR=str(TMP / 'tmp'),
-    DATABASE_URL=f"sqlite:///{TMP}/db.sqlite3",
-)
-(TMP / 'tmp').mkdir(parents=True, exist_ok=True)
-# Le banc écoute sur 127.0.0.1:8090 : aucun proxy ne doit détourner la requête.
-for cle in ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy'):
-    os.environ.pop(cle, None)
-sys.path = [str(PROJ / 'src')] + [p for p in sys.path if p not in ('', str(PROJ))]
 
-print('=== P154 — compatibilité aiohttp 3.10 des sessions OpenAI ===')
+print('=== R165 — montée aiohttp 3.14.5, retrait des patchs de compatibilité ===')
 
-for rel in ('utils/aws.py', 'routers/openai.py', 'utils/session_pool.py'):
+# 1. Pins : plus aucun plafond 3.10, toutes les dépendances natives épinglées.
+req = (PROJ / 'requirements-min.txt').read_text(encoding='utf-8')
+for pin in ('aiohttp==3.14.5', 'multidict==7.2.1', 'yarl==1.25.1',
+            'frozenlist==1.8.0', 'propcache==0.5.4', 'aiohappyeyeballs==2.7.1',
+            'attrs==26.1.0', 'idna==3.20'):
+    assert pin in req, f'pin absent : {pin}'
+assert 'aiohttp==3.10.10' not in req, 'ancien plafond aiohttp encore présent'
+print('OK  requirements : aiohttp 3.14.5 et 7 dépendances épinglées')
+
+# 2. Patchs supprimés, y compris le hunk de compatibilité de 20.
+for ancien in ('31-utils__oauth.py.patch', '36-utils__aws.py.patch',
+               '38-compat-aiohttp-middlewares.patch'):
+    assert not (PROJ / 'patches/backend' / ancien).exists(), f'{ancien} encore présent'
+auths_patch = (PROJ / 'patches/backend/20-routers__auths.py.patch').read_text()
+assert 'BasicAuth(login, password, encoding)' not in auths_patch, \
+    'repli P148 encore dans le patch 20'
+assert 'P148' not in auths_patch and 'except ImportError' not in auths_patch
+print('OK  patchs : 31/36/38 retirés, hunk P148 absent de 20')
+
+# 3. Sources restaurées sur le comportement amont.
+aws = (PROJ / 'src/open_webui/utils/aws.py').read_text(encoding='utf-8')
+assert 'client_session_kwargs' not in aws, 'helper P154 encore présent'
+assert 'aiohttp.ClientHandlerType' in aws, 'annotation amont perdue (patch 36)'
+auths = (PROJ / 'src/open_webui/routers/auths.py').read_text(encoding='utf-8')
+assert 'from aiohttp import ClientSession, encode_basic_auth' in auths
+assert 'BasicAuth(login, password, encoding)' not in auths, 'repli P148 encore présent'
+for rel in ('routers/openai.py', 'utils/session_pool.py'):
     source = (PROJ / 'src/open_webui' / rel).read_text(encoding='utf-8')
-    assert 'middlewares=' not in source, f'{rel} : middlewares= encore présent'
-    assert 'P154' in source, f'{rel} : marqueur P154 absent'
-print('OK  source : aucun middlewares=, 3 fichiers marqués P154')
+    assert 'middlewares=(sign_aws_request' in source, f'{rel} : middlewares= amont absent'
+print('OK  sources : middlewares= amont, aucun helper ni repli de compatibilité')
 
-import aiohttp  # noqa: E402
-from open_webui.utils.aws import client_session_kwargs  # noqa: E402
+# 4. Wheels Android : tag, suffixe .so et architecture embarquée.
+nattifs = {
+    'aiohttp-3.14.5': 4,
+    'multidict-7.2.1': 3,
+    'yarl-1.25.1': 1,
+    'frozenlist-1.8.0': 1,
+    'propcache-0.5.4': 1,
+}
+for paquet, nb_so in nattifs.items():
+    whl = PROJ / 'wheels' / f'{paquet}-cp313-cp313-android_24_arm64_v8a.whl'
+    assert whl.exists(), f'wheel absent : {whl.name}'
+    with zipfile.ZipFile(whl) as z:
+        sos = [n for n in z.namelist() if n.endswith('.so')]
+        wheel_meta = z.read([n for n in z.namelist() if n.endswith('.dist-info/WHEEL')][0])
+    assert len(sos) == nb_so, f'{whl.name} : {len(sos)} .so au lieu de {nb_so}'
+    assert all(n.endswith('cpython-313-aarch64-linux-android.so') for n in sos), sos
+    assert b'cp313-cp313-android_24_arm64_v8a' in wheel_meta, whl.name
+for pur in ('aiohappyeyeballs-2.7.1', 'aiosignal-1.4.0', 'attrs-26.1.0', 'idna-3.20'):
+    assert (PROJ / 'wheels' / f'{pur}-py3-none-any.whl').exists(), pur
+print('OK  wheels : 5 natifs Android + 4 purs, tags et suffixes conformes')
 
-kwargs = client_session_kwargs(timeout=aiohttp.ClientTimeout(total=5), trust_env=True)
-if 'middlewares' in kwargs:
-    print('NOTE aiohttp récent : middleware AWS conservé (comportement amont)')
-else:
-    assert aiohttp.__version__.startswith('3.10.'), aiohttp.__version__
-    print(f'OK  aiohttp {aiohttp.__version__} : middlewares omis, session constructible')
+# 5. Version de livraison : prerelease v0.0.82_beta, stable v0.0.81 intacte.
+gradle = (PROJ / 'app/build.gradle').read_text(encoding='utf-8')
+assert "versionName '0.0.82_beta'" in gradle, 'versionName pas en v0.0.82_beta'
+fm = (PROJ / 'patches/backend/02-android_fm.py.patch').read_text()
+assert '_FM_VERSION = "0.0.82_beta"' in fm
+assert 'P101 version=0.0.82_beta' in fm
+print('OK  version : v0.0.82_beta dans build.gradle et /fm')
 
-
-async def verif() -> None:
-    async with aiohttp.ClientSession(**kwargs) as session:
-        assert not session.closed
-    print('OK  ClientSession construite et fermée sans TypeError')
-
-    # Serveur factice sur 8090 (jamais 8080 : port de l'application).
-    from aiohttp import web
-
-    async def models(_request):
-        return web.json_response({'data': [{'id': 'p154-fake-model'}]})
-
-    app = web.Application()
-    app.router.add_get('/v1/models', models)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    try:
-        site = web.TCPSite(runner, '127.0.0.1', 8090)
-        await site.start()
-
-        from open_webui.routers.openai import get_models_request
-
-        resultat = await get_models_request(url='http://127.0.0.1:8090/v1')
-        assert resultat is not None, 'get_models_request a renvoyé None (réseau cassé)'
-        assert resultat['data'][0]['id'] == 'p154-fake-model', resultat
-        print('OK  get_models_request -> liste de modèles reçue du provider factice')
-    finally:
-        await runner.cleanup()
-
-
-asyncio.run(verif())
-print('\nTous les cas P154 sont valides.')
+print('\nTous les cas R165 sont valides.')

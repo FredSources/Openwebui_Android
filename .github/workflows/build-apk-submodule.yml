@@ -1,13 +1,13 @@
 # build-apk-submodule.yml — CI/CD v2 « source d'origine + diffs »
-# Build les APK debug + release sur un tag v* (ex. v0.0.81 en stable) et publie
-# la Release GitHub avec les APK attachés.
+# Build les APK debug + release sur un tag v* (ex. v0.0.82_beta en prerelease,
+# v0.0.81 en stable) et publie la Release GitHub avec les APK attachés.
 #
 # Chaîne v2 (voir REFONTE.md) — diffère de v1 UNIQUEMENT sur l'amont :
 #   1. checkout avec `submodules: recursive` (open-webui v0.13.5 + searxng figé)
 #      → ni wheel PyPI (chaîne v1), ni clonage SearXNG à la volée ;
-#   2. scripts/apply_patches.sh : 34 patchs backend en diff → src/open_webui/,
+#   2. scripts/apply_patches.sh : 31 patchs backend en diff → src/open_webui/,
 #      CHANGELOG amont copié, patchs frontend → submodule,
-#      compléments (shims + searx) ; R164 : 44 patchs au total
+#      compléments (shims + searx) ; R165 : 41 patchs au total
 #   3. frontend RECOMPILÉ depuis les sources Svelte (npm ci + npm run build)
 #      → copié vers src-assets/frontend (en v1 : chunks pré-compilés committés).
 # Le reste de la chaîne APK est IDENTIQUE à v1 : SDK/Gradle installés dans le

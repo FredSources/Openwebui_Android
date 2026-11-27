@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # apply_patches.sh — reconstruction de src/ (backend patché) depuis le SUBMODULE
-# open-webui (source vierge v0.13.4) + la liste de patchs en diff (patches/).
+# open-webui (source vierge v0.13.5) + la liste de patchs en diff (patches/).
 #
 # Remplace l'ancien mode (wheel PyPI + scripts/prepare_src.py en replace_once)
 # par : source d'origine (submodule) + diffs lisibles et versionnés.
+# R164 : le CHANGELOG amont est COPIÉ (plus de patch de 7 170 lignes à
+# régénérer à chaque montée de version) ; cf. bloc « complements ».
 #
 # Usage : scripts/apply_patches.sh [--check]   (--check = vérifie sans écrire)
 set -euo pipefail
@@ -75,6 +77,12 @@ done
 
 echo "=== complements (non issus d'Open WebUI) ==="
 if [ "$CHECK" = "0" ]; then
+  # R164 — CHANGELOG amont : copie du fichier du submodule au lieu d'un patch
+  # « nouveau fichier » de 7 170 lignes à régénérer à chaque montée. L'UI le
+  # lit via pkgutil.get_data('open_webui', 'CHANGELOG.md') (env.py) et
+  # check_apk.py exige la section ## [0.13.5] dans l'APK.
+  cp "$SUB/CHANGELOG.md" "$CIBLE/CHANGELOG.md"
+  echo "  copié : vendor/open-webui/CHANGELOG.md -> src/open_webui/CHANGELOG.md"
   # SearXNG embarqué (vendor séparé, commit figé) — AVANT les compléments :
   # le rm -rf ci-dessous écraserait sinon src/searx/version_frozen.py
   if [ -d "$PROJ/vendor/searxng/searx" ]; then

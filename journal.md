@@ -5769,3 +5769,38 @@ P155/P157/P159 présents ; `Tester la recherche`, `@@ONGLETS@@`,
 `0.0.80_beta`, `search?q=test` et la barre d'onglets supprimée absents.
 `embedded-searxng` présent dans les chunks frontend. `test_p159.py` vérifie la
 classe active sur trois vues.
+
+## 2026-11-27 07:05 UTC — R164 : alignement de version amont et réduction des patchs
+
+Demande : « analyse afin de pouvoir être conforme en terme de version des sous
+modules avec openwebui d'origin … réduire les patch liée au différence de
+version et de ne pas diverger en version ». Deux analyses en lecture seule ont
+été menées (classification des patchs ; état amont et contraintes Chaquopy).
+
+Constat : le submodule est déjà sur le dernier tag amont, `v0.13.5`
+(`926f826ea`) — vérifié par `git ls-remote --tags` et `ls-remote HEAD` : aucun
+tag plus récent et `HEAD` distant = commit du submodule. Il n'y a donc **aucune
+divergence de version amont** ; seules les dépendances épinglées pour Android
+et les patchs créent un écart. Aucun patch n'était devenu redondant avec
+l'amont (`patch --forward` : 0 « déjà » lors de la montée P152).
+
+Classification des 48 patchs : 32 de fonctionnalité Android (A), 4 de
+compatibilité aiohttp (B1 : 20 partiel, 31, 36, 38), 8 de contrainte
+plateforme (B2), 1 donnée dupliquée (D : changelog) et 3 changements de mode
+de fichier seuls (D′ : 10, 11, 22 — `old mode 100755` / `new mode 100644`,
+sans contenu). Aucun patch de classe C.
+
+Méthodes évaluées : M0 correction des références `v0.13.4` périmées ; M1
+suppression des 3 patchs D′ ; M2 remplacement du patch changelog (7 170
+lignes) par une copie depuis le submodule ; M3 recompilation d'aiohttp ≥ 3.11
+pour supprimer 3 patchs B1 ; M4 montée amont (aucune version disponible).
+M3 est écarté pour l'instant : l'index Chaquopy plafonne aiohttp à 3.10.10,
+aiohttp ≥ 3.11 exige des extensions Cython et de nouvelles dépendances natives
+(`aiohappyeyeballs`, `propcache`, `multidict`, `yarl`, `frozenlist`) à
+cross-compiler, avec risque de réintroduire P154. Alignier `asyncssh`, `redis`
+ou `cryptography` sur l'amont ne supprime aucun patch et casse les plafonds
+Android : écart structurel, non erreur de version.
+
+L'utilisateur a retenu **M0 + M1 + M2** : références corrigées, 4 patchs
+supprimés (48 → 44) et changelog copié depuis `vendor/open-webui/CHANGELOG.md`
+lors de la reconstruction. Détail de livraison après la CI.

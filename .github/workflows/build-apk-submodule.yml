@@ -3,10 +3,11 @@
 # la Release GitHub avec les APK attachés.
 #
 # Chaîne v2 (voir REFONTE.md) — diffère de v1 UNIQUEMENT sur l'amont :
-#   1. checkout avec `submodules: recursive` (open-webui v0.13.4 + searxng figé)
+#   1. checkout avec `submodules: recursive` (open-webui v0.13.5 + searxng figé)
 #      → ni wheel PyPI (chaîne v1), ni clonage SearXNG à la volée ;
-#   2. scripts/apply_patches.sh : 33 patchs backend en diff → src/open_webui/,
-#      patch frontend (Audio.svelte) → submodule, compléments (shims + searx) ;
+#   2. scripts/apply_patches.sh : 34 patchs backend en diff → src/open_webui/,
+#      CHANGELOG amont copié, patchs frontend → submodule,
+#      compléments (shims + searx) ; R164 : 44 patchs au total
 #   3. frontend RECOMPILÉ depuis les sources Svelte (npm ci + npm run build)
 #      → copié vers src-assets/frontend (en v1 : chunks pré-compilés committés).
 # Le reste de la chaîne APK est IDENTIQUE à v1 : SDK/Gradle installés dans le
@@ -66,6 +67,10 @@ jobs:
           test -d src/searx
           test -f src/tiktoken.py
           test -f src/re2.py
+          # R164 : le changelog est copié depuis le submodule (plus de patch
+          # dédié) — la section de version embarquée doit rester vérifiée
+          test -f src/open_webui/CHANGELOG.md
+          grep -q '## \[0.13.5\]' src/open_webui/CHANGELOG.md
           # le patch frontend doit avoir été appliqué dans le submodule
           grep -q "PROVIDER === 'android'" \
             vendor/open-webui/src/lib/components/admin/Settings/Audio.svelte
@@ -207,7 +212,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           mkdir -p .tmp
-          OW=$(git -C vendor/open-webui describe --tags --exact-match 2>/dev/null || echo "v0.13.4")
+          OW=$(git -C vendor/open-webui describe --tags --exact-match 2>/dev/null || echo "v0.13.5")
           SX=$(git -C vendor/searxng rev-parse --short=7 HEAD)
           TY=$(sed -n 's/^typst==\([0-9.]*\).*/\1/p' requirements-min.txt | head -1)
           {

@@ -1,5 +1,6 @@
-# requirements-min.txt — Open WebUI 0.13.0 « sans RAG », pour Android (Chaquopy)
-# Base : requirements-slim.txt du wheel open_webui-0.13.0, avec :
+# requirements-min.txt — pour Open WebUI 0.13.5, « sans RAG », sur Android (Chaquopy)
+# Base historique : requirements-slim.txt du wheel open_webui-0.13.0 (non
+# régénérée en 0.13.5 ; seul asyncssh a été ajouté en P152), avec :
 #   [RAG]        = supprimé (demande : « enlevant juste le RAG »)
 #   [ANDROID]    = supprimé car indisponible sur Android (natif absent du dépôt Chaquopy)
 #   [PIN-REPO]   = version calée sur le dépôt de wheels Android de Chaquopy

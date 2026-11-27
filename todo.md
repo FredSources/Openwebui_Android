@@ -336,3 +336,7 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       à `_fm_page`), 3 vues vérifiées ; `v0.0.81` recréé sur `d15d3c7`, CI
       #45954723631 verte, `Latest` = `v0.0.81`, APK vérifiées
       (`versionCode=26331035`, marqueur R163 dans le bytecode)
+- [x] R164 : alignement amont vérifié (`v0.13.5` = dernier tag et `HEAD`) ; 4
+      patchs retirés (changelog copié + 3 changements de mode seuls), 48 → 44
+      patchs, reconstruction 44/0/0, 8 tests verts, PDF sans avertissement,
+      références `v0.13.4` corrigées ; livraison `v0.0.81` en cours

@@ -70,7 +70,7 @@ flowchart LR
   [Chaquopy : CPython 3.13 embarqué, ABI `arm64-v8a`, `minSdk 24`],
 
   [Backend],
-  [Open WebUI 0.13.4 *patché* (FastAPI + uvicorn + SQLite) dans `src/open_webui/`],
+  [Open WebUI 0.13.5 *patché* (FastAPI + uvicorn + SQLite) dans `src/open_webui/`],
 
   [Frontend],
   [UI SvelteKit compilée, livrée dans le wheel amont (`open_webui/frontend/`)],
@@ -101,7 +101,7 @@ qemu et Python vivent dans le dépôt (règle d'isolation, @sec-iso).
   [`requirements-min.txt`],
   [Dépendances Python embarquées, avec justifications de pin],
 
-  [`vendor/open-webui/`], [Submodule Open WebUI v0.13.4 (source vierge des patchs)],
+  [`vendor/open-webui/`], [Submodule Open WebUI v0.13.5 (source vierge des patchs)],
   [`vendor/searxng/`], [Dépôt SearXNG figé sur un commit précis],
   [`patches/`], [Patchs en diff (backend, frontend, complements, searx)],
   [`src/`],
@@ -127,9 +127,11 @@ rencontré et sa solution, dans l'ordre chronologique.
 
 == Phase A — Sources et cadrage
 
-- Récupération des sources Open WebUI 0.13.4 *via le wheel PyPI* (le wheel
-  contient le frontend déjà compilé : aucun build npm nécessaire). Piège : le
-  wheel porte `Requires-Python <3.13` — téléchargé avec un Python 3.12 portable.
+- Récupération des sources Open WebUI 0.13.4 *via le wheel PyPI* (étape
+  historique de la chaîne v1 ; la chaîne v2 part du submodule v0.13.5 décrit
+  plus bas). Le wheel contient le frontend déjà compilé : aucun build npm
+  nécessaire. Piège : le wheel porte `Requires-Python <3.13` — téléchargé avec
+  un Python 3.12 portable.
 - Cible *Python 3.13* (les wheels Android du dépôt Chaquopy existent en cp313).
   Le blocage `<3.13` amont vient de `pydub`/`audioop` (retiré de la stdlib en
   3.13) : neutralisé par le patch P5.
@@ -278,7 +280,7 @@ propriété Gradle `android.aapt2FromMavenOverride` et le remplacement de
 = Divergences avec l'amont — audit et minimisation <sec-divergences>
 
 L'arbre `src/` est reconstruit à chaque build depuis le submodule amont
-(`vendor/open-webui/`, v0.13.4), puis les patchs en diff (`patches/`) sont
+(`vendor/open-webui/`, v0.13.5 — dernier tag et `HEAD` amont vérifiés), puis les patchs en diff (`patches/`) sont
 appliqués par `scripts/apply_patches.sh`. L'écart v1/v2 a été audité lors de
 la refonte (zéro écart hors `__pycache__` — voir `REFONTE.md`) ; l'audit v1
 (`scripts/audit_divergence.py` → `docs/audit-divergence.txt`) a été supprimé
@@ -1175,6 +1177,11 @@ le tag et la release sont recréés, l'APK précédente étant remplacée ; le
 `versionCode` reste croissant (date UTC + numéro d'exécution). La version
 stable *Latest* demeure *v0.0.80*.
 
+Ces deux dernières affirmations décrivent l'état du 2026-11-26 et sont
+conservées à titre historique. Elles sont depuis remplacées : à la demande de
+l'utilisateur, `v0.0.81` est devenue une release *stable* et `Latest` (voir
+la section « Navigation `/fm` simplifiée et release stable » plus bas).
+
 Cinq patchs ont dû être régénérés. Le changelog embarqué
 (`01-CHANGELOG.md.patch`) contient désormais 7 170 lignes et débute par
 `## [0.13.5] - 2026-11-25` : l'UI le lit via
@@ -1356,6 +1363,37 @@ transmettait pas `tab` à `_fm_page()`, qui retombait sur sa valeur par défaut
 paramètre est maintenant transmis ; `test_p159.py` contrôle la classe active
 sur trois vues et `check_apk.py` exige le marqueur correspondant dans le
 bytecode livré.
+
+= Alignement de version amont et réduction des patchs (R164)
+
+Le submodule `vendor/open-webui` est figé sur `v0.13.5` (`926f826ea`). Une
+vérification par `git ls-remote --tags` et `ls-remote HEAD` confirme qu'il
+s'agit du *dernier tag amont et de l'`HEAD` distant* : il n'y a aucune
+divergence de version à corriger. Les 48 patchs ont été classés en cinq
+catégories : 32 fonctionnalités Android propres, 4 patchs de compatibilité
+liés à l'aiohttp `3.10.10` épinglé par Chaquopy (l'amont demande `3.14.5`),
+8 contraintes de plateforme natives, un changelog dupliqué et 3 patchs de
+simple mode de fichier (`100755` → `100644`, sans aucun contenu). Aucun patch
+n'est devenu redondant avec l'amont.
+
+Trois actions sans risque ont été retenues et appliquées :
+
+- références documentaires et de CI périmées (`v0.13.4`, `v0.13.0`,
+  « 33 patchs backend », repli de `describe --tags`) alignées sur `v0.13.5` ;
+  les passages purement historiques sont explicitement signalés comme tels ;
+- suppression des 3 patchs de mode de fichier, sans effet sur l'import Python ;
+- suppression du patch du changelog (7 170 lignes) au profit d'une copie de
+  `vendor/open-webui/CHANGELOG.md` vers `src/open_webui/CHANGELOG.md` dans
+  `apply_patches.sh`. `check_apk.py` continue d'exiger `## [0.13.5]` dans
+  l'APK et la CI vérifie désormais le fichier copié avant le build frontend.
+
+La chaîne passe ainsi de *48 à 44 patchs* (34 backend, 9 frontend, 1 searx)
+sans retirer aucun garde-fou. Les écarts de dépendances restants (`aiohttp`,
+`cryptography`, `asyncssh`, `redis`, `bcrypt`) sont *structurels* : l'index
+de wheels Chaquopy plafonne ces paquets et aiohttp ≥ 3.11 exigerait une
+recompilation Cython avec plusieurs dépendances natives supplémentaires, au
+risque de réintroduire P154. Cette piste reste documentée comme dette
+technique ; elle n'a pas été retenue.
 
 = Pistes d'évolution
 

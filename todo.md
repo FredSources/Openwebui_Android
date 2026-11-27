@@ -327,3 +327,8 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       mise à jour (`versionName`, pied de page et trace P101), `test_p159.py`
       vert ; livrés en release **stable** `v0.0.81` (CI #45922343958 verte,
       `Latest` = `v0.0.81`, APK vérifiées, signature inchangée)
+- [x] R161/R162 : `NameError: onglets` corrigé (placeholder `@@ONGLETS@@`
+      retiré du template Open WebUI), bouton « Tester la recherche (SearXNG) »
+      supprimé ; huit routes `/fm` rendues sans erreur, garde-fous APK étendus ;
+      `v0.0.81` recréé sur `9369888`, CI #45951379812 verte, `Latest` =
+      `v0.0.81`, APK vérifiées (`versionCode=26331033`)

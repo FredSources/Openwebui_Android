@@ -5705,3 +5705,24 @@ existant n'est affaibli (le contrôle du lien P156 est remplacé par son contrai
 conformément à la demande). `docs/maintenance.typ` corrigé en conséquence — la
 section P156 décrit désormais l'historique du bouton puis son retrait. Version
 toujours `0.0.81` ; tag recréé avec R161.
+
+### Livraison — 2026-11-27 06:30 UTC (remplace la livraison 01:32)
+
+Release `v0.0.81` supprimée puis recréée sur `9369888` ; CI `#45951379812`
+**verte** (`conclusion: success`), `prerelease=false`, `Latest = v0.0.81`,
+publiée le `2026-11-27T06:29:45Z`. Les hashes de la livraison 01:32 sont
+obsolètes ; valeurs retenues :
+
+- release : 280 462 572 octets, SHA-256
+  `0460eb1783f5b07dd2aea710184153907b564d81d2b9043d7ea55b8b82c27f3f` ;
+- debug : 291 520 981 octets, SHA-256
+  `24a2aa8eabfb8e5e4e42c62ca7f17ccad99573ee0ab8944b2782fe885d732add` ;
+- `versionCode=26331033` (contre 26331032 précédemment) ;
+- signature release inchangée :
+  `7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4`.
+
+`check_apk.py` vert sur les deux APK. Contrôle direct de `app.imy` : présence
+de P155/P156/P157/P159 et de `0.0.81`, absence de `Tester la recherche`,
+`@@ONGLETS@@`, `0.0.80_beta`, `search?q=test` et de la barre d'onglets de
+premier niveau ; `embedded-searxng` présent dans les chunks frontend. Les huit
+routes `/fm` sont rendues sans `NameError` par `test_p159.py`.

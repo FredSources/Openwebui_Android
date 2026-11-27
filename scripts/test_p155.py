@@ -99,10 +99,11 @@ assert 'http://127.0.0.1:8888/search?q=&lt;query&gt;' in html_service
 assert 'subtab on' in html_service and 'sub=service' in html_service
 assert 'sub=engine' in html_service
 assert '<iframe' not in html_service
-# P156 — le lien de test doit viser le SERVICE SearXNG (la route /search
-# du backend n'existe pas : elle renvoyait un 404).
-assert 'href="http://127.0.0.1:8888/search?q=test"' in html_service
-assert 'Tester la recherche (SearXNG)' in html_service
+# R162 — le bouton « Tester la recherche » est supprimé : aucune URL de test
+# ne doit rester dans la vue Service (P156 avait corrigé sa cible, le bouton
+# n'est plus voulu du tout).
+assert 'Tester la recherche' not in html_service
+assert 'search?q=test' not in html_service
 assert 'href="/search?q=test' not in html_service
 # P157 — tout le reste (état, boutons, messages) est bien côté Service.
 for present in ('Redémarrer', 'svc(&quot;searxng&quot;,&quot;restart&quot;)',

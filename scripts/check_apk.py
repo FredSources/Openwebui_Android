@@ -262,6 +262,12 @@ def check_apk(apk: pathlib.Path) -> None:
                         elif any(b'<div class="tabs">' in o for o in fm):
                             err(f"{label} : barre d'onglets de premier niveau "
                                 f"présente dans android_fm.pyc")
+                        elif any(b'@@ONGLETS@@' in o for o in fm):
+                            err(f"{label} : placeholder @@ONGLETS@@ résiduel — "
+                                f"NameError sur la page Open WebUI (R161)")
+                        elif any(b'Tester la recherche' in o for o in fm):
+                            err(f"{label} : bouton « Tester la recherche » "
+                                f"toujours embarqué (R162)")
                         # P160 : la trace P101 portait encore 0.0.80_beta et
                         # faisait échouer le run 45916306148. Corrigé à la
                         # source (P101 version=0.0.81), le contrôle reste

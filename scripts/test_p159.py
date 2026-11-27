@@ -89,6 +89,25 @@ assert 'class="subtabs"' in html, 'les sous-onglets SearXNG doivent rester'
 assert 'Paramètres &mdash; SearXNG' in html
 print('OK  /fm Paramètres : pied de page 0.0.81, aucun onglet de premier niveau')
 
+# R161 : la page Open WebUI gardait @@ONGLETS@@ et sa substitution vers une
+# variable supprimée -> NameError au rendu. Tester TOUTES les routes /fm, pas
+# seulement SearXNG : un placeholder non remplacé ou une variable manquante
+# fait échouer le rendu ici, avant l'APK.
+for query in (b'folder=settings&tab=owui',
+              b'folder=settings&tab=searxng&sub=service',
+              b'folder=settings&tab=searxng&sub=engine',
+              b'folder=settings', b'folder=logs', b'folder=maintenance',
+              b'folder=all', b''):
+    page = rendre(query)
+    assert '@@' not in page, f'placeholder non substitué dans /fm?{query.decode()}'
+    assert 'Tester la recherche' not in page, 'bouton de test SearXNG toujours rendu'
+    assert 'OpenWebUI Android 0.0.81</footer>' in page
+    assert '0.0.80_beta' not in page
+    if query.startswith(b'folder=settings'):
+        assert '<div class="tabs">' not in page, \
+            f'onglets de premier niveau dans /fm?{query.decode()}'
+print('OK  8 routes /fm rendues sans NameError ni placeholder résiduel')
+
 oui = 'title="Open WebUI"><span class="si">'
 assert oui in html, 'entrée Open WebUI absente de la sidebar'
 # Les points précèdent le libellé, dans le bon ordre et avec les bonnes couleurs.

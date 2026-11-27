@@ -1,7 +1,7 @@
 --- a/android_fm.py
 new file mode 100644
 +++ b/android_fm.py
-@@ -0,0 +1,1449 @@
+@@ -0,0 +1,1445 @@
 +"""OpenWebUI Android — navigateur de fichiers /fm + maintenance (P27/P31/P36).
 +
 +P155 : /fm SearXNG expose deux sous-onglets — « Service » (page historique)
@@ -904,13 +904,10 @@ new file mode 100644
 +                            + '<p class="sub">URL de requête SearXNG : <code>'
 +                            + _html.escape('http://127.0.0.1:8888/search?q=<query>')
 +                            + '</code></p></div>'
++                            # R162 — bouton « Tester la recherche » retiré à la
++                            # demande de l'utilisateur : la vue Service ne garde
++                            # que les actions de service (svcbar).
 +                            + '<div class="svcbar">' + svcbar
-+                            # P156 — l'ancien lien /search?q=test n'existe pas
-+                            # dans Open WebUI (404) : il doit ouvrir le SERVICE
-+                            # SearXNG embarqué, pas une route du backend.
-+                            + '<a class="btn" href="http://127.0.0.1:8888/search?q=test" '
-+                            + 'target="_blank" rel="noopener">'
-+                            + '&#128269; Tester la recherche (SearXNG)</a>'
 +                            + '</div></div>'
 +                            + '<div class="card"><h2>&#128269; Recherche</h2>'
 +                            + '<p class="sub">Formats de réponse de l’instance embarquée.</p>'
@@ -927,7 +924,7 @@ new file mode 100644
 +                            + '</form></div><p id="svcmsg" class="sub"></p>' + _js
 +                        )
 +                else:
-+                    page = """@@ONGLETS@@
++                    page = """
 +    <form method="post" action="/fm/settings"><input type="hidden" name="tab" value="owui"><div class="settings">
 +    <h1>&#9881; Paramètres &mdash; Open WebUI</h1>
 +    <p class="sub">Réglages écrits dans <code>data/openwebui.env</code> — appliqués au prochain démarrage.</p>
@@ -969,7 +966,6 @@ new file mode 100644
 +                    for _nom in connus:
 +                        page = page.replace('@@' + _nom + '@@', _champ(_nom))
 +                    page = page.replace('@@RESTE@@', _html.escape(reste))
-+                    page = page.replace('@@ONGLETS@@', onglets)
 +                    page = page.replace('@@ST_OW@@', st.get('openwebui', 'arrêt'))
 +                    page = page.replace('@@DOT_OW@@', dot_ow)
 +                return _HTMLResponse(_fm_page(page, 'Paramètres', folder='settings', src=src))

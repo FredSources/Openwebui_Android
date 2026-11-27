@@ -5669,3 +5669,39 @@ APK : marqueurs P153, P154, P155, P156, P157, P159, URL
 absence de `0.0.80_beta`. Le frontend recompilé contient bien
 `embedded-searxng` dans les chunks `_app/immutable/` (contrôle P158 corrigé).
 Aucun processus de test résiduel, aucun serveur sur 8080/8090.
+
+## 2026-11-27 06:14 UTC — R161 : `NameError: onglets` sur la page Open WebUI
+
+L'utilisateur a ouvert `/fm` sur l'onglet **Open WebUI** et obtenu :
+`NameError: name 'onglets' is not defined` (
+`open_webui/android_fm.py`, ligne 968 de l'APK `v0.0.81`). Cause : P159 a
+supprimé `_fm_onglets()` et ses appels, mais le template de la page Open
+WebUI conservait le marqueur `@@ONGLETS@@` et sa substitution
+`page.replace('@@ONGLETS@@', onglets)` : la variable n'existait plus. La page
+SearXNG, seule rendue par `test_p159.py`, passait encore — d'où la non-détection
+avant publication.
+
+Correctif : retrait du marqueur `@@ONGLETS@@` du template et de la ligne de
+substitution. `test_p159.py` rend désormais **huit routes** `/fm` (Open WebUI,
+SearXNG service/engine, réglages génériques, Journaux, Maintenance, fichiers et
+racine) et échoue sur tout `@@` résiduel ou variables non définies. `check_apk.py`
+interdit la chaîne `@@ONGLETS@@` dans `android_fm.pyc` : aucun contrôle existant
+n'est affaibli. Le patch `02-android_fm.py.patch` est régénéré. Version
+conservée à `0.0.81` ; le tag stable est recréé sur le commit corrigé (détail
+après la CI).
+
+## 2026-11-27 06:20 UTC — R162 : retrait du bouton « Tester la recherche »
+
+Demande utilisateur : « enlever le bouton tester la recherche (searxng) ». Le
+lien créé en P156 est supprimé de la carte Service de `/fm` ; les actions de
+service (Démarrer / Arrêter / Redémarrer) restent. Les URL de requête à reporter
+dans Open WebUI (`http://127.0.0.1:8888/search?q=<query>`) et l'iframe du
+sous-onglet Moteur ne sont pas modifiées.
+
+`test_p155.py` n'exige plus le lien et vérifie l'absence de `search?q=test` ;
+`test_p159.py` contrôle l'absence du libellé sur huit routes ; `check_apk.py`
+interdit la chaîne `Tester la recherche` dans `android_fm.pyc`. Aucun contrôle
+existant n'est affaibli (le contrôle du lien P156 est remplacé par son contraire,
+conformément à la demande). `docs/maintenance.typ` corrigé en conséquence — la
+section P156 décrit désormais l'historique du bouton puis son retrait. Version
+toujours `0.0.81` ; tag recréé avec R161.

@@ -1268,10 +1268,11 @@ recherche et réglages des formats de réponse. La carte Service rappelle en plu
 les valeurs à reporter dans *Open WebUI → Réglages → Web* : moteur `searxng`
 (la valeur interne `embedded-searxng` étant forcée au démarrage) et URL de
 requête `http://127.0.0.1:8888/search?q=<query>` pour le champ « SearXNG Query
-URL ». Le bouton « *Tester la recherche* » (P156) pointe désormais sur le
+URL ». Le bouton « *Tester la recherche* » (P156) pointait d'abord sur le
 service local `http://127.0.0.1:8888/search?q=test` : l'ancienne cible
 `/search?q=test&format=json` n'est une route d'aucun routeur Open WebUI et
-renvoyait un 404.
+renvoyait un 404. Il a ensuite été *supprimé* à la demande de l'utilisateur
+(R162) : la carte Service ne conserve que les actions de service.
 
 À la demande suivante de l'utilisateur (P157), le sous-onglet « *Moteur de
 recherche* » ne contient *que* l'iframe intégrée de `http://127.0.0.1:8888/`
@@ -1330,11 +1331,23 @@ prerelease et devient `Latest` ; le workflow publie les artefacts avec
 points d'état (y compris leur inversion quand l'état change), la persistance
 des sous-onglets et du sélecteur de fichiers, ainsi que la version du pied de
 page. `check_apk.py` contrôle le marqueur P159, l'absence de la barre
-supprimée et la version `0.0.81` dans `android_fm.pyc`. La trace de démarrage
+supprimée, l'absence du placeholder `@@ONGLETS@@` et la version `0.0.81` dans
+`android_fm.pyc`. La trace de démarrage
 P101 a elle aussi été alignée sur `0.0.81` : elle portait encore `0.0.80_beta`
 et a fait échouer le run `#45916306148` alors que le pied de page était déjà
 correct. Le contrôle reste strict — ancienne version interdite, nouvelle
 exigée — et `test_p159.py` vérifie l'unicité de la version dans la source.
+
+`R161` : la suppression de la barre d'onglets avait laissé, dans le template de
+la page *Open WebUI*, le marqueur `@@ONGLETS@@` et sa substitution vers une
+variable devenue inexistante, d'où un `NameError` à l'ouverture de `/fm`. Le
+marqueur et la substitution sont retirés ; `test_p159.py` rend désormais huit
+routes et détecte tout placeholder résiduel, tandis que `check_apk.py` interdit
+`@@ONGLETS@@` dans le bytecode livré.
+
+`R162` : le bouton « Tester la recherche (SearXNG) » est retiré de la carte
+Service. `test_p155.py` et `test_p159.py` vérifient son absence sur toutes les
+vues, et `check_apk.py` interdit la chaîne dans `android_fm.pyc`.
 
 = Pistes d'évolution
 

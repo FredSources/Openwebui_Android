@@ -332,3 +332,7 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       supprimé ; huit routes `/fm` rendues sans erreur, garde-fous APK étendus ;
       `v0.0.81` recréé sur `9369888`, CI #45951379812 verte, `Latest` =
       `v0.0.81`, APK vérifiées (`versionCode=26331033`)
+- [x] R163 : surlignement Paramètres aligné sur la page rendue (`tab` transmis
+      à `_fm_page`), 3 vues vérifiées ; `v0.0.81` recréé sur `d15d3c7`, CI
+      #45954723631 verte, `Latest` = `v0.0.81`, APK vérifiées
+      (`versionCode=26331035`, marqueur R163 dans le bytecode)

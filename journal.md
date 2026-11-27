@@ -5748,3 +5748,24 @@ docstrings sont compilés dans le `.pyc`. Reformulé en « bouton de test SearXN
 retiré » (le commentaire source, lui, n'est pas compilé). Aucun contrôle n'est
 affaibli. Version conservée à `0.0.81` ; tag stable recréé (détail après la
 CI).
+
+### Livraison — 2026-11-27 07:00 UTC (remplace la livraison 06:30)
+
+Tag `v0.0.81` recréé sur `d15d3c7` ; CI `#45954723631` **verte**, release
+stable `prerelease=false`, `Latest = v0.0.81`, publiée le
+`2026-11-27T07:00:08Z`. Les hashes précédents sont obsolètes ; valeurs retenues :
+
+- release : 280 465 940 octets, SHA-256
+  `bb3a6cccd51b9aece4610929ce40bcb286671295251cd96b7d94b37a257d7f6e` ;
+- debug : 291 511 241 octets, SHA-256
+  `afb5d99d8faec10bf3f4681a1d5a537d1517108410929635e68093d02105af98` ;
+- `versionCode=26331035` ;
+- signature release inchangée :
+  `7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4`.
+
+`check_apk.py` vert sur les deux APK. Contrôle de `app.imy` : marqueur R163
+présent (surlignement corrigé dans le bytecode livré), version `0.0.81`,
+P155/P157/P159 présents ; `Tester la recherche`, `@@ONGLETS@@`,
+`0.0.80_beta`, `search?q=test` et la barre d'onglets supprimée absents.
+`embedded-searxng` présent dans les chunks frontend. `test_p159.py` vérifie la
+classe active sur trois vues.

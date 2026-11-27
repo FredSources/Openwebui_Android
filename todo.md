@@ -345,6 +345,8 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [x] Dette aiohttp soldée en R165 : recompilation croisée réussie (aiohttp
       3.14.5 + 4 dépendances natives), méthode et empreintes dans
       `docs/aiohttp-android.typ`, script `scripts/build-aiohttp-wheels.sh`
-- [ ] R165 : pins aiohttp remplacés, 4 patchs de compatibilité retirés
+- [x] R165 : pins aiohttp remplacés, 4 patchs de compatibilité retirés
       (44 → 41), reconstruction 32/9/0, 9 tests verts, 3 PDF recompilés,
-      version relevée en `v0.0.82_beta` ; livraison prerelease en cours
+      version relevée en `v0.0.82_beta`
+- [ ] R165-bis : RECORD des wheels renormalisé (CI #46076329015), tag
+      `v0.0.82_beta` à recréer, livraison prerelease en cours

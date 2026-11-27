@@ -105,26 +105,13 @@ for n in aiohttp-3.14.5 multidict-7.2.1 yarl-1.25.1 propcache-0.5.4; do
   build_native "$n"
 done
 
-# 4. Normalisation des tags et des suffixes .so pour Chaquopy : setuptools
-#    produit `cpython-313-aarch64-linux-gnu.so` et `cp313-cp313-linux_aarch64`.
-"$PYHOST" - "$STAGE" "$WHEELS" <<'PY'
-import pathlib, shutil, sys, zipfile
-stage, dest = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
-for whl in sorted(stage.glob("*.whl")):
-    new = whl.name.replace("-linux_aarch64.whl", "-android_24_arm64_v8a.whl")
-    tmp = stage / (whl.name + ".tmp")
-    with zipfile.ZipFile(whl) as zin, zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zout:
-        for item in zin.infolist():
-            data = zin.read(item.filename)
-            nom = item.filename.replace(
-                "cpython-313-aarch64-linux-gnu.so", "cpython-313-aarch64-linux-android.so")
-            if nom.endswith(".dist-info/WHEEL"):
-                data = data.replace(b"cp313-cp313-linux_aarch64",
-                                    b"cp313-cp313-android_24_arm64_v8a")
-            zout.writestr(nom, data)
-    shutil.move(tmp, dest / new)
-    print(f"[aiohttp] {new}")
-PY
+# 4. Normalisation des tags, des suffixes .so ET du RECORD pour Chaquopy.
+#    setuptools produit `cpython-313-aarch64-linux-gnu.so` et
+#    `cp313-cp313-linux_aarch64`. Renommer les .so sans régénérer le RECORD
+#    fait ajouter par pip une ligne vide pour le nouveau nom : Chaquopy
+#    échoue alors sur `int(size_str)` (CI #46076329015). Le script dédié
+#    recalcule les empreintes et les tailles de chaque entrée du zip.
+"$PYHOST" "$PROJ/scripts/normalize-aiohttp-wheel.py" "$STAGE" "$WHEELS"
 
 # 5. Dépendances pures Python (mêmes versions que la résolution amont).
 for spec in "${PIURS[@]}"; do

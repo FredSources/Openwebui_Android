@@ -1430,12 +1430,21 @@ Les garde-fous évoluent sans être affaiblis : `check_apk.py` exige désormais
 les `dist-info` des six paquets natifs reconstruits et l'absence du helper
 `client_session_kwargs` dans `utils/aws.pyc` ; il vérifie en outre le marqueur
 de version `0.0.82_beta` et l'absence de `0.0.81` dans `android_fm.pyc`.
-`test_p154.py` contrôle les pins, les wheels (tags, suffixes `.so`), le retrait
-des patchs et le retour du code amont ; `test_p159.py` est aligné sur la nouvelle
-version. Le numéro de version de l'application est relevé dans
-`app/build.gradle` (`versionName '0.0.82_beta'`) et dans le pied de page `/fm`
-(`_FM_VERSION`, trace P101). Le tag `v0.0.82_beta` est une *prerelease* : la
-release stable `v0.0.81` reste `Latest`.
+`test_p154.py` contrôle les pins, les wheels (tags, suffixes `.so`, cohérence
+du `RECORD`), le retrait des patchs et le retour du code amont ; `test_p159.py`
+est aligné sur la nouvelle version. Le numéro de version de l'application est
+relevé dans `app/build.gradle` (`versionName '0.0.82_beta'`) et dans le pied de
+page `/fm` (`_FM_VERSION`, trace P101). Le tag `v0.0.82_beta` est une
+*prerelease* : la release stable `v0.0.81` reste `Latest`.
+
+La première CI du tag (`#46076329015`) a échoué à l'installation des paquets
+Python : les wheels renommaient les `.so` de `linux-gnu` vers `linux-android`
+sans mettre à jour leur `RECORD`, et pip ajoutait une ligne vide pour le vrai
+fichier, sur laquelle Chaquopy faisait `int('')`. Les empreintes des cinq wheels
+natifs ont été recalculées, `scripts/normalize-aiohttp-wheel.py` figé comme
+étape obligatoire de la normalisation, et le contrôle `RECORD` ajouté à
+`test_p154.py` (détails dans `docs/aiohttp-android.typ`). Le tag est recréé sur
+le commit correctif ; aucun patch ni garde-fou n'est affaibli.
 
 = Pistes d'évolution
 

@@ -5889,3 +5889,24 @@ l'annotation amont `aiohttp.ClientHandlerType` (le Python hôte ne charge pas le
 extensions Android). Détail de livraison après la CI.
 
 ### Livraison — à compléter
+
+### Correctif CI — R165-bis — 2026-11-27 22:38 UTC
+
+CI `#46076329015` échoue à `:app:installDebugPythonRequirements` :
+`ValueError: invalid literal for int() with base 10: ''` sur
+`yarl-1.25.1.dist-info`. Reproduction locale avec le pip de Chaquopy : les
+wheels cross-buildés renomment les extensions de `cpython-313-aarch64-linux-gnu.so`
+vers `cpython-313-aarch64-linux-android.so` mais conservent l'ancien chemin dans
+leur `RECORD`. Pip ajoute alors une ligne vide (hash et taille) pour le vrai
+`.so`, et `pip_install.py` appelle `int('')` sur cette taille.
+
+Correctif : `scripts/normalize-aiohttp-wheel.py` régénère intégralement le
+`RECORD` (empreinte et taille de chaque entrée du zip) et est appelé par
+`build-aiohttp-wheels.sh` à l'étape de normalisation. Les 13 wheels Android
+versionnés sont renormalisés ; les cinq empreintes du rapport
+`docs/aiohttp-android.typ` sont mises à jour. `test_p154.py` vérifie désormais
+que chaque `.so` figure dans le `RECORD` et qu'aucune taille n'est vide. Après
+correction, une installation pip locale (`--no-compile --platform
+android_24_arm64_v8a`) ne produit aucune ligne vide hors le `RECORD` lui-même.
+Le tag `v0.0.82_beta` sera recréé sur le commit correctif (aucune release
+n'avait été publiée). Détail de livraison après la nouvelle CI.

@@ -62,9 +62,19 @@ for paquet, nb_so in nattifs.items():
     with zipfile.ZipFile(whl) as z:
         sos = [n for n in z.namelist() if n.endswith('.so')]
         wheel_meta = z.read([n for n in z.namelist() if n.endswith('.dist-info/WHEEL')][0])
+        record = z.read([n for n in z.namelist() if n.endswith('.dist-info/RECORD')][0])
+        record_noms = {l.split(',')[0] for l in record.decode().splitlines()}
     assert len(sos) == nb_so, f'{whl.name} : {len(sos)} .so au lieu de {nb_so}'
     assert all(n.endswith('cpython-313-aarch64-linux-android.so') for n in sos), sos
     assert b'cp313-cp313-android_24_arm64_v8a' in wheel_meta, whl.name
+    # R165-bis : un RECORD qui garde les noms linux-gnu fait ajouter par pip
+    # une ligne vide pour le .so renommé → Chaquopy plante sur int('').
+    assert record_noms >= set(sos), f'{whl.name} : .so absents du RECORD'
+    for ligne in record.decode().splitlines():
+        champs = ligne.split(',')
+        assert len(champs) == 3, f'{whl.name} : RECORD mal formé : {ligne}'
+        if not champs[0].endswith('.dist-info/RECORD'):
+            assert champs[2].isdigit(), f'{whl.name} : taille vide dans RECORD : {ligne}'
 for pur in ('aiohappyeyeballs-2.7.1', 'aiosignal-1.4.0', 'attrs-26.1.0', 'idna-3.20'):
     assert (PROJ / 'wheels' / f'{pur}-py3-none-any.whl').exists(), pur
 print('OK  wheels : 5 natifs Android + 4 purs, tags et suffixes conformes')

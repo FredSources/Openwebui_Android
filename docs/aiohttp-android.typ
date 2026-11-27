@@ -96,9 +96,23 @@ des fichiers `cpython-313-aarch64-linux-gnu.so` : le script les réécrit en
 `cp313-cp313-android_24_arm64_v8a` et `cpython-313-aarch64-linux-android.so`,
 conformément aux wheels Android déjà versionnés.
 
+*Point critique (CI #46076329015)* : le renommage des `.so` doit aussi
+*régénérer le `RECORD`* du wheel. Si le `RECORD` conserve l'ancien nom
+`linux-gnu.so`, pip ajoute à l'installation une ligne vide pour le vrai fichier
+`linux-android.so` ; l'installateur Chaquopy fait alors `int('')` sur la taille
+et échoue avec `ValueError: invalid literal for int() with base 10: ''`.
+`scripts/normalize-aiohttp-wheel.py` recalcule les empreintes SHA-256 et les
+tailles de chaque entrée ; il est appelé par `build-aiohttp-wheels.sh` et peut
+aussi corriger les wheels déjà versionnés :
+
 ```bash
 ./scripts/build-aiohttp-wheels.sh
+./scripts/normalize-aiohttp-wheel.py --in-place wheels   # correction sur place
 ```
+
+Une reproduction locale de l'installation pip (`--no-compile --no-deps
+--platform android_24_arm64_v8a`) montre, après correction, zéro ligne de
+`RECORD` vide hors la ligne réservée au `RECORD` lui-même.
 
 = Résultats
 
@@ -112,11 +126,11 @@ celles des fichiers versionnés dans `wheels/`.
     columns: (1.7fr, 0.8fr, 3.1fr),
     inset: 6pt,
     table.header([Paquet], [Version], [SHA-256]),
-    [aiohttp], [3.14.5], [empreinte("e2b2dcb97ae6127824005b9567246e91642cd8b60e9fb3d3bbd74f9220021c5d")],
-    [multidict], [7.2.1], [empreinte("10243291ede25b8918fdea376b36663d83f79891d07714ee6b44db99aba97d44")],
-    [yarl], [1.25.1], [empreinte("d7a0dfd77dfd0d050f1111b778d5e3b6e712e9b80e5b37e878092ec6a4d63bc3")],
-    [frozenlist], [1.8.0], [empreinte("3dc66639ef8a388a42e5310bef89eccb6e4970c09b46b8aa16a0bd5c07901d3d")],
-    [propcache], [0.5.4], [empreinte("28b1c64b19712af3c6619d301dcba5a5b0b00520a81e30375e6e611c7b333ea1")],
+    [aiohttp], [3.14.5], [empreinte("9c2333144edd7b3b47f83776742b980325592fc77740ff3dc8ae5a1cbb06af71")],
+    [multidict], [7.2.1], [empreinte("7351a0ba2ddad747c54f84cc03ed01878b0c6290cb337d92982c963937a60bc1")],
+    [yarl], [1.25.1], [empreinte("00bc2365b2de807fc89bedbea3084a9b6702848284a78666d08002c0c0ff96f5")],
+    [frozenlist], [1.8.0], [empreinte("cfa587b1698ac21d62fc6596db9fb1d03a9829e40bec4e67f76657fa7fc9f415")],
+    [propcache], [0.5.4], [empreinte("3ed0ec8fc357a9b63852b073cc3104080d9b4419a3df70c55587c6f3f4657ad8")],
     [aiohappyeyeballs], [2.7.1], [empreinte("9243213661e29250eb41368e5daa826fc017156c3b8a11440826b2e3ed376472")],
     [aiosignal], [1.4.0], [empreinte("053243f8b92b990551949e63930a839ff0cf0b0ebbe0597b0f3fb19e1a0fe82e")],
     [attrs], [26.1.0], [empreinte("c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309")],

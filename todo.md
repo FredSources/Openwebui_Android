@@ -324,5 +324,6 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       (faux positif du run 45914805564 corrigé : recherche dans tous les chunks)
 - [x] P159/P160 : barre d'onglets de premier niveau supprimée de `/fm`, points
       d'état vert/rouge déplacés dans la liste Paramètres, version `0.0.81`
-      mise à jour (`versionName` et pied de page), `test_p159.py` vert ;
-      livraison en cours sous le tag stable `v0.0.81`
+      mise à jour (`versionName`, pied de page et trace P101), `test_p159.py`
+      vert ; livrés en release **stable** `v0.0.81` (CI #45922343958 verte,
+      `Latest` = `v0.0.81`, APK vérifiées, signature inchangée)

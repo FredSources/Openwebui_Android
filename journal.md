@@ -5642,3 +5642,30 @@ désormais l'unicité de la version dans `android_fm.py`. Aucune release
 `v0.0.81` n'avait été créée par la CI en échec ; `Latest` reste `v0.0.80`
 jusqu'à la prochaine CI verte. Nouvelle livraison par recréation du tag
 `v0.0.81` sur le commit corrigé (détail après la CI).
+
+### Livraison — 2026-11-27 01:32 UTC
+
+Tag stable `v0.0.81` recréé sur `04bb0d1`, CI `#45922343958` **verte**
+(`conclusion: success`, `headSha: 04bb0d1…`). Release publiée le
+`2026-11-27T01:31:59Z`, `prerelease=false`, `isDraft=false`, `Latest` =
+`v0.0.81` (remplace `v0.0.80`). Aucune prerelease `v0.0.81_beta` n'a été
+ressuscitée : seul le tag historique subsiste, sans release attachée.
+
+- APK release : 280 467 932 octets, SHA-256
+  `5a21f9577ce5356c6479890e1e312eb28b094bdb1a8d8debd7a8f2fcd172b8e0` ;
+- APK debug : 291 525 541 octets, SHA-256
+  `4c63b45f1537a490da9304207f243a2f5e30ec508789daf96395c876c87db3ba` ;
+- `versionCode=26331032` (log CI, `(date -u +%y%j) * 1000 + run`) :
+  installation par-dessus sans désinstallation ;
+- signature v2 de l'APK release : `CN=OpenWebUI Android, O=FredSources`,
+  empreinte
+  `7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4`,
+  identique aux livraisons précédentes ;
+- `check_apk.py` vert sur les deux APK (48 patchs appliqués en CI, 0 échec).
+
+Contrôle direct du bytecode embarqué (`assets/chaquopy/app.imy`) sur les deux
+APK : marqueurs P153, P154, P155, P156, P157, P159, URL
+`http://127.0.0.1:8888/search?q=test`, lien `sub=engine`, version `0.0.81`,
+absence de `0.0.80_beta`. Le frontend recompilé contient bien
+`embedded-searxng` dans les chunks `_app/immutable/` (contrôle P158 corrigé).
+Aucun processus de test résiduel, aucun serveur sur 8080/8090.

@@ -349,5 +349,6 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       (44 → 41), reconstruction 32/9/0, 9 tests verts, 3 PDF recompilés,
       version relevée en `v0.0.82_beta`
 - [x] R165-bis : RECORD des wheels renormalisé (CI #46076329015)
-- [ ] R165-ter : contrôle dist-info déplacé dans requirements-common.imy
-      (CI #46077668862), tag `v0.0.82_beta` à recréer, livraison en cours
+- [x] R165-ter : contrôle dist-info déplacé dans requirements-common.imy
+      (CI #46077668862) ; tag recréé, CI #46078600186 verte, APK vérifiées,
+      prerelease `v0.0.82_beta` publiée, `v0.0.81` toujours Latest

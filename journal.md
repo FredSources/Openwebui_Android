@@ -5886,7 +5886,7 @@ Reconstruction : *32 appliqués, 9 déjà, 0 échec* (41 patchs). Tests verts :
 `test_p155`, `test_p158`, `test_p159`, `bash -n scripts/*.sh`. Le venv hôte
 `.venv313` a été aligné sur aiohttp 3.14.5 pour que `test_p153` puisse importer
 l'annotation amont `aiohttp.ClientHandlerType` (le Python hôte ne charge pas les
-extensions Android). Détail de livraison après la CI.
+extensions Android). Voir la livraison finale ci-dessous.
 
 ### Livraison — à compléter
 
@@ -5909,7 +5909,7 @@ que chaque `.so` figure dans le `RECORD` et qu'aucune taille n'est vide. Après
 correction, une installation pip locale (`--no-compile --platform
 android_24_arm64_v8a`) ne produit aucune ligne vide hors le `RECORD` lui-même.
 Le tag `v0.0.82_beta` sera recréé sur le commit correctif (aucune release
-n'avait été publiée). Détail de livraison après la nouvelle CI.
+n'avait été publiée). Voir la livraison finale ci-dessous.
 
 ### Correctif garde-fou — R165-ter — 2026-11-27 22:47 UTC
 
@@ -5922,3 +5922,33 @@ contrôle des six versions reconstruites est déplacé dans la branche
 `requirements-common`, tandis que l'absence de `client_session_kwargs` dans
 `utils/aws.pyc` reste exigée dans `app.imy`. Aucun contrôle n'est supprimé ni
 affaibli. Tag `v0.0.82_beta` à recréer une nouvelle fois.
+
+### Livraison — 2026-11-27 22:52 UTC
+
+Tag `v0.0.82_beta` recréé trois fois sur `216898f5` (commits `a6e3e51`,
+`878ddc6`, `216898f`) conformément à la procédure : `gh release delete
+--cleanup-tag`, `git tag -d`, `git push origin :refs/tags/…`, `git tag -a`,
+`git push origin <tag>` — jamais `git push --tags`. CI `#46078600186` **verte**
+(build, vérification APK, upload d'artefacts, corps de release et publication).
+Release **`v0.0.82_beta` = prerelease** publiée le `2026-11-27T22:52:22Z` ;
+`v0.0.81` reste la release stable `Latest` (publiée le
+`2026-11-27T21:49:18Z`, inchangée). `versionCode=26331038`.
+
+APK vérifiées depuis les assets publiés avec `check_apk.py` (`GITHUB_REF` forcé
+au tag) : **OK, chaîne APK conforme** pour les deux fichiers.
+
+- release : 280 944 984 octets, SHA-256
+  `3a897e1390dd461c0f1ea9dd1e85b0cf9eb360c28a5ca1b3ab00dcfa79e37e6f` ;
+- debug : 291 996 633 octets, SHA-256
+  `99d4924a4be72aab418521570e860538f2035e86946b0fb4a60c2add8a78f0eb`.
+
+Contrôles complémentaires sur les deux APK : `apksigner verify --print-certs`
+→ `CN=OpenWebUI Android, O=FredSources`, empreinte SHA-256
+`7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4`
+(inchangée) ; `requirements-common.imy` contient bien les six `dist-info`
+`aiohttp-3.14.5`, `multidict-7.2.1`, `yarl-1.25.1`, `frozenlist-1.8.0`,
+`propcache-0.5.4`, `aiohappyeyeballs-2.7.1` ; `android_fm.pyc` porte
+`0.0.82_beta` sans `0.0.81` ; `aws.pyc` ne contient plus
+`client_session_kwargs`. Aucun processus de test résiduel (port 8090
+uniquement, jamais 8080). `vendor/open-webui` reste figé sur `v0.13.5`
+(`926f826ea`).

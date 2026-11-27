@@ -1330,7 +1330,11 @@ prerelease et devient `Latest` ; le workflow publie les artefacts avec
 points d'état (y compris leur inversion quand l'état change), la persistance
 des sous-onglets et du sélecteur de fichiers, ainsi que la version du pied de
 page. `check_apk.py` contrôle le marqueur P159, l'absence de la barre
-supprimée et la version `0.0.81` dans `android_fm.pyc`.
+supprimée et la version `0.0.81` dans `android_fm.pyc`. La trace de démarrage
+P101 a elle aussi été alignée sur `0.0.81` : elle portait encore `0.0.80_beta`
+et a fait échouer le run `#45916306148` alors que le pied de page était déjà
+correct. Le contrôle reste strict — ancienne version interdite, nouvelle
+exigée — et `test_p159.py` vérifie l'unicité de la version dans la source.
 
 = Pistes d'évolution
 

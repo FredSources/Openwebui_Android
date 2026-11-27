@@ -5622,3 +5622,23 @@ la vieille valeur `0.0.80_beta`. Aucun contrôle existant n'est affaibli.
 `scripts/test_p159.py` vérifie les six points ci-dessus par rendu direct des
 routes. `docs/maintenance.typ` complété, PDF recompilé. Livraison détaillée
 après la CI.
+
+## 2026-11-27 00:30 UTC — second échec de CI `#45916306148` : trace P101 obsolète
+
+Le tag stable `v0.0.81` a été poussé sur `2d82f84` et la CI `#45916306148`
+s'est terminée en échec sur un seul contrôle : « version du pied de page /fm
+non à jour (attendu 0.0.81) », pour les deux APK. Cause : `android_fm.py`
+portait encore, dans sa trace de démarrage,
+`P101 version=0.0.80_beta ping_timeout=…` alors que `_FM_VERSION` valait bien
+`0.0.81`. Les deux constantes coexistaient dans `android_fm.pyc`, et le
+garde-fou exigeait l'absence de l'ancienne valeur : échec légitime du contrôle,
+mais dû à une chaîne de diagnostic oubliée, non au pied de page.
+
+Correction retenue : mettre la trace P101 à jour (`P101 version=0.0.81`) **à la
+source**, puis régénérer `patches/backend/02-android_fm.py.patch`. Le
+garde-fou n'est pas assoupli : il continue d'exiger `0.0.81` *et* l'absence de
+`0.0.80_beta` dans le `.pyc` livré. `scripts/test_p159.py` vérifie
+désormais l'unicité de la version dans `android_fm.py`. Aucune release
+`v0.0.81` n'avait été créée par la CI en échec ; `Latest` reste `v0.0.80`
+jusqu'à la prochaine CI verte. Nouvelle livraison par recréation du tag
+`v0.0.81` sur le commit corrigé (détail après la CI).

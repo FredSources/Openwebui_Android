@@ -31,6 +31,8 @@ assert 'P159 : premier niveau' in src
 assert '_fm_onglets' not in src.replace(
     "# P159 — l'ancienne barre d'onglets de premier niveau (_fm_onglets) est", '')
 assert '<div class="tabs">' not in src, 'barre de premier niveau encore construite'
+assert 'P101 version=0.0.81' in src, 'trace P101 avec version obsolète'
+assert '0.0.80_beta' not in src, 'ancienne version encore présente dans /fm'
 assert 'st.get(\'openwebui\') == \'actif\'' in src
 assert 'st.get(\'searxng\') == \'actif\'' in src
 print('OK  source : fonction et constructions de la barre supprimées')

@@ -262,10 +262,15 @@ def check_apk(apk: pathlib.Path) -> None:
                         elif any(b'<div class="tabs">' in o for o in fm):
                             err(f"{label} : barre d'onglets de premier niveau "
                                 f"présente dans android_fm.pyc")
+                        # P160 : la trace P101 portait encore 0.0.80_beta et
+                        # faisait échouer le run 45916306148. Corrigé à la
+                        # source (P101 version=0.0.81), le contrôle reste
+                        # strict : nouvelle constante présente ET ancienne
+                        # absente — aucun garde-fou n'est affaibli.
                         elif not any(b"0.0.81" in o for o in fm) or any(
                                 b"0.0.80_beta" in o for o in fm):
                             err(f"{label} : version du pied de page /fm non à jour "
-                                f"(attendu 0.0.81)")
+                                f"(attendu 0.0.81, sans 0.0.80_beta)")
                     elif "requirements-common" in bundle_nom:
                         check_modules(bundle, label, MODULES_PIP)
                     check_noms_so(bundle, label)

@@ -5581,5 +5581,44 @@ nœuds JavaScript de l'APK, faute de quoi la recompilation frontend pourrait
 refaire disparaître l'option sans être détectée ; aucun contrôle existant
 n'est affaibli. `docs/maintenance.typ` complété, PDF recompilé.
 
-Livraison : une nouvelle fois par écrasement de `v0.0.81_beta` (détail après
-la CI), sans créer de release stable ni toucher à `Latest` (`v0.0.80`).
+Premier essai de livraison : CI `#45914805564` **échouée** sur ce seul
+contrôle. Le patch était bien appliqué (48 patchs / 0 échec dans le log) et le
+frontend recompilé (2 067 fichiers `_app/`), mais `check_apk.py` ne cherchait
+`embedded-searxng` que dans `_app/immutable/nodes/*.js` : or `WebSearch.svelte`
+est compilé dans un *chunk* partagé (`chunks/SettingsModal.js`). Faux positif
+du garde-fou, corrigé en parcourant tous les `.js` de `_app/immutable/`. Ce
+contrôle n'est pas affaibli : il couvre désormais noeuds **et** chunks.
+`scripts/test_p158.py` vérifie la présence du garde-fou étendu.
+
+## 2026-11-27 00:18 UTC — P159/P160 : sidebar avec état, version `v0.0.81` stable
+
+Demande utilisateur : « dans /fm parametre tu vas enlever le premier niveau de
+tab qui est redondant avec la liste dans parametre. dans la liste de parametre
+devant openwebui et searngx tu vas reporter le point vert ou rouge en fonction
+de l'etat du service », puis « dans /fm n'oubli pas de mettre a jour la versik »,
+et enfin « la prochaine version sera une release en v0.0.81 ».
+
+Implémentation : suppression de `_fm_onglets()` et de ses quatre appels
+(Paramètres, Journaux, Maintenance, confirmation de réglages) dans
+`src/open_webui/android_fm.py` ; les styles `.tabs` sont conservés car le
+sélecteur d'origine des fichiers (P109) les utilise encore. `_fm_side()` lit
+`android_main.service_status()` et place un point vert (`#22c55e`) ou rouge
+(`#ef4444`) devant *Open WebUI* et *SearXNG*. Les sous-onglets SearXNG ne sont
+pas touchés. `_FM_VERSION` passe de `0.0.80_beta` à `0.0.81` (pied de page de
+chaque page `/fm`), et `versionName` de `app/build.gradle` passe de
+`0.0.81_beta` à `0.0.81`.
+
+Décision utilisateur qui l'emporte sur la consigne antérieure (« ne jamais
+créer v0.0.81 stable ») : la prochaine release est **stable**, tag `v0.0.81`,
+`prerelease=false`, `make_latest=true` (déduit par le workflow de l'absence de
+`_beta` dans le nom du tag). Le tag `v0.0.81_beta` reste en place
+historiquement mais aucune release n'y est attachée ; `Latest` deviendra
+`v0.0.81`. Le commentaire d'en-tête du workflow est mis à jour.
+
+Extension justifiée des garde-fous (règle utilisateur du 2026-11-08) :
+`check_apk.py` exige le marqueur P159, interdit la chaîne du composant supprimé
+`<div class="tabs">` dans `android_fm.pyc`, et exige la version `0.0.81` sans
+la vieille valeur `0.0.80_beta`. Aucun contrôle existant n'est affaibli.
+`scripts/test_p159.py` vérifie les six points ci-dessus par rendu direct des
+routes. `docs/maintenance.typ` complété, PDF recompilé. Livraison détaillée
+après la CI.

@@ -150,10 +150,17 @@ def check_apk(apk: pathlib.Path) -> None:
                     f"pont de fichiers P120/P123 perdu")
         # P158 — la recompilation frontend depuis les sources Svelte (v2) a
         # fait disparaitre l'option du dropdown (P10 ne patchait que les chunks
-        # JS précompilés). Le marqueur prouve que la source patchée a bien été
-        # recompilée dans l'APK livrée.
-        if b"embedded-searxng" not in noeuds:
-            err(f"{apk.name} : embedded-searxng absent des noeuds frontend — "
+        # JS précompilés). Le composant WebSearch est compilé dans un chunk
+        # (chunks/SettingsModal.js), pas dans un noeud de route : la recherche
+        # porte donc sur TOUS les .js de _app/immutable (faux positif du run
+        # 45914805564, qui ne lisait que nodes/). Le marqueur prouve que la
+        # source patchée a bien été recompilée dans l'APK livrée.
+        js_immuable = b"".join(
+            lire(z, n) or b"" for n in noms
+            if n.startswith("assets/frontend/_app/immutable/") and n.endswith(".js")
+        )
+        if b"embedded-searxng" not in js_immuable:
+            err(f"{apk.name} : embedded-searxng absent du frontend compilé — "
                 f"moteur de recherche web indisponible dans le menu")
 
     # 4/5. natifs de lib/
@@ -249,6 +256,16 @@ def check_apk(apk: pathlib.Path) -> None:
                         elif not any(b"P155 : /fm SearXNG expose deux sous-onglets" in o for o in fm):
                             err(f"{label} : marqueur P155 absent de android_fm.pyc "
                                 f"(sous-onglets SearXNG perdus)")
+                        elif not any(b"P159 : premier niveau" in o for o in fm):
+                            err(f"{label} : marqueur P159 absent de android_fm.pyc "
+                                f"(barre d'onglets redondante revenue)")
+                        elif any(b'<div class="tabs">' in o for o in fm):
+                            err(f"{label} : barre d'onglets de premier niveau "
+                                f"présente dans android_fm.pyc")
+                        elif not any(b"0.0.81" in o for o in fm) or any(
+                                b"0.0.80_beta" in o for o in fm):
+                            err(f"{label} : version du pied de page /fm non à jour "
+                                f"(attendu 0.0.81)")
                     elif "requirements-common" in bundle_nom:
                         check_modules(bundle, label, MODULES_PIP)
                     check_noms_so(bundle, label)

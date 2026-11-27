@@ -1312,6 +1312,26 @@ backend. `check_apk.py` exige désormais la chaîne `embedded-searxng` dans les
 nœuds JavaScript embarqués : une future reconstruction qui perdrait le patch
 source serait détectée avant publication.
 
+= Navigation `/fm` simplifiée et release stable (P159/P160)
+
+La barre d'onglets de premier niveau (Open WebUI / SearXNG / Maintenance /
+Journaux) est supprimée de `/fm` : elle répétait la liste « Paramètres » déjà
+présente dans la sidebar permanente. Les points vert/rouge d'état des services
+sont déplacés dans cette liste, devant *Open WebUI* et *SearXNG*. Les
+sous-onglets « Service » / « Moteur de recherche » et le sélecteur d'origine
+des fichiers (base / disque / les deux) conservent leurs onglets propres.
+
+À la demande explicite de l'utilisateur, la version livrée passe en release
+*stable `v0.0.81`* : `versionName` (`app/build.gradle`) et pied de page de
+`/fm` (`_FM_VERSION`) valent `0.0.81`. Le tag `v0.0.81` n'est plus une
+prerelease et devient `Latest` ; le workflow publie les artefacts avec
+`prerelease=false` et `make_latest=true` dès que le tag ne contient pas
+`_beta`. `scripts/test_p159.py` vérifie l'absence de l'ancienne barre, les
+points d'état (y compris leur inversion quand l'état change), la persistance
+des sous-onglets et du sélecteur de fichiers, ainsi que la version du pied de
+page. `check_apk.py` contrôle le marqueur P159, l'absence de la barre
+supprimée et la version `0.0.81` dans `android_fm.pyc`.
+
 = Pistes d'évolution
 
 - Mise à jour in-app de l'APK (GitHub Releases) ;

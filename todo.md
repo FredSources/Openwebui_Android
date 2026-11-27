@@ -320,5 +320,9 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       regroupé dans Service
 - [x] P158 : `embedded-searxng` restauré dans le dropdown « Moteur de recherche
       web » (patch source `09-WebSearch.svelte.patch`, l'ancien P10 ne patchait
-      que les chunks précompilés), `test_p158.py` vert, `check_apk.py` étendu ;
-      livraison groupée en cours par écrasement de `v0.0.81_beta`
+      que les chunks précompilés), `test_p158.py` vert, `check_apk.py` étendu
+      (faux positif du run 45914805564 corrigé : recherche dans tous les chunks)
+- [x] P159/P160 : barre d'onglets de premier niveau supprimée de `/fm`, points
+      d'état vert/rouge déplacés dans la liste Paramètres, version `0.0.81`
+      mise à jour (`versionName` et pied de page), `test_p159.py` vert ;
+      livraison en cours sous le tag stable `v0.0.81`

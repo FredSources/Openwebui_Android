@@ -1,13 +1,14 @@
 --- a/android_fm.py
 new file mode 100644
 +++ b/android_fm.py
-@@ -0,0 +1,1453 @@
+@@ -0,0 +1,1449 @@
 +"""OpenWebUI Android — navigateur de fichiers /fm + maintenance (P27/P31/P36).
 +
 +P155 : /fm SearXNG expose deux sous-onglets — « Service » (page historique)
 +et « Moteur de recherche » (webview intégrée de l'instance locale 127.0.0.1:8888).
 +P156 : le test de recherche pointe sur le service SearXNG, pas sur /search (404).
 +P157 : le sous-onglet Moteur ne contient que l'iframe ; tout le reste est dans Service.
++P159 : premier niveau d'onglets supprimé ; état des services dans la sidebar.
 +
 +Module AJOUTÉ hors amont (audit de divergence 2026-11-09) : ces routes
 +vivent ici pour garder main.py identique à l'origine Open WebUI.
@@ -32,7 +33,7 @@ new file mode 100644
 +    except Exception:
 +        pass
 +
-+    _FM_VERSION = "0.0.80_beta"
++    _FM_VERSION = "0.0.81"
 +    import html as _html
 +    import os as _osj
 +    import re as _re
@@ -196,6 +197,10 @@ new file mode 100644
 +      .side summary::-webkit-details-marker { display: none; }
 +      .side summary:hover { background: var(--hover); }
 +      .side details a { padding-left: 26px; font-size: 13px; }
++      /* P159 — la barre d'onglets de premier niveau a été retirée des écrans
++         Paramètres/Journaux/Maintenance : la liste de la sidebar suffit et
++         porte les points d'état. Styles conservés pour le sélecteur d'origine
++         des fichiers (P109 : base / disque / les deux). */
 +      .tabs { display: flex; gap: 8px; margin: 4px 0 18px; flex-wrap: wrap; }
 +      .tabs .tab { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 12px; text-decoration: none; color: var(--fg); background: var(--panel); font-weight: 600; }
 +      .tabs .tab.on { border-color: var(--accent); background: var(--accent); color: var(--accent-fg); }
@@ -323,10 +328,20 @@ new file mode 100644
 +        P121 : icônes du frontend Open WebUI, structure
 +        <span class="si">icône</span><span class="sl">libellé</span> (mode réduit
 +        body.sideicons = icônes seules, libellés masqués, tooltip title)."""
-+        def _lien(url, label, on, ic):
++        # P159 : état des deux services directement dans la liste Paramètres.
++        try:
++            import android_main as _am
++            st = _am.service_status()
++        except Exception:
++            st = {}
++        _vert, _rouge = '#22c55e', '#ef4444'
++
++        def _lien(url, label, on, ic, dot=''):
++            d = (f'<span class="dot" style="background:{dot}"></span> '
++                 if dot else '')
 +            return (f'<a href="{url}" class="{"on" if on else ""}" title="{label}">'
 +                    f'<span class="si">{_fm_ico(ic)}</span>'
-+                    f'<span class="sl">{label}</span></a>')
++                    f'<span class="sl">{d}{label}</span></a>')
 +
 +        def _groupe(titre, ic, items):
 +            return ('<details open><summary title="%s">'
@@ -342,40 +357,25 @@ new file mode 100644
 +            "".join(_lien(f"/fm?folder={k}&src={src}", lib, k == folder, ic)
 +                    for k, lib, ic in feuilles))
 +        entrees = [("/fm?folder=settings&tab=owui", "Open WebUI", "brain",
-+                    folder == 'settings' and tab != 'searxng'),
++                    folder == 'settings' and tab != 'searxng',
++                    _vert if st.get('openwebui') == 'actif' else _rouge),
 +                   ("/fm?folder=settings&tab=searxng", "SearXNG", "search",
-+                    folder == 'settings' and tab == 'searxng'),
++                    folder == 'settings' and tab == 'searxng',
++                    _vert if st.get('searxng') == 'actif' else _rouge),
 +                   ("/fm?folder=maintenance", "Maintenance", "tools",
-+                    folder == 'maintenance'),
-+                   ("/fm?folder=logs", "Journaux", "page-text", folder == 'logs')]
++                    folder == 'maintenance', ''),
++                   ("/fm?folder=logs", "Journaux", "page-text",
++                    folder == 'logs', '')]
 +        params = _groupe(
 +            "Paramètres", "settings",
-+            "".join(_lien(u, lib, on, ic) for u, lib, ic, on in entrees))
++            "".join(_lien(u, lib, on, ic, dot)
++                    for u, lib, ic, on, dot in entrees))
 +        return fichiers + params
 +
 +
-+    def _fm_onglets(actif: str = "owui") -> str:
-+        """P110 — barre d'onglets commune à toute la zone Paramètres : Open WebUI,
-+        SearXNG (points vert/rouge d'état), Maintenance, Journaux — même largeur et
-+        mêmes styles sur tous les écrans."""
-+        import android_main as _am
-+        st = _am.service_status()
-+        _vert, _rouge = '#22c55e', '#ef4444'
-+
-+        def _t(k, label, href, dot=''):
-+            d = f'<span class="dot" style="background:{dot}"></span> ' if dot else ''
-+            return f'<a class="tab{" on" if k == actif else ""}" href="{href}">{d}{label}</a>'
-+        html = (
-+            '<div class="tabs">'
-+            + _t('owui', 'Open WebUI', '/fm?folder=settings&tab=owui',
-+                 _vert if st.get('openwebui') == 'actif' else _rouge)
-+            + _t('searxng', 'SearXNG', '/fm?folder=settings&tab=searxng',
-+                 _vert if st.get('searxng') == 'actif' else _rouge)
-+            + _t('maintenance', 'Maintenance', '/fm?folder=maintenance')
-+            + _t('logs', 'Journaux', '/fm?folder=logs')
-+            + '</div>'
-+        )
-+        return html
++    # P159 — l'ancienne barre d'onglets de premier niveau (_fm_onglets) est
++    # supprimée : elle doubletait la liste « Paramètres » de la sidebar, qui
++    # porte désormais les points d'état vert/rouge des deux services.
 +
 +
 +    def _fm_sx_sous_onglets(actif: str = "service", etat: str = "arrêt") -> str:
@@ -857,7 +857,6 @@ new file mode 100644
 +                _js = ('<script>function svc(n,a){try{document.getElementById("svcmsg")'
 +                       '.textContent=AndroidSystem.serverAction(n,a)}catch(e){document'
 +                       '.getElementById("svcmsg").textContent="pont système indisponible : "+e}}</script>')
-+                onglets = _fm_onglets('searxng' if tab == 'searxng' else 'owui')
 +                if tab == 'searxng':
 +                    sous_onglets = _fm_sx_sous_onglets(
 +                        sub, st.get('searxng', 'arrêt'))
@@ -877,7 +876,7 @@ new file mode 100644
 +                        # Les seuls autres éléments sont les barres d'onglets,
 +                        # indispensables pour revenir à la page Service.
 +                        page = (
-+                            onglets + sous_onglets
++                            sous_onglets
 +                            + '<iframe class="sxframe" src="http://127.0.0.1:8888/" '
 +                            'title="Moteur de recherche SearXNG" loading="lazy"></iframe>'
 +                        )
@@ -888,7 +887,7 @@ new file mode 100644
 +                            return 'checked' if k in (sx.get('formats') or []) else ''
 +                        # Sous-onglet « Service » : contenu historique inchangé.
 +                        page = (
-+                            onglets + sous_onglets
++                            sous_onglets
 +                            + '<div class="settings"><form method="post" action="/fm/settings">'
 +                            + '<input type="hidden" name="tab" value="searxng">'
 +                            + '<h1>&#9881; Paramètres &mdash; SearXNG</h1>'
@@ -1005,8 +1004,7 @@ new file mode 100644
 +                        _e = "<span class='err'>" + _e + "</span>"
 +                    jl.append(_e)
 +                inner = (
-+                    _fm_onglets('logs')
-+                    + "<div class='settings'><h1>&#128220; Journaux</h1>"
++                    "<div class='settings'><h1>&#128220; Journaux</h1>"
 +                    + "<div class='card'><h2>&#128260; Journalisation</h2><div class='twocol'>"
 +                    + "<div><p class='sub'>&#128196; Logs fichier</p>"
 +                    + "<p class='sub'><span class='dot' style='background:"
@@ -1053,8 +1051,7 @@ new file mode 100644
 +                    if p_db.is_file():
 +                        taille_db += p_db.stat().st_size
 +                inner = (
-+                    _fm_onglets('maintenance')
-+                    + "<div class=\"settings\"><h1>&#128736;&#65039; Maintenance</h1>"
++                    "<div class=\"settings\"><h1>&#128736;&#65039; Maintenance</h1>"
 +                    + "<div class=\"card\"><h2>&#128230; Données de l'application</h2>"
 +                    f"<p class='sub'>Données : <code>{_html.escape(str(_DD))}</code></p>"
 +                    f"<p class='sub'>Base de données : {_fm_size(taille_db)} &mdash; Fichiers : {total} &mdash; "
@@ -1242,8 +1239,7 @@ new file mode 100644
 +                    lignes.append(_extras)
 +                msgs.append(_am.env_save(chr(10).join(lignes)))
 +            return _HTMLResponse(_fm_page(
-+                _fm_onglets(_tab if _tab == 'searxng' else 'owui')
-+                + "<h1>&#9989; Réglages</h1><p>" + _html.escape(' '.join(msgs)) + "</p>",
++                "<h1>&#9989; Réglages</h1><p>" + _html.escape(' '.join(msgs)) + "</p>",
 +                'Paramètres', folder='settings', src='both', tab=_tab))
 +        except Exception as exc:
 +            return _HTMLResponse(_fm_error(exc), status_code=500)

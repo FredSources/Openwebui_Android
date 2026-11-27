@@ -1,5 +1,5 @@
 # build-apk-submodule.yml — CI/CD v2 « source d'origine + diffs »
-# Build les APK debug + release sur un tag v* (ex. v0.0.81_beta) et publie
+# Build les APK debug + release sur un tag v* (ex. v0.0.81 en stable) et publie
 # la Release GitHub avec les APK attachés.
 #
 # Chaîne v2 (voir REFONTE.md) — diffère de v1 UNIQUEMENT sur l'amont :

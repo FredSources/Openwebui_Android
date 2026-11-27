@@ -56,7 +56,7 @@ assert '"embedded-searxng"' in android
 print('OK  backend et android_main.py connaissent déjà la valeur')
 
 garde = (PROJ / 'scripts/check_apk.py').read_text(encoding='utf-8')
-assert 'embedded-searxng' in garde and 'noeuds frontend' in garde, \
+assert 'embedded-searxng' in garde and 'js_immuable' in garde, \
     'garde-fou APK absent'
 print('OK  garde-fou APK : marqueur embedded-searxng contrôlé dans le frontend')
 

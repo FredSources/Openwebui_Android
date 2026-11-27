@@ -5742,5 +5742,9 @@ Correctif : `tab=tab` transmis à `_fm_page()`. `test_p159.py` vérifie désorma
 la classe `on` des deux entrées sur trois vues (SearXNG service, SearXNG Moteur,
 Open WebUI). `check_apk.py` exige le marqueur `R163 : surlignement` dans
 `android_fm.pyc` pour garantir que le patch n'est pas perdu à la reconstruction.
-Aucun contrôle existant n'est affaibli. Version conservée à `0.0.81` ; tag
-stable recréé (détail après la CI).
+Premier essai : CI `#45953423678` échouée sur le garde-fou R162 : le nouveau
+docstring contenait le libellé interdit « Tester la recherche », or les
+docstrings sont compilés dans le `.pyc`. Reformulé en « bouton de test SearXNG
+retiré » (le commentaire source, lui, n'est pas compilé). Aucun contrôle n'est
+affaibli. Version conservée à `0.0.81` ; tag stable recréé (détail après la
+CI).

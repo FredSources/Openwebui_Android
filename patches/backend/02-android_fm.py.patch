@@ -9,7 +9,7 @@ new file mode 100644
 +P156 : le test de recherche pointe sur le service SearXNG, pas sur /search (404).
 +P157 : le sous-onglet Moteur ne contient que l'iframe ; tout le reste est dans Service.
 +P159 : premier niveau d'onglets supprimé ; état des services dans la sidebar.
-+R162 : bouton « Tester la recherche » retiré de la carte Service.
++R162 : bouton de test SearXNG retiré de la carte Service.
 +R163 : surlignement Paramètres aligné sur la page rendue (tab transmis).
 +
 +Module AJOUTÉ hors amont (audit de divergence 2026-11-09) : ces routes

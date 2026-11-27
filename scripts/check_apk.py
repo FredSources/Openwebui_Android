@@ -235,23 +235,11 @@ def check_apk(apk: pathlib.Path) -> None:
                         elif not any(b"P153 : RUN_DIR suit TMPDIR" in o for o in managed):
                             err(f"{label} : marqueur P153 absent de managed.pyc "
                                 f"(chemin /tmp en dur restauré)")
-                        # R165 : aiohttp 3.14.5 remplace le 3.10.10 épinglé.
-                        # Les patchs de compatibilité 31/36/38 et le hunk de 20
-                        # ont été retirés : exiger les dist-info reconstruites
-                        # ET l'absence du helper de repli P154 dans aws.pyc.
-                        dist_infos = {
-                            "aiohttp": "3.14.5",
-                            "multidict": "7.2.1",
-                            "yarl": "1.25.1",
-                            "frozenlist": "1.8.0",
-                            "propcache": "0.5.4",
-                            "aiohappyeyeballs": "2.7.1",
-                        }
-                        for module, version in dist_infos.items():
-                            prefixe = f"{module}-{version}.dist-info/"
-                            if not any(n.startswith(prefixe) for n in noms_b):
-                                err(f"{label} : {prefixe} absent "
-                                    f"(montée aiohttp R165 perdue)")
+                        # R165 : les patchs de compatibilité 31/36/38 et le
+                        # hunk de 20 ont été retirés : exiger l'absence du
+                        # helper de repli P154 dans aws.pyc. Les dist-info des
+                        # versions reconstruites sont, elles, dans le bundle
+                        # requirements-common.imy (contrôle plus bas).
                         aws = [bundle.read(n) for n in noms_b
                                if n.endswith("utils/aws.pyc")]
                         if not aws:
@@ -296,6 +284,26 @@ def check_apk(apk: pathlib.Path) -> None:
                                 f"(attendu 0.0.82_beta, sans 0.0.81)")
                     elif "requirements-common" in bundle_nom:
                         check_modules(bundle, label, MODULES_PIP)
+                        # R165 : aiohttp 3.14.5 remplace le 3.10.10 épinglé par
+                        # l'index Chaquopy. Les dist-info ne sont PAS dans
+                        # app.imy mais dans requirements-common.imy (piège du
+                        # run #46077668862 : 12 faux positifs). Leur présence
+                        # prouve que les neuf wheels cross-buildés ont été
+                        # installés, et non ceux du dépôt de paquets.
+                        dist_infos = {
+                            "aiohttp": "3.14.5",
+                            "multidict": "7.2.1",
+                            "yarl": "1.25.1",
+                            "frozenlist": "1.8.0",
+                            "propcache": "0.5.4",
+                            "aiohappyeyeballs": "2.7.1",
+                        }
+                        noms_comm = bundle.namelist()
+                        for module, version in dist_infos.items():
+                            prefixe = f"{module}-{version}.dist-info/"
+                            if not any(n.startswith(prefixe) for n in noms_comm):
+                                err(f"{label} : {prefixe} absent "
+                                    f"(montée aiohttp R165 perdue)")
                     check_noms_so(bundle, label)
                     so_internes = []
                     with tempfile.TemporaryDirectory() as tmp2:

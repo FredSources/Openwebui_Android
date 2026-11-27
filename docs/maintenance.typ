@@ -1444,7 +1444,12 @@ fichier, sur laquelle Chaquopy faisait `int('')`. Les empreintes des cinq wheels
 natifs ont été recalculées, `scripts/normalize-aiohttp-wheel.py` figé comme
 étape obligatoire de la normalisation, et le contrôle `RECORD` ajouté à
 `test_p154.py` (détails dans `docs/aiohttp-android.typ`). Le tag est recréé sur
-le commit correctif ; aucun patch ni garde-fou n'est affaibli.
+le commit correctif ; aucun patch ni garde-fou n'est affaibli. La CI suivante
+(`#46077668862`) a validé le build mais échoué sur 12 faux positifs de
+`check_apk.py` : la recherche des `dist-info` était faite dans `app.imy` alors
+que Chaquopy les place dans `requirements-common.imy`. Le contrôle y a été
+déplacé (sans être assoupli) : il exige toujours les six versions reconstruites,
+et l'absence du helper P154 reste vérifiée dans `aws.pyc` de `app.imy`.
 
 = Pistes d'évolution
 

@@ -348,5 +348,6 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [x] R165 : pins aiohttp remplacés, 4 patchs de compatibilité retirés
       (44 → 41), reconstruction 32/9/0, 9 tests verts, 3 PDF recompilés,
       version relevée en `v0.0.82_beta`
-- [ ] R165-bis : RECORD des wheels renormalisé (CI #46076329015), tag
-      `v0.0.82_beta` à recréer, livraison prerelease en cours
+- [x] R165-bis : RECORD des wheels renormalisé (CI #46076329015)
+- [ ] R165-ter : contrôle dist-info déplacé dans requirements-common.imy
+      (CI #46077668862), tag `v0.0.82_beta` à recréer, livraison en cours

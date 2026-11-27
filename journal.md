@@ -5910,3 +5910,15 @@ correction, une installation pip locale (`--no-compile --platform
 android_24_arm64_v8a`) ne produit aucune ligne vide hors le `RECORD` lui-même.
 Le tag `v0.0.82_beta` sera recréé sur le commit correctif (aucune release
 n'avait été publiée). Détail de livraison après la nouvelle CI.
+
+### Correctif garde-fou — R165-ter — 2026-11-27 22:47 UTC
+
+CI `#46077668862` : build APK vert, mais `check_apk.py` signale 12 erreurs
+`aiohttp-3.14.5.dist-info/ absent (montée aiohttp R165 perdue)` dans `app.imy`.
+Erreur de placement du contrôle, pas de l'APK : Chaquopy range les `dist-info`
+des requirements dans `requirements-common.imy` (vérifié sur l'APK locale
+v0.0.78 : `aiohttp-3.10.10.dist-info/`, `multidict-6.1.0.dist-info/`…). Le
+contrôle des six versions reconstruites est déplacé dans la branche
+`requirements-common`, tandis que l'absence de `client_session_kwargs` dans
+`utils/aws.pyc` reste exigée dans `app.imy`. Aucun contrôle n'est supprimé ni
+affaibli. Tag `v0.0.82_beta` à recréer une nouvelle fois.

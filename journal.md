@@ -5556,3 +5556,30 @@ Service dans la vue Moteur. Le patch « fichier entier »
 `02-android_fm.py.patch` est régénéré. `docs/maintenance.typ` complété, PDF
 recompilé. Ces deux corrections sont livrées en écrasant une nouvelle fois le
 tag et la release `v0.0.81_beta` (détail de livraison ajouté après la CI).
+
+## 2026-11-27 00:02 UTC — P158 : `embedded-searxng` de retour dans le menu web
+
+Signalement utilisateur : « la configuration embedded-searxng n'apparit plus
+dans le menu "moteur de recherche web" ». Cause : le correctif historique **P10**
+ajoutait la valeur directement dans les chunks JS *précompilés*
+(`frontend/_app/immutable/nodes/*.js`). Or la chaîne actuelle (CI v2) recompile
+le frontend depuis les sources Svelte du submodule : le patch P10 n'est plus
+appliqué et la liste `webSearchEngines` de
+`src/lib/components/admin/Settings/WebSearch.svelte` ne contient que `searxng`.
+L'option est donc absente du dropdown, alors que `routers/retrieval.py` gère
+bien `embedded-searxng` et que `android_main.py` force cette valeur au
+démarrage.
+
+Correctif : nouveau patch source `patches/frontend/09-WebSearch.svelte.patch`
+qui insère `'embedded-searxng'` juste après `'searxng'` — libellé brut, comme
+dans P10, sans inventer de `searngx_local`. `PATCHES.md` est mis à jour pour
+relier P10 à P158. `scripts/test_p158.py` applique le patch à la source vierge
+du submodule et vérifie l'unicité, la position dans la liste et le support
+backend. Extension justifiée du garde-fou `check_apk.py` (règle utilisateur du
+2026-11-08) : la chaîne `embedded-searxng` doit désormais figurer dans les
+nœuds JavaScript de l'APK, faute de quoi la recompilation frontend pourrait
+refaire disparaître l'option sans être détectée ; aucun contrôle existant
+n'est affaibli. `docs/maintenance.typ` complété, PDF recompilé.
+
+Livraison : une nouvelle fois par écrasement de `v0.0.81_beta` (détail après
+la CI), sans créer de release stable ni toucher à `Latest` (`v0.0.80`).

@@ -148,6 +148,13 @@ def check_apk(apk: pathlib.Path) -> None:
             if marqueur not in noeuds:
                 err(f"{apk.name} : marqueur {marqueur!r} absent du noeud principal — "
                     f"pont de fichiers P120/P123 perdu")
+        # P158 — la recompilation frontend depuis les sources Svelte (v2) a
+        # fait disparaitre l'option du dropdown (P10 ne patchait que les chunks
+        # JS précompilés). Le marqueur prouve que la source patchée a bien été
+        # recompilée dans l'APK livrée.
+        if b"embedded-searxng" not in noeuds:
+            err(f"{apk.name} : embedded-searxng absent des noeuds frontend — "
+                f"moteur de recherche web indisponible dans le menu")
 
     # 4/5. natifs de lib/
 

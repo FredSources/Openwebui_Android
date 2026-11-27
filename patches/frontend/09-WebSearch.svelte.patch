@@ -1,0 +1,10 @@
+--- a/lib/components/admin/Settings/WebSearch.svelte
++++ b/lib/components/admin/Settings/WebSearch.svelte
+@@ -22,6 +22,7 @@
+ 		'ollama_cloud',
+ 		'perplexity_search',
+ 		'searxng',
++		'embedded-searxng',
+ 		'yacy',
+ 		'google_pse',
+ 		'brave',

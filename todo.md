@@ -317,5 +317,8 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [x] P156/P157 : lien « Tester la recherche » corrigé vers le service SearXNG
       (`http://127.0.0.1:8888/search?q=test`, l'ancienne route `/search` était
       un 404) ; sous-onglet Moteur réduit à la seule iframe, tout le reste
-      regroupé dans Service ; livraison en cours par écrasement de
-      `v0.0.81_beta`
+      regroupé dans Service
+- [x] P158 : `embedded-searxng` restauré dans le dropdown « Moteur de recherche
+      web » (patch source `09-WebSearch.svelte.patch`, l'ancien P10 ne patchait
+      que les chunks précompilés), `test_p158.py` vert, `check_apk.py` étendu ;
+      livraison groupée en cours par écrasement de `v0.0.81_beta`

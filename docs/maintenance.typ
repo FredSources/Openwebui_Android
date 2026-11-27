@@ -1292,6 +1292,26 @@ sont vérifiés. P124, P126, P151, P153, P154 et P155 restent verts. Le contrôl
 `check_apk.py` exige le marqueur P155 dans `android_fm.pyc` afin qu'une
 reconstruction ne fasse pas disparaître les sous-onglets.
 
+= Retour du moteur `embedded-searxng` dans le menu web (P158)
+
+L'utilisateur a signalé que `embedded-searxng` n'apparaissait plus dans
+*Réglages → Web → Moteur de recherche web*. Le correctif historique P10 ajoutait
+cette valeur directement dans les chunks JavaScript précompilés. Depuis que la
+CI recompile le frontend depuis les sources Svelte, ce patch de fichiers
+compilés n'est plus appliqué : la liste `webSearchEngines` de
+`WebSearch.svelte` ne contient que `searxng`. Le nouveau patch
+`09-WebSearch.svelte.patch` insère `'embedded-searxng'` juste après `'searxng'`
+dans cette source, avec le libellé brut voulu par P10 ; la CI recompilant le
+frontend, l'option est de nouveau visible et sélectionnable. Le backend
+(`routers/retrieval.py`) et `android_main.py` connaissaient déjà cette valeur :
+aucun comportement de recherche n'a été modifié, aucun libellé inventé.
+
+`scripts/test_p158.py` applique le patch sur la source vierge du submodule,
+vérifie l'unicité de l'option, sa position et la présence du support côté
+backend. `check_apk.py` exige désormais la chaîne `embedded-searxng` dans les
+nœuds JavaScript embarqués : une future reconstruction qui perdrait le patch
+source serait détectée avant publication.
+
 = Pistes d'évolution
 
 - Mise à jour in-app de l'APK (GitHub Releases) ;

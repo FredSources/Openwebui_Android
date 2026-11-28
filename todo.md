@@ -402,12 +402,15 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [ ] P169 : confirmer sur appareil le bouton Actualiser, la restauration `/fm`,
       le storage visible et la ligne `P167/P168/P169 exécution refusée` si le
       shell échoue encore
-- [ ] P170 : vérifier sur un run CI réel que la republication du tag ne produit
-      plus `already_exists` / `Too many retries`
+- [x] P170 : run CI réel `46164436022` vert, 0 occurrence de `already_exists`
+      / `Too many retries`, draft fantôme supprimée, prerelease publiée
 - [x] P174 : désactivation ciblée de la règle lint `ExpiredTargetSdkVersion`
       (release GitHub, pas Play Store) après l'échec du run `46162961173`
-- [ ] P171/P172/P173 : republier `v0.0.82_ot_beta` avec `targetSdk 28`, le
-      storage exposé via SAF et le service 8889 démarré avant Open WebUI, puis
-      confirmer sur appareil l'exécution du shell root, la présence de
-      « Mini Debian (OpenWebUI) » dans le navigateur et l'absence de
+- [x] P171/P172/P173 : `v0.0.82_ot_beta` republiée avec `targetSdk 28`, le
+      storage exposé via SAF et le service 8889 désactivé au boot puis réactivé
+      à l'ouverture du port — validation appareil à confirmer (shell root,
+      « Mini Debian (OpenWebUI) » dans le navigateur, absence de
+      `Connect call failed`)
+- [ ] Validation appareil de la release `v0.0.82_ot_beta` : shell root,
+      bouton Actualiser, restauration `/fm`, dossier SAF, absence de
       `Connect call failed`

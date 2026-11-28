@@ -6552,3 +6552,16 @@ GitHub, et `targetSdk 28` étant indispensable pour `execve(proot)` sous
 Android 10+, seule cette règle de distribution est désactivée dans le bloc
 `lint` de `app/build.gradle`. Les autres contrôles lint restent actifs et
 `test_p171.py` vérifie la présence de la désactivation.
+
+Livraison P170-P174 — 2026-11-28 16:26 UTC : run CI `46164436022` vert en
+8m45s. `already_exists` / `Too many retries` : 0 occurrence dans le log. La
+release fantôme draft `461638077` a été supprimée avant publication, puis la
+prerelease `v0.0.82_ot_beta` publiée avec `prerelease: true` et
+`make_latest: false` ; `v0.0.81` reste `Latest` et `v0.0.82_beta` inchangée.
+Assets : release `313158811` octets, SHA-256
+`f30b508ebd759e4866e09e50dee360056d2cd1f931b4cec5d9cd75ad5dc8858b` ;
+debug `324219888` octets, SHA-256
+`bacd698e8877df61f4147d46a25ee19999d898977753ca9e967cc4b0b0d76ba4`.
+`apksigner` valide la release (v2), DN `CN=OpenWebUI Android, O=FredSources`,
+empreinte `7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4`
+(inchangée). `scripts/check_apk.py` valide les deux APK localement.

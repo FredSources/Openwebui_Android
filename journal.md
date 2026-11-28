@@ -6270,3 +6270,31 @@ inadvertance dans le submodule `vendor/open-terminal` a été restaurée à
 `HEAD` ; les patchs sont la source de vérité, la reconstruction donne
 39 appliqués / 9 déjà / 0 échec. Publication en prerelease à effectuer après
 validation complète des tests et de la CI.
+
+**Livraison — 2026-11-28 09:47 UTC**
+
+Le tag `v0.0.82_ot_beta` est supprimé puis recréé sur le commit `cb7b29c`
+(objet tag annoté `ed7b4ca8b81f499b629560f68e780be97e4b43e3`). Le run CI
+`46131420884` est *vert* en 8 min 58 s ; l'étape « Vérification de la chaîne
+APK » exécute `check_apk.py` avec les nouveaux marqueurs P167. La release est
+republiée en **prerelease** le `2026-11-28T09:47:11Z`. `v0.0.81` reste la
+release stable `Latest` (`2026-11-27T21:49:18Z`) et `v0.0.82_beta` demeure
+inchangée (`2026-11-27T22:52:22Z`).
+
+APK vérifiées après téléchargement :
+
+- `OpenWebUI_Android-0.0.82_ot_beta-release.apk` — `313 162 371` octets,
+  SHA-256 `6a56166432895fc2eb6998b8f83b46cbfe2b6cced02edb59b65ad9c66b7192f6`,
+  signature `CN=OpenWebUI Android, O=FredSources`, empreinte
+  `7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4` ;
+- `OpenWebUI_Android-0.0.82_ot_beta-debug.apk` — `324 218 940` octets,
+  SHA-256 `e4459ba380e83121dc39c7a7224c047cb38269fd937b118659a2e639f9e7e944`,
+  signature Android Debug, `Verifies` OK.
+
+Les 16 tests `test_p124.py` à `test_p167.py` passent (le classifier de
+`/fm/ot/session` a été ajusté en cours de validation : un `503` sans champ
+`status` déclenche bien la relance du service, tandis qu'un `Errno 13` remonte
+immédiatement sans relance). `apply_patches.sh --check` indique 47 patchs déjà
+appliqués et 0 échec. Il reste à confirmer sur l'appareil que `proot` s'exécute
+depuis `getFilesDir()` et que `ptrace` est autorisé ; les lignes `P167` de
+`serveur.log` permettront de suivre le diagnostic.

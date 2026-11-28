@@ -1655,6 +1655,13 @@ sans ces marqueurs, une APK pourrait embarquer l'ancien chemin `noexec` alors
 que les patchs sont présents dans le dépôt (piège déjà rencontré aux P164 à
 P166). Aucun contrôle existant n'est assoupli.
 
+*Livraison* — le tag `v0.0.82_ot_beta` est recréé sur `cb7b29c` ; le run CI
+`46131420884` est vert en 8 min 58 s et la release est republiée en
+*prerelease* le `2026-11-28T09:47:11Z`. `v0.0.81` reste `Latest`, `v0.0.82_beta`
+est inchangée. L'APK release fait `313 162 371` octets (SHA-256
+`6a56166432895fc2eb6998b8f83b46cbfe2b6cced02edb59b65ad9c66b7192f6`) et porte
+l'empreinte stable `7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4`.
+
 = Pistes d'évolution
 
 - Mise à jour in-app de l'APK (GitHub Releases) ;

@@ -381,6 +381,8 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [x] reset `/fm` : appel serveur puis `AndroidSystem.restartApp()`, FitAddon
       relié à `/fm/ot/resize`
 - [x] documentation Typst mise à jour et PDF recompilés
-- [ ] P167 : déplacer `proot`/libs/rootfs dans `getFilesDir()` (volume interne
+- [x] P167 : déplacer `proot`/libs/rootfs dans `getFilesDir()` (volume interne
       exécutable, effacé à la désinstallation), migrer l'ancienne installation,
-      supprimer les relances sur `Errno 13` — `test_p167.py` à finaliser
+      supprimer les relances sur `Errno 13` — `test_p167.py` vert
+- [x] P167 : tag `v0.0.82_ot_beta` recréé sur `cb7b29c`, CI #46131420884 verte,
+      prerelease republiée, APK release et debug vérifiées

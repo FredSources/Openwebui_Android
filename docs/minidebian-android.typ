@@ -217,3 +217,9 @@ commandes dans le mini-Debian et l'interface l'indique clairement. Le prompt
 interactif coloré reste indisponible dans ce mode ; les lignes `P166` de
 `serveur.log` donnent le détail du basculement lorsque les journaux fichier
 sont activés dans `/fm → Journaux`.
+
+*Livraison P167* — prerelease `v0.0.82_ot_beta` republiée le
+`2026-11-28T09:47:11Z` sur le commit `cb7b29c`, CI `46131420884` verte. Les
+deux APK ont été téléchargées et vérifiées (`check_apk.py`, `apksigner verify`,
+empreinte release stable) ; les 16 tests passent. La validation matérielle du
+`noexec` et de `ptrace` reste à effectuer sur l'appareil.

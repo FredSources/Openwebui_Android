@@ -6404,3 +6404,34 @@ avec le JDK 21 portable (le JDK 25 système casse Gradle 8.10.2), et
 `apply_patches.sh --check` à 49 patchs déjà appliqués / 0 échec. Aucun
 processus ni port 8080 résiduel. La livraison (commit, tag recréé, CI, release)
 est journalisée dans l'entrée suivante.
+
+**P169 — 2026-11-28 15:02 UTC — livraison de la prerelease**
+
+`master` est poussée sur `ab61fa8` ; le tag `v0.0.82_ot_beta` est supprimé puis
+recréé sur ce commit (`90acf4e`) et poussé seul. Le premier run CI
+`46156405804` a échoué à l'étape « Release GitHub » : la suppression du tag
+avait laissé un brouillon orphelin (`461504946`) en plus de la release publiée
+(`461632443`), et `softprops/action-gh-release` a tenté de finaliser une
+release dont le `tag_name` existait déjà (`already_exists`). Les deux objets
+ont été supprimés via l'API, puis `gh run rerun --failed` a terminé vert.
+
+La release `461638077` est publiée le `2026-11-28T15:01:59Z` en *prerelease*,
+`make_latest: false` : `v0.0.81` reste `Latest` et `v0.0.82_beta` est
+inchangée. Les deux APK téléchargées passent `check_apk.py` et `apksigner
+verify` :
+
+- `OpenWebUI_Android-0.0.82_ot_beta-release.apk` — `313 174 671` octets,
+  SHA-256 `ae656529d051156e0827f8af590272d88a7c882f8eb099c0ee939bef9328a746`,
+  signature `CN=OpenWebUI Android, O=FredSources`, empreinte
+  `7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4` ;
+- `OpenWebUI_Android-0.0.82_ot_beta-debug.apk` — `324 228 184` octets,
+  SHA-256 `a1ca2c1ec075fe2f46d1cc8cd43e7c617d169a9bf2792dff67d5dee78ab69254`,
+  signature Android Debug.
+
+Les 18 tests passent, `apply_patches.sh --check` indique 49 patchs déjà
+appliqués et 0 échec. Il reste à confirmer sur appareil : le bouton Actualiser,
+la restauration de la page `/fm`, l'état réel du service et la présence de
+`Android/data/org.openwebui.android/files/minidebian/storage` monté dans
+`/root/storage`. Si le shell échoue encore, la ligne
+`P167/P168/P169 exécution refusée` de `serveur.log` précisera errno, mode,
+`X_OK` et racine.

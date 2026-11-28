@@ -396,6 +396,9 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       état des services mesuré sur le port, storage visible `data/minidebian/storage`
       monté en `/root/storage`, chmod Termux `Os.chmod 0700`, diagnostic direct
       dans `serveur.log` — `test_p169.py` vert, 18 tests verts
-- [ ] P169 : republier `v0.0.82_ot_beta` (tag supprimé puis recréé), surveiller la
-      CI, vérifier prerelease/APK/hashes/signature, puis demander à l'utilisateur
-      la ligne `P167/P168/P169 exécution refusée` si le shell échoue encore
+- [x] P169 : tag `v0.0.82_ot_beta` supprimé puis recréé sur `ab61fa8`, CI
+      `46156405804` verte après suppression des doublons de release, prerelease
+      republiée le `2026-11-28T15:01:59Z`, APK release et debug vérifiées
+- [ ] P169 : confirmer sur appareil le bouton Actualiser, la restauration `/fm`,
+      le storage visible et la ligne `P167/P168/P169 exécution refusée` si le
+      shell échoue encore

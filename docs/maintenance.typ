@@ -1746,7 +1746,10 @@ interdit à une application ciblant SDK 29+ d'exécuter un fichier situé dans s
 répertoire de données inscriptible. Termux contourne cela en restant
 volontairement en `targetSdkVersion 28` (voir son wiki « Termux and Android
 10 »). `app/build.gradle` cible désormais 28, comme Termux, sans changement de
-`minSdk` (24) ni du périmètre des binaires.
+`minSdk` (24) ni du périmètre des binaires. L'APK étant diffusé sur GitHub et
+non sur le Play Store, la règle lint `ExpiredTargetSdkVersion` (qui exige 33+)
+est désactivée dans le bloc `lint` : sans cela, `lintVitalRelease` fait échouer
+la compilation de la release avant toute publication (P174).
 
 La variante `jniLibs/<abi>/lib*.so` + `nativeLibraryDir`, compatible Play
 Store, ne suffit pas ici : elle rendrait exécutable `proot` seul, mais pas les

@@ -21,7 +21,9 @@ assert 'targetSdk 28' in gradle, \
     'l APK cible encore SDK 29+ : execve(proot) reste interdit (W^X)'
 assert 'targetSdk 34' not in gradle
 assert 'Termux reste volontairement en 28' in gradle
-print('OK  targetSdk 28 (aligné Termux) et exclusion de 34')
+assert "disable 'ExpiredTargetSdkVersion'" in gradle, \
+    'lint bloque la release GitHub alors que targetSdk 28 est volontaire'
+print('OK  targetSdk 28 (aligné Termux), exclusion de 34 et lint désamorcé')
 
 java_dir = PROJ / 'app/src/main/java/org/openwebui/android'
 java = (java_dir / 'MainActivity.java').read_text(encoding='utf-8')

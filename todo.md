@@ -404,6 +404,8 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       shell échoue encore
 - [ ] P170 : vérifier sur un run CI réel que la republication du tag ne produit
       plus `already_exists` / `Too many retries`
+- [x] P174 : désactivation ciblée de la règle lint `ExpiredTargetSdkVersion`
+      (release GitHub, pas Play Store) après l'échec du run `46162961173`
 - [ ] P171/P172/P173 : republier `v0.0.82_ot_beta` avec `targetSdk 28`, le
       storage exposé via SAF et le service 8889 démarré avant Open WebUI, puis
       confirmer sur appareil l'exécution du shell root, la présence de

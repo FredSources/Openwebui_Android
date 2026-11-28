@@ -62,6 +62,14 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
+    // P174 — lintVitalRelease exige targetSdk >= 33 pour le Play Store. L'APK
+    // est distribué uniquement sur GitHub (pas de publication Play), et SDK 29+
+    // interdirait l'exécution des binaires du mini-Debian (W^X). On désactive
+    // donc cet avertissement de distribution, sans relâcher les autres checks.
+    lint {
+        disable 'ExpiredTargetSdkVersion'
+    }
+
     // Signature release : keystore fourni par variables d'environnement (CI/CD,
     // secrets GitHub KEYSTORE_FILE/KEYSTORE_PASSWORD/KEY_ALIAS/KEY_PASSWORD) ;
     // sans keystore, repli sur la clé debug (APK installable, pour tests)

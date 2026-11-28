@@ -226,9 +226,11 @@ Malgré `chmod 0700` et `X_OK=True`, l'appareil refusait l'exécution de
 Android 10 interdit l'`execve` d'un binaire dans le répertoire de données d'une
 application qui cible SDK 29 ou plus (règle W^X). Termux reste pour cette raison
 en `targetSdkVersion 28` ; l'APK cible désormais 28 également, ce qui rend le
-shell root possible sans rooter le téléphone. Placer seulement `proot` dans
-`jniLibs` ne suffirait pas : les binaires du rootfs Debian seraient toujours
-exécutés depuis l'espace de l'application.
+shell root possible sans rooter le téléphone. Comme l'APK n'est pas publié sur
+le Play Store, le contrôle lint `ExpiredTargetSdkVersion` est désactivé : il
+exigerait 33+ et ferait échouer la release GitHub (P174). Placer seulement
+`proot` dans `jniLibs` ne suffirait pas : les binaires du rootfs Debian seraient
+toujours exécutés depuis l'espace de l'application.
 
 Comme Termux, l'application n'écrit pas dans un dossier public : elle expose
 `getExternalFilesDir(null)/minidebian/storage` au navigateur de fichiers via un

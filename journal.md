@@ -6544,3 +6544,11 @@ réactivée par `_activer_machine_locale()` dès que `_port_actif(8889)` est vra
 d'Open Terminal dépasse la fenêtre d'attente de 4 s, le préchargement des specs
 ne produit aucun `Connect call failed`. Le chargement paresseux
 `get_machines()` recharge la spec à la première utilisation.
+
+P174 — 2026-11-28 (UTC) : le run CI `46162961173` a échoué à
+`:app:lintVitalRelease` avec `ExpiredTargetSdkVersion` (« Google Play requires
+apps to target API level 33 or higher »). L'APK n'étant distribué que sur
+GitHub, et `targetSdk 28` étant indispensable pour `execve(proot)` sous
+Android 10+, seule cette règle de distribution est désactivée dans le bloc
+`lint` de `app/build.gradle`. Les autres contrôles lint restent actifs et
+`test_p171.py` vérifie la présence de la désactivation.

@@ -1687,6 +1687,18 @@ de boutons est désactivée le temps de l'action, puis le résultat réel renvoy
 l'application » affiche une confirmation avant l'extinction. Le patch
 `07-android_fm-service-feedback.patch` porte ces changements.
 
+*Livraison* — le tag `v0.0.82_ot_beta` est recréé sur `2de40d4`. Le premier run
+CI `46138012479` a échoué : le marqueur `P167` avait disparu des `.pyc` quand le
+diagnostic était devenu `P168 …`. Le correctif `2de40d4` conserve les deux
+marqueurs dans la chaîne `P167/P168 exécution refusée` ; le run `46139047935`
+est vert en 6 min 11 s et la release est republiée en *prerelease* le
+`2026-11-28T11:21:46Z`. `v0.0.81` reste `Latest` et `v0.0.82_beta` est
+inchangée. L'APK release fait `313 162 979` octets (SHA-256
+`aa7c41037c1fba0b0cd8b3d75eb3c91b1dc8ef621d59cdcb7b970f0f701b1273`) et porte
+l'empreinte stable
+`7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4`. Les 17
+tests passent et `check_apk.py` valide les deux APK téléchargées.
+
 = Pistes d'évolution
 
 - Mise à jour in-app de l'APK (GitHub Releases) ;

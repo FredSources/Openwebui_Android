@@ -245,5 +245,11 @@ sont activés dans `/fm → Journaux`.
 *Livraison P167* — prerelease `v0.0.82_ot_beta` republiée le
 `2026-11-28T09:47:11Z` sur le commit `cb7b29c`, CI `46131420884` verte. Les
 deux APK ont été téléchargées et vérifiées (`check_apk.py`, `apksigner verify`,
-empreinte release stable) ; les 16 tests passent. La validation matérielle du
-`noexec` et de `ptrace` reste à effectuer sur l'appareil.
+empreinte release stable) ; les 16 tests passent. Le chemin interne observé sur
+l'appareil confirme que le `noexec` externe est levé.
+
+*Livraison P168* — prerelease `v0.0.82_ot_beta` republiée le
+`2026-11-28T11:21:46Z` sur le commit `2de40d4`, CI `46139047935` verte en
+6 min 11 s. Les deux APK ont été téléchargées et vérifiées (`check_apk.py`,
+`apksigner verify`, empreinte release stable) ; les 17 tests passent. Il reste à
+confirmer sur l'appareil que le chmod P168 suffit et que `ptrace` est autorisé.

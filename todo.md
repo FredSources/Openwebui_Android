@@ -389,3 +389,6 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [x] P168 : réappliquer le bit exécutable de `proot` (chemin rapide Java + runner),
       diagnostic honnête errno/mode/racine, retour visuel des boutons de service
       — `test_p168.py` vert, 17 tests verts
+- [x] P168 : tag `v0.0.82_ot_beta` recréé sur `2de40d4`, CI #46139047935 verte
+      après correction du marqueur P167, prerelease republiée, APK release et
+      debug vérifiées

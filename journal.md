@@ -6339,3 +6339,31 @@ exécutable et le diagnostic distinguant les deux racines. Les 17 tests passent,
 `apply_patches.sh --check` indique 48 patchs déjà appliqués et 0 échec.
 `check_apk.py` exige désormais le marqueur P168 dans `android_fm.pyc` et
 `open_terminal/main.pyc`, sans assouplir les contrôles P164 à P167.
+
+**P168 — 2026-11-28 11:22 UTC — livraison de la prerelease**
+
+Le tag `v0.0.82_ot_beta` a été supprimé puis recréé sur `2de40d4` (jamais de
+`git push --tags`). Le premier run CI `46138012479` a échoué sur
+`check_apk.py` : le marqueur `P167`, auparavant porté par une chaîne de journal,
+avait disparu des `.pyc` quand le message était devenu `P168 …`. Le commit
+`2de40d4` conserve les deux marqueurs dans la chaîne
+`P167/P168 exécution refusée`, sans assouplir le garde-fou. Le second run
+`46139047935` est vert en 6 min 11 s ; la release est republiée en
+*prerelease* le `2026-11-28T11:21:46Z`. `v0.0.81` reste `Latest` et
+`v0.0.82_beta` est inchangée (`2026-11-27T22:52:22Z`).
+
+APK téléchargées depuis la release puis vérifiées :
+
+- `OpenWebUI_Android-0.0.82_ot_beta-release.apk` — `313 162 979` octets,
+  SHA-256 `aa7c41037c1fba0b0cd8b3d75eb3c91b1dc8ef621d59cdcb7b970f0f701b1273`,
+  signature `CN=OpenWebUI Android, O=FredSources`, empreinte
+  `7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4` ;
+- `OpenWebUI_Android-0.0.82_ot_beta-debug.apk` — `324 225 016` octets,
+  SHA-256 `f64c7468c7397e36f171e65ade64d65341ec0ba57dd0baf558908cdb7c56c2c6`,
+  signature Android Debug, `apksigner verify` OK.
+
+Les 17 tests passent, `apply_patches.sh --check` indique 48 patchs déjà
+appliqués et 0 échec, et `check_apk.py` valide les deux APK. Il reste à
+confirmer sur l'appareil que le chmod P168 suffit et que `ptrace` est autorisé ;
+la ligne `P167/P168` de `serveur.log` donnera errno, mode et racine si le refus
+persiste.

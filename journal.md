@@ -6026,3 +6026,30 @@ PTY vers `/fm/ot/resize`. Le test `test_p161.py` est ajouté pour les replis
 Chaquopy. `test_p160.py`, `test_p161.py`, `test_p162.py`, `test_p163.py` et
 `test_p154.py` / `test_p159.py` passent ; rejeu de `apply_patches.sh` :
 38 appliqués, 9 déjà, 0 échec. Aucun résidu sur le port 8090.
+
+### Livraison — 2026-11-28 00:18 UTC
+
+Tag `v0.0.82_ot_beta` créé sur `5add4a8` et poussé une seule fois (aucune
+release préexistante à supprimer). CI `46086101046` *verte* : sources patchées,
+frontend compilé, versionCode, build APK debug + release, `check_apk.py`,
+chaîne APK et release GitHub tous validés.
+
+Release `v0.0.82_ot_beta` : **prerelease** (`prerelease: true`), publiée le
+`2026-11-28T00:14:43Z`. `v0.0.81` reste la release stable `Latest`
+(`prerelease: false`, publiée le `2026-11-27T21:49:18Z`) et `v0.0.82_beta`
+reste inchangée (`prerelease: true`, publiée le `2026-11-27T22:52:22Z`).
+
+APK vérifiées après téléchargement :
+
+- `OpenWebUI_Android-0.0.82_ot_beta-release.apk` — `313 126 435` octets,
+  SHA-256 `2ac804b08e0604e5787772810714cd9045ebfe8e225c2f5f07845f7867822165`,
+  signature `CN=OpenWebUI Android, O=FredSources`, empreinte
+  `7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4` ;
+- `OpenWebUI_Android-0.0.82_ot_beta-debug.apk` — `324 181 948` octets,
+  SHA-256 `6fe2116acf3c6946025ed33eca4ea99bcb64af5f09d14401f2ddf132ec116780`.
+
+`scripts/check_apk.py` valide les deux APK sans erreur : assets
+`minidebian/*`, modules `open_terminal` / `proot_distro`, xterm.js, clé absente
+du HTML, chaîne de signature et versions embarquées. La phase matérielle
+(`proot` depuis les assets, `ptrace`, PTY interactif) reste à confirmer sur un
+appareil ; le repli sans PTY est documenté dans `docs/minidebian-android.typ`.

@@ -6092,4 +6092,27 @@ iframe, `ctor`) et interdit le retour des constructeurs globaux et du `;` avant
 `.catch`. Les 13 tests passent ; rejeu de `apply_patches.sh` : 38 appliqués,
 9 déjà, 0 échec.
 
-*Livraison, CI et contrôle APK à compléter.*
+### Livraison — 2026-11-28 00:53 UTC (remplace la livraison 00:18 UTC)
+
+Tag `v0.0.82_ot_beta` supprimé puis recréé sur `45661ba` : ancienne release et
+tag effacés avec `gh release delete --yes --cleanup-tag`, puis `git tag -a` et
+`git push origin v0.0.82_ot_beta` (jamais `git push --tags`). CI `46089763471` :
+*verte* — patchs, frontend, versionCode, APK debug + release, `check_apk.py`,
+chaîne APK et publication GitHub validés.
+
+Release republiée en **prerelease** le `2026-11-28T00:53:23Z`. `v0.0.81` reste
+la release stable `Latest` et `v0.0.82_beta` demeure inchangée
+(`2026-11-27T22:52:22Z`).
+
+APK vérifiées après téléchargement :
+
+- `OpenWebUI_Android-0.0.82_ot_beta-release.apk` — `313 123 207` octets,
+  SHA-256 `cd4345ff69f40ac38a831622c9650b8f78c88ad4225a3cc68570ce22020d5faf`,
+  signature `CN=OpenWebUI Android, O=FredSources`, empreinte
+  `7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4` ;
+- `OpenWebUI_Android-0.0.82_ot_beta-debug.apk` — `324 184 756` octets,
+  SHA-256 `4add69debd7a43c3a93a02f2645d3e52c5219ed842483206ff1af10d3eb2b3d3`.
+
+`scripts/check_apk.py` valide les deux APK, y compris les marqueurs P164. La
+validation matérielle (`proot`, `ptrace`, PTY interactif) reste à confirmer sur
+l'appareil ; le repli sans PTY est documenté dans `docs/minidebian-android.typ`.

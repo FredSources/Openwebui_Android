@@ -1536,6 +1536,10 @@ les chaînes de l'iframe et de la fonction `ctor()` dans `android_fm.pyc`, et re
 le retour des constructeurs globaux ou du point-virgule fautif. Les contrôles
 précédents ne sont pas assouplis.
 
+La prerelease est republiée sur le commit `45661ba` : tag supprimé puis recréé,
+CI `46089763471` *verte*, APK release (`cd4345ff…`) et debug (`4add69de…`)
+vérifiées, signature inchangée. `v0.0.81` reste la release stable `Latest`.
+
 = Pistes d'évolution
 
 - Mise à jour in-app de l'APK (GitHub Releases) ;

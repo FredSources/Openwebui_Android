@@ -362,8 +362,9 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       supprime work), marqueur consommé au démarrage — test `test_p163.py`
 - [ ] Validation matérielle (build release sur appareil) : `proot` depuis les
       assets, `ptrace` autorisé, `pty.openpty()` + `/bin/bash -l` fonctionnels
-- [ ] Recréer le tag `v0.0.82_ot_beta`, surveiller la CI, vérifier APK et
-      prerelease ; garder `v0.0.81` `Latest` et `v0.0.82_beta` inchangée
+- [x] Recréer le tag `v0.0.82_ot_beta`, surveiller la CI, vérifier APK et
+      prerelease ; CI #46089763471 verte, `v0.0.81` `Latest` et
+      `v0.0.82_beta` inchangée
 - [x] P164 : relais de reset syntaxiquement valide, addons xterm 6 résolus via
       `ctor()`, pilotage Service seul, Shell root en iframe autonome, restart
       après libération du port — `test_p164.py` et 13 tests verts

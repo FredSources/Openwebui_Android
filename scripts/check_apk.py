@@ -210,6 +210,22 @@ def check_apk(apk: pathlib.Path) -> None:
                                        "proot_distro/helpers/rootfs.pyc"):
                             if not any(n.endswith(module) for n in noms_b):
                                 err(f"{label} : {module} absent (service P160)")
+                        # P166 — Android peut n'exposer aucun périphérique PTY
+                        # utilisable (`Out of PTY devices` dès l'ouverture). Le
+                        # repli shell sans PTY et sa journalisation doivent être
+                        # réellement compilés dans l'APK, pas seulement présents
+                        # dans les patchs du dépôt.
+                        ot_pyc = [bundle.read(n) for n in noms_b
+                                  if n.endswith("open_terminal/main.pyc")]
+                        if ot_pyc and not any(b"P166" in o for o in ot_pyc):
+                            err(f"{label} : marqueur P166 absent de "
+                                f"open_terminal/main.pyc (repli sans PTY non embarqué)")
+                        am_pyc = [bundle.read(n) for n in noms_b
+                                  if n.endswith("android_main.pyc")]
+                        if am_pyc and not any(
+                                b"OPEN_TERMINAL_MAX_SESSIONS" in o for o in am_pyc):
+                            err(f"{label} : limite d'une session absente de "
+                                f"android_main.pyc (accumulation des PTY possible)")
                         for xterm in ("xterm.js", "xterm.css", "addon-fit.js",
                                       "addon-web-links.js"):
                             if not any(n.endswith("static/xterm/" + xterm)
@@ -335,6 +351,22 @@ def check_apk(apk: pathlib.Path) -> None:
                                 b'});.catch' in o for o in fm):
                             err(f"{label} : relais de reset rompu avant .catch "
                                 f"(SyntaxError sur /fm)")
+                        # P165 — ouverture du shell à la demande : sans ce
+                        # démarrage, l'iframe reste sur « service arrêté »
+                        # quand le service local n'a pas été lancé au boot.
+                        # (`service_control` est présent mais ses arguments
+                        # sont marshalisés séparément dans le .pyc : on exige
+                        # le marqueur de version P165, lui bien contigu.)
+                        elif not any(b"P165" in o for o in fm):
+                            err(f"{label} : marqueur P165 absent de android_fm.pyc "
+                                f"(démarrage du shell à la demande non embarqué)")
+                        # P166 — réutilisation du shell existant et sondage
+                        # journalisé : sans ces marqueurs, chaque chargement de
+                        # l'iframe ouvre un PTY supplémentaire et l'appareil
+                        # renvoie « Out of PTY devices » dès le démarrage.
+                        elif not any(b"P166" in o for o in fm):
+                            err(f"{label} : marqueur P166 absent de android_fm.pyc "
+                                f"(réutilisation du shell non embarquée)")
                     elif "requirements-common" in bundle_nom:
                         check_modules(bundle, label, MODULES_PIP)
                         # R165 : aiohttp 3.14.5 remplace le 3.10.10 épinglé par

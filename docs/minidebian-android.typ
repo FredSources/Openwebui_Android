@@ -158,19 +158,23 @@ confirmation explicite.
 
 = Vérifications et limites
 
-Les tests `test_p160.py`, `test_p161.py`, `test_p162.py`, `test_p163.py` et
-`test_p164.py` contrôlent les empreintes, l'absence de `-R`/`-S`, le rendu des
-onglets et de l'iframe, l'absence de clé dans le HTML, les deux modes de reset,
-la syntaxe JavaScript (`node --check`), la résolution UMD des addons et la
-libération du port au redémarrage. `check_apk.py` exige les assets mini-Debian,
-les modules Python `open_terminal` et `proot_distro`, les fichiers xterm, le
-marqueur P164 dans `android_fm.pyc` et la taille maximale du rootfs. Aucun
+Les tests `test_p160.py` à `test_p166.py` contrôlent les empreintes,
+l'absence de `-R`/`-S`, le rendu des onglets et de l'iframe, l'absence de clé
+dans le HTML, les deux modes de reset, la syntaxe JavaScript (`node --check`),
+la résolution UMD des addons, la libération du port au redémarrage, le
+démarrage du service à la demande (P165) et le repli sans PTY sous proot (P166).
+`check_apk.py` exige les assets mini-Debian, les modules Python `open_terminal`
+et `proot_distro`, les fichiers xterm, les marqueurs P164/P165/P166 dans
+`android_fm.pyc`, le marqueur P166 dans `open_terminal/main.pyc`, la limite
+d'une session dans `android_main.pyc` et la taille maximale du rootfs. Aucun
 serveur de test ne doit écouter sur `8080` : seule la fenêtre `8090` est
 autorisée pour les tests locaux.
 
 *Limite non levée* : la validation sur appareil d'une build release n'a pas
 encore été réalisée. Il reste à confirmer que `proot` s'exécute depuis les
-assets, que `ptrace` est autorisé et que `pty.openpty()` + `/bin/bash -l`
-fonctionnent. Si `ptrace` est refusé, le repli annoncé est l'exécution de
-commandes sans PTY, sans shell interactif ; l'interface doit alors l'indiquer
-clairement plutôt que d'afficher un terminal vide.
+assets et que `ptrace` est autorisé. Depuis P166, l'absence de `pty.openpty()`
+n'est plus une impasse : le shell bascule en `backend=pipe`, conserve les
+commandes dans le mini-Debian et l'interface l'indique clairement. Le prompt
+interactif coloré reste indisponible dans ce mode ; les lignes `P166` de
+`serveur.log` donnent le détail du basculement lorsque les journaux fichier
+sont activés dans `/fm → Journaux`.

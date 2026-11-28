@@ -57,7 +57,7 @@
                  process = subprocess.Popen(
                      shell_cmd,
                      stdin=slave_fd,
-@@ -2448,6 +2467,28 @@
+@@ -2448,6 +2467,31 @@
          return {"status": "ok"}
  
  
@@ -76,6 +76,9 @@
 +                    session["master_fd"], termios.TIOCSWINSZ,
 +                    struct.pack("HHHH", rows, cols, 0, 0),
 +                )
++            elif session["backend"] == "pipe":
++                # P166 : pas de PTY à redimensionner dans le repli Android.
++                log.warning("P166 resize ignoré (shell sans PTY) : %sx%s", rows, cols)
 +            else:
 +                session["pty_process"].setwinsize(rows, cols)
 +        except Exception as exc:

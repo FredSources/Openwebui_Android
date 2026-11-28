@@ -1,0 +1,152 @@
+--- a/open_terminal/main.py
++++ b/open_terminal/main.py
+@@ -2205,12 +2205,57 @@
+                     pass
+                 await asyncio.to_thread(process.wait)
+ 
++        elif backend == "pipe":
++            process = session["process"]
++            try:
++                os.killpg(process.pid, signal.SIGTERM)
++            except (ProcessLookupError, PermissionError):
++                pass
++            try:
++                await asyncio.to_thread(process.wait, timeout=3)
++            except subprocess.TimeoutExpired:
++                pass
++            finally:
++                try:
++                    os.killpg(process.pid, signal.SIGKILL)
++                except (ProcessLookupError, PermissionError):
++                    pass
++                await asyncio.to_thread(process.wait)
++
+         elif backend == "winpty":
+             pty_proc = session["pty_process"]
+             if pty_proc.isalive():
+                 pty_proc.terminate()
+ 
+ 
++    async def _spawn_pipe_shell(session_id: str, request: Request) -> dict:
++        """P166 — repli Android : shell bash via tubes, sans /dev/ptmx.
++
++        Le PTY interactif est indisponible sur certains appareils. On conserve
++        l'exécution de commandes dans le mini-Debian via proot ; l'absence
++        d'echo et de prompt coloré est signalée dans le journal et l'interface.
++        """
++        fs = get_filesystem(request)
++        chat_id = request.headers.get("x-session-id")
++        cwd = (_get_session_cwd(chat_id, fs) if chat_id else None) or start_directory(fs.home)
++        spawn_env = sanitized_environ()
++        spawn_env.setdefault("TERM", "dumb")
++        cmd = android_proot_prefix() + ["/bin/bash", "-i"]
++        log.warning("P166 repli pipe : cmd=%s cwd=%s", cmd, cwd)
++        process = subprocess.Popen(
++            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
++            stderr=subprocess.STDOUT, bufsize=0, cwd=cwd, env=spawn_env,
++            start_new_session=True,
++        )
++        return {
++            "id": session_id,
++            "created_at": _datetime.utcnow().isoformat() + "Z",
++            "pid": process.pid,
++            "backend": "pipe",
++            "process": process,
++        }
++
++
+     @app.post("/api/terminals", dependencies=[Depends(verify_api_key)], include_in_schema=False)
+     async def create_terminal(request: Request):
+         """Create a new terminal session and return its ID."""
+@@ -2221,9 +2266,11 @@
+             )
+ 
+         # Prune dead sessions before checking limit
+-        if _TERMINAL_BACKEND == "pty":
++        dead: list[str] = []
++        if _terminal_sessions and all(s.get("backend") in ("pty", "pipe")
++                                      for s in _terminal_sessions.values()):
+             dead = [sid for sid, s in _terminal_sessions.items() if s["process"].poll() is not None]
+-        else:
++        elif _TERMINAL_BACKEND == "winpty":
+             dead = [sid for sid, s in _terminal_sessions.items() if not s["pty_process"].isalive()]
+         for sid in dead:
+             await _cleanup_session(sid)
+@@ -2239,11 +2286,31 @@
+         if _TERMINAL_BACKEND == "pty":
+             try:
+                 master_fd, slave_fd = pty.openpty()
+-            except OSError:
+-                return JSONResponse(
+-                    {"error": "Out of PTY devices — too many active terminals or processes"},
+-                    status_code=503,
++            except OSError as exc:
++                log.warning("P166 open_terminal : pty.openpty() indisponible (%s) "
++                            "— repli shell sans PTY (backend=pipe)", exc)
++                log.warning("P166 diagnostic : /dev/ptmx=%s /dev/pts=%s sessions=%d "
++                            "limite=%s proot=%s rootfs=%s work=%s",
++                            os.path.exists("/dev/ptmx"), os.path.isdir("/dev/pts"),
++                            len(_terminal_sessions),
++                            os.environ.get("OPEN_TERMINAL_MAX_SESSIONS", ""),
++                            os.environ.get("OPENWEBUI_ANDROID_PROOT", ""),
++                            os.environ.get("OPENWEBUI_ANDROID_ROOTFS", ""),
++                            os.environ.get("OPENWEBUI_ANDROID_WORK", ""))
++                _terminal_sessions[session_id] = await _spawn_pipe_shell(session_id, request)
++                session = _terminal_sessions[session_id]
++                session.update(
++                    user_id=request.headers.get("x-user-id", ""),
++                    chat_id=request.headers.get("x-session-id", ""),
++                    output=bytearray(), viewers=[], owner=None, seen=0,
++                    input_lock=asyncio.Lock(), output_offset=0,
++                    output_changed=asyncio.Event(), output_consumed=asyncio.Event(),
++                    reader_done=False,
+                 )
++                session["io_tasks"] = (
++                    asyncio.create_task(_read_terminal_output(session)),)
++                return {"id": session_id, "created_at": session["created_at"],
++                        "pid": session["pid"], "backend": "pipe"}
+ 
+             try:
+                 fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
+@@ -2288,6 +2355,8 @@
+             flags = fcntl.fcntl(master_fd, fcntl.F_GETFL)
+             fcntl.fcntl(master_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+ 
++            log.warning("P166 open_terminal : session PTY %s créée (pid=%s)",
++                        session_id, process.pid)
+             _terminal_sessions[session_id] = {
+                 "backend": "pty",
+                 "master_fd": master_fd,
+@@ -2347,6 +2416,8 @@
+                     await session["output_consumed"].wait()
+                 if session["backend"] == "pty":
+                     data = await read_pty(session["master_fd"])
++                elif session["backend"] == "pipe":
++                    data = await asyncio.to_thread(session["process"].stdout.read, 4096)
+                 else:
+                     try:
+                         value = await asyncio.to_thread(session["pty_process"].read, 4096)
+@@ -2368,7 +2439,7 @@
+ 
+     def _session_is_alive(session: dict) -> bool:
+         """Check if a terminal session's process is still running."""
+-        if session["backend"] == "pty":
++        if session["backend"] in ("pty", "pipe"):
+             return session["process"].poll() is None
+         else:
+             return session["pty_process"].isalive()
+@@ -2421,6 +2492,14 @@
+         async with session["input_lock"]:
+             if session["backend"] == "pty":
+                 await write_pty(session["master_fd"], data)
++            elif session["backend"] == "pipe":
++                await asyncio.to_thread(session["process"].stdin.write, data)
++                await asyncio.to_thread(session["process"].stdin.flush)
++                # Pas d'echo du noyau sans PTY : on rejoue la saisie dans le
++                # tampon pour que xterm affiche ce que l'utilisateur tape.
++                session["output"].extend(data)
++                session["output_offset"] += len(data)
++                session["output_changed"].set()
+             else:
+                 await asyncio.to_thread(session["pty_process"].write, data.decode(errors="replace"))
+ 

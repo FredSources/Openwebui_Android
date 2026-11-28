@@ -482,6 +482,10 @@ def _ensure_open_terminal(data_dir: Path, home: Path) -> None:
     os.environ["OPEN_TERMINAL_ENABLE_AGENTS"] = "false"
     os.environ["OPEN_TERMINAL_ENABLE_NOTEBOOKS"] = "false"
     os.environ["OPEN_TERMINAL_ENABLE_TERMINAL"] = "true"
+    # P166 — un seul shell interactif embarqué : chaque ouverture consomme un
+    # PTY, et Android en expose très peu. Sans limite, les rechargements de
+    # l'iframe finissent par `"Out of PTY devices"`.
+    os.environ["OPEN_TERMINAL_MAX_SESSIONS"] = "1"
     os.environ["OPEN_TERMINAL_CORS_ALLOWED_ORIGINS"] = "http://127.0.0.1:8080"
 
     mini = home / "minidebian"

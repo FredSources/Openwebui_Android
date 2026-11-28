@@ -98,6 +98,16 @@ service = rendre(b'folder=settings&tab=ot_service')
 terminal = rendre_route('/fm/ot/terminal')
 assert 'src="/fm/ot/terminal"' in shell and 'class="sxframe"' in shell
 assert '/static/xterm/xterm.js' not in shell, 'l’iframe doit isoler xterm.js de /fm'
+assert 'loading="lazy"' not in shell, 'l’iframe du shell doit charger immédiatement'
+# P165 — « Shell root » ne figure plus dans la sidebar « Paramètres » :
+# l’accès passe uniquement par le sous-onglet Open Terminal.
+assert '"/fm?folder=settings&tab=ot_shell", "Shell root"' not in shell, \
+    'l’entrée Shell root est revenue dans la sidebar'
+assert 'class="subtab on" href="/fm?folder=settings&tab=ot_shell"' in shell, \
+    'sous-onglet Shell root absent'
+assert 'service arrêté — démarrez-le dans l’onglet Service' in terminal
+assert 'service_control(\'open_terminal\', \'run\')' in Path(
+    PROJ / 'src/open_webui/android_fm.py').read_text(encoding='utf-8')
 
 # 1 — syntaxe JavaScript : tous les blocs inline passent `node --check`.
 node = shutil.which('node')

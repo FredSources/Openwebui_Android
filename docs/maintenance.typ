@@ -1540,6 +1540,61 @@ La prerelease est republiée sur le commit `45661ba` : tag supprimé puis recré
 CI `46089763471` *verte*, APK release (`cd4345ff…`) et debug (`4add69de…`)
 vérifiées, signature inchangée. `v0.0.81` reste la release stable `Latest`.
 
+= Ajustements P165 (sidebar et démarrage)
+
+Deux retours après la republication : « Shell root ne doit pas apparaître dans
+la sidebar sous Paramètres » et « le shell root ne démarre pas ». Les avertissements
+`P104 disconnect … reason=transport close` visibles dans `serveur.log`
+correspondent à des fermetures de WebSocket Open WebUI lors des rechargements de
+`/fm` : le Shell root utilise le relais HTTP et n'est pas concerné.
+
+L'entrée *Shell root* est retirée de la liste *Paramètres* ; l'accès passe par
+*Open Terminal* puis son sous-onglet. L'iframe n'est plus en chargement différé.
+Quand `/fm/ot/session` ne reçoit pas d'identifiant de session — service arrêté au
+démarrage ou depuis *Service*, réponse HTTP 503, erreur de connexion — la route
+appelle `service_control('open_terminal', 'run')` puis réessaie pendant cinq
+secondes. Aucun bouton de pilotage n'est réintroduit dans le Shell root ; si le
+relais reste indisponible, l'iframe indique « service arrêté — démarrez-le dans
+l'onglet Service ».
+
+`test_p165.py` valide le démarrage à la demande sur un serveur local isolé et
+l'absence de relance inutile ; `test_p164.py` contrôle la sidebar et le
+chargement de l'iframe ; `check_apk.py` exige le marqueur P165 dans
+`android_fm.pyc`. *Livraison à compléter.*
+
+= PTY indisponible sur appareil (P166)
+
+L'utilisateur a ensuite rapporté « MachineRequestError: Out of PTY devices —
+too many active terminals or processes » dès l'ouverture du shell. Le chemin
+P165 ouvrait une session à chaque chargement de l'iframe ; quand
+`pty.openpty()` échoue sur Android, la réponse HTTP 503 était interprétée comme
+un service arrêté et le relais relançait uvicorn vingt fois sans jamais obtenir
+de session.
+
+La limite `OPEN_TERMINAL_MAX_SESSIONS=1` est posée dans `android_main.py`. La
+route `/fm/ot/session` sonde d'abord la sortie du shell existant et le réutilise
+sans consommer de PTY supplémentaire ; le démarrage à la demande de P165 reste
+actif si le relais est réellement indisponible. En dernier recours, un échec de
+`pty.openpty()` ouvre le shell bash sous proot avec des tubes (`backend=pipe`) :
+la saisie est rejouée dans le tampon d'affichage, la lecture vient du tube, le
+redimensionnement est ignoré proprement et la session nettoie son groupe de
+processus. Les commandes continuent donc de s'exécuter dans le mini-Debian, sans
+prompt interactif.
+
+Des lignes `P166` journalisent l'échec de `openpty`, l'état de `/dev/ptmx` et de
+`/dev/pts`, le nombre de sessions, la limite et les chemins proot/rootfs/work.
+Elles sont consultables dans `/fm → Journaux → serveur.log` lorsque « Logs
+fichier » est activé ; l'iframe mentionne alors « shell sans PTY — détails dans
+Journaux ». `check_apk.py` exige les marqueurs `P166` dans
+`open_terminal/main.pyc` et `android_fm.pyc`, ainsi que
+`OPEN_TERMINAL_MAX_SESSIONS` dans `android_main.pyc` : ce durcissement évite de
+livrer une APK contenant l'ancien code limité au seul PTY alors que les patchs
+sont bien présents dans le dépôt. Les contrôles antérieurs restent inchangés.
+
+`test_p166.py` simule l'absence de PTY, valide l'exécution d'une commande dans le
+mini-Debian en mode tube et la limite d'une session ; `test_p165.py` confirme la
+réutilisation du shell. Les quinze tests passent.
+
 = Pistes d'évolution
 
 - Mise à jour in-app de l'APK (GitHub Releases) ;

@@ -6116,3 +6116,77 @@ APK vérifiées après téléchargement :
 `scripts/check_apk.py` valide les deux APK, y compris les marqueurs P164. La
 validation matérielle (`proot`, `ptrace`, PTY interactif) reste à confirmer sur
 l'appareil ; le repli sans PTY est documenté dans `docs/minidebian-android.typ`.
+
+## P165 — Shell root ne démarre pas / entrée sidebar — 2026-11-28 02:20 UTC
+
+Rétroaction utilisateur sur la build `45661ba` : « shell root ne doit pas
+apparaître dans la sidebar sous Paramètres » puis « le shell root ne démarre
+pas ». Les logs `P104 disconnect sid=… reason=transport close` rapportés dans
+`serveur.log` sont des fermetures de WebSocket Open WebUI lors des rechargements
+de `/fm` ; le Shell root utilise le relais HTTP et n'est pas concerné.
+
+Deux corrections :
+
+- **sidebar** — l'entrée `/fm?folder=settings&tab=ot_shell` (« Shell root ») est
+  retirée de la liste *Paramètres*. L'accès passe uniquement par l'entrée
+  *Open Terminal* puis son sous-onglet *Shell root*, comme pour SearXNG ;
+- **démarrage à la demande** — l'iframe charge immédiatement (plus de
+  `loading="lazy"`). La route `/fm/ot/session` détecte l'absence d'identifiant
+  de session (service arrêté au boot ou depuis *Service*, HTTP 503, erreur de
+  connexion), appelle `service_control('open_terminal', 'run')` puis réessaie
+  pendant 5 secondes. Aucun bouton de pilotage n'est réintroduit dans le
+  Shell root ; l'iframe affiche « service arrêté — démarrez-le dans l'onglet
+  Service » si le relais reste indisponible.
+
+`scripts/test_p165.py` (nouveau) valide le démarrage à la demande sur un serveur
+local isolé, y compris l'absence de relance quand le service est déjà actif.
+`test_p164.py` vérifie la disparition de l'entrée sidebar, le chargement
+immédiat de l'iframe et le message d'état. `check_apk.py` exige le marqueur
+P165 dans `android_fm.pyc`.
+
+*Livraison, CI et contrôle APK à compléter.*
+
+## P166 — Plus de PTY disponible dès l'ouverture — 2026-11-28 01:35 UTC
+
+L'utilisateur rapporte successivement « MachineRequestError: Out of PTY devices
+— too many active terminals or processes » puis « dès le démarrage j'ai cette
+erreur ». La cause est confirmée dans `open_terminal/main.py` : avec P165, la
+première ouverture de l'iframe appelle `POST /api/terminals`, qui échoue sur
+`pty.openpty()` ; la route `/fm/ot/session` interprète la réponse HTTP 503 comme
+un service arrêté, relance uvicorn vingt fois et réessaie — sans jamais obtenir de
+session. Les avertissements `P104 disconnect … reason=transport close` restent
+sans lien avec ce chemin.
+
+Quatre corrections :
+
+- **une seule session** — `OPEN_TERMINAL_MAX_SESSIONS=1` dans `android_main.py` :
+  chaque ouverture consommait un PTY et les rechargements de l'iframe les
+  accumulaient ;
+- **réutilisation** — `/fm/ot/session` sonde d'abord
+  `GET /api/terminals/user/output` ; si un shell vivant existe, il est réutilisé
+  et aucun nouveau PTY n'est demandé. Le démarrage à la demande de P165 reste
+  actif quand le relais est réellement indisponible ;
+- **repli sans PTY** — quand `pty.openpty()` lève `OSError`, Open Terminal crée
+  un shell bash sous proot avec des tubes (`backend=pipe`) au lieu de répondre
+  503. La saisie est rejouée dans le tampon (pas d'echo noyau sans PTY), la
+  sortie est lue depuis le tube, le `resize` devient un no-op journalisé et le
+  nettoyage de session termine le groupe de processus ;
+- **diagnostic** — les lignes `P166` journalisent l'échec de `openpty`, la
+  présence de `/dev/ptmx` et de `/dev/pts`, le nombre de sessions, la limite,
+  les chemins proot/rootfs/work, puis la création PTY ou pipe. Elles arrivent
+  dans `/fm → Journaux → serveur.log` quand « Logs fichier » est activé ;
+  l'iframe indique « shell sans PTY — détails dans Journaux ».
+  Un contrôle `check_apk.py` exige désormais `P166` dans `open_terminal/main.pyc`
+  et `android_fm.pyc`, et `OPEN_TERMINAL_MAX_SESSIONS` dans `android_main.pyc` :
+  justification — sans ces marqueurs, une APK pourrait embarquer l'ancien code
+  PTY-only alors que les patchs sont présents dans le dépôt (piège déjà rencontré
+  aux P164/P165). Aucun contrôle existant n'est assoupli.
+
+`scripts/test_p166.py` (nouveau) simule un appareil sans PTY, vérifie l'ouverture
+en `backend=pipe`, l'exécution de `echo P166_SHELL_OK` dans le mini-Debian via
+proot et le refus d'une seconde session (HTTP 429). `test_p165.py` vérifie que le
+shell existant est réutilisé sans ouvrir de PTY supplémentaire. Les 15 tests
+`test_p124.py` à `test_p166.py` passent ; `apply_patches.sh --check` indique
+47 patchs déjà appliqués et 0 échec. Aucun port de test ni processus résiduel.
+
+*Livraison, CI et contrôle APK à compléter.*

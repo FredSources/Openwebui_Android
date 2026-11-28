@@ -1,6 +1,6 @@
 --- a/android_fm.py
 +++ b/android_fm.py
-@@ -355,11 +355,16 @@
+@@ -355,11 +355,14 @@
              "".join(_lien(f"/fm?folder={k}&src={src}", lib, k == folder, ic)
                      for k, lib, ic in feuilles))
          entrees = [("/fm?folder=settings&tab=owui", "Open WebUI", "brain",
@@ -13,8 +13,6 @@
 +                   ("/fm?folder=settings&tab=ot_service", "Open Terminal", "plug",
 +                    folder == 'settings' and tab in ('ot_service', 'ot_shell'),
 +                    _vert if st.get('open_terminal') == 'actif' else _rouge),
-+                   ("/fm?folder=settings&tab=ot_shell", "Shell root", "code",
-+                    folder == 'settings' and tab == 'ot_shell', ''),
                     ("/fm?folder=maintenance", "Maintenance", "tools",
                      folder == 'maintenance', ''),
                     ("/fm?folder=logs", "Journaux", "page-text",
@@ -110,12 +108,12 @@
 +                        page = (
 +                            sous_onglets
 +                            + '<iframe class="sxframe" src="/fm/ot/terminal" '
-+                            'title="Shell root Open Terminal" loading="lazy"></iframe>'
++                            'title="Shell root Open Terminal"></iframe>'
 +                        )
                  else:
                      page = """
      <form method="post" action="/fm/settings"><input type="hidden" name="tab" value="owui"><div class="settings">
-@@ -1166,6 +1288,138 @@
+@@ -1166,6 +1288,186 @@
              "fichiers et reglages seront effaces.</p>"))
  
  
@@ -166,8 +164,12 @@
 +catch(e){state("réponse invalide");}}else{state("relais : HTTP "+x.status);}};
 +x.send(body?JSON.stringify(body):null);}
 +window.otSession=function(){init();if(!term)return;
++state("ouverture du shell…");
 +otCall("/fm/ot/session",{},function(r){if(r.status==="ok"){
-+off=0;state("session ouverte");}else{state(r.detail||"ouverture impossible");}});};
++off=0;state(r.backend==="pipe"?"shell sans PTY — détails dans Journaux":"session ouverte");}
++else if(r.detail&&/relais|attempt|Connect|refus/i.test(r.detail)){
++state("service arrêté — démarrez-le dans l’onglet Service");}
++else{state(r.detail||"ouverture impossible");}});};
 +window.otInput=function(d){if(!term)return;
 +otCall("/fm/ot/input",{input:d},function(){});};
 +window.otClear=function(){if(term){term.clear();off=0;}};
@@ -205,8 +207,52 @@
 +
 +    @app.post('/fm/ot/session')
 +    async def fm_ot_session(user=Depends(get_verified_user)):
-+        """P160 — ouvre le shell du mini-Debian via le relais local (clé serveur)."""
-+        return await _fm_ot_call('POST', '/api/terminals', {})
++        """P160 — ouvre le shell du mini-Debian via le relais local (clé serveur).
++
++        P165 — le service local peut être arrêté (bouton Service) ou ne pas
++        avoir démarré au boot. L'ouverture du shell est le premier appel de
++        l'iframe : on tente alors un démarrage à la demande, sans exposer de
++        bouton de pilotage dans le Shell root.
++        """
++        # P166 — réutiliser le shell déjà ouvert. Chaque chargement de l'iframe
++        # appelait `/api/terminals` et ouvrait un nouveau PTY ; sur appareil,
++        # `"Out of PTY devices"` apparaissait après quelques rechargements.
++        import logging as _logfm
++        _jfm = _logfm.getLogger('open_webui.android_fm')
++
++        existant = await _fm_ot_call('GET', '/api/terminals/user/output')
++        _jfm.warning('P166 ot/session : sondage sortie = %s',
++                     {k: str(v)[:80] for k, v in existant.items()})
++        if 'output' in existant:
++            _jfm.warning('P166 ot/session : réutilisation du shell existant')
++            return {'status': 'ok', 'reuse': True}
++
++        resultat = await _fm_ot_call('POST', '/api/terminals', {})
++        _jfm.warning('P166 ot/session : création = %s',
++                     {k: str(v)[:120] for k, v in resultat.items()})
++        # Une session ouverte contient toujours un `id`. Tout autre retour
++        # (exception de connexion, HTTP 503, `"Out of PTY devices"`) signale un
++        # service indisponible ou saturé : on le relance puis on réessaie.
++        if 'id' not in resultat:
++            try:
++                import android_main as _am
++                _am.service_control('open_terminal', 'run')
++                for _ in range(20):
++                    await asyncio.sleep(0.25)
++                    existant = await _fm_ot_call(
++                        'GET', '/api/terminals/user/output')
++                    if 'output' in existant:
++                        return {'status': 'ok', 'reuse': True}
++                    resultat = await _fm_ot_call('POST', '/api/terminals', {})
++                    _jfm.warning('P166 ot/session : nouvel essai = %s',
++                                 {k: str(v)[:120] for k, v in resultat.items()})
++                    if 'id' in resultat:
++                        break
++            except Exception as _exc:
++                _jfm.exception('P166 ot/session : relance impossible (%s)', _exc)
++        _jfm.warning('P166 ot/session : résultat final = %s',
++                     {k: str(v)[:120] for k, v in resultat.items()})
++        return resultat
 +
 +
 +    @app.get('/fm/ot/output')

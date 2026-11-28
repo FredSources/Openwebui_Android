@@ -369,6 +369,11 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       `ctor()`, pilotage Service seul, Shell root en iframe autonome, restart
       après libération du port — `test_p164.py` et 13 tests verts
 - [x] marqueurs P164 exigés dans `android_fm.pyc` par `check_apk.py`
+- [x] P165 : entrée Shell root retirée de la sidebar, iframe sans chargement
+      différé, démarrage du service à la demande — `test_p165.py` vert
+- [x] P166 : une seule session, réutilisation du shell, repli sans PTY sous
+      proot, diagnostic journalisé — `test_p166.py` vert, 15 tests verts
+- [ ] Recréer le tag `v0.0.82_ot_beta` (P166), surveiller la CI, vérifier APK
 - [x] P161 : test dédié aux replis Chaquopy (`grp`/`pwd`, `watchfiles`, version,
       `LD_LIBRARY_PATH`) — vert
 - [x] rootfs trixie vérifié (30,9 Mo, SHA-256 au manifest) et xterm.js versionné

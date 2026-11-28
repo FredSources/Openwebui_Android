@@ -56,9 +56,9 @@ app = FastAPI()
 register_fm(app)
 chemins = {getattr(r, 'path', None) for r in app.routes}
 for route in ('/fm/ot/session', '/fm/ot/output', '/fm/ot/input',
-              '/fm/ot/resize', '/fm/ot/reset'):
+              '/fm/ot/resize', '/fm/ot/reset', '/fm/ot/terminal'):
     assert route in chemins, route
-print('OK  routes : session, output, input, resize, reset')
+print('OK  routes : session, output, input, resize, reset, terminal')
 
 
 def rendre(query: bytes) -> str:
@@ -79,17 +79,44 @@ def rendre(query: bytes) -> str:
 
 html = rendre(b'folder=settings&tab=ot_shell')
 assert 'Shell root' in html
-assert '/static/xterm/xterm.js' in html
-assert '/static/xterm/addon-fit.js' in html
-assert '/static/xterm/addon-web-links.js' in html
-assert 'new Terminal(' in html and 'FitAddon' in html and 'WebLinksAddon' in html
-assert '/fm/ot/output' in html and '/fm/ot/input' in html
-assert 'window.otSession' in html
-assert 'term.onResize(function(sz)' in html and '"/fm/ot/resize"' in html, \
-    'FitAddon non relié à la route de redimensionnement'
+assert 'src="/fm/ot/terminal"' in html and 'class="sxframe"' in html
+assert '/static/xterm/xterm.js' not in html, 'xterm.js doit rester dans l’iframe'
 assert KEY not in html, 'clé API présente dans le HTML'
-assert 'WebSocket(' not in html, 'WebSocket navigateur interdit'
-print('OK  page : xterm.js réel, polling HTTP, aucune clé dans le HTML')
+print('OK  onglet : iframe isolée, comme le moteur de recherche SearXNG')
+
+# Page autonome chargée dans l'iframe.
+def rendre_route(chemin: str) -> str:
+    route = next(r for r in app.routes if getattr(r, 'path', None) == chemin)
+
+    class Utilisateur:
+        id = 'p162-utilisateur-test'
+        role = 'admin'
+        email = 'p162@example.invalid'
+
+    scope = {'type': 'http', 'method': 'GET', 'path': chemin,
+             'query_string': b'', 'headers': [], 'scheme': 'http',
+             'server': ('testserver', 80)}
+    import inspect
+    args = (Request(scope), Utilisateur()) if len(inspect.signature(route.endpoint).parameters) > 1 else (Request(scope),)
+    reponse = asyncio.run(route.endpoint(*args))
+    assert reponse.status_code == 200, reponse.status_code
+    return reponse.body.decode('utf-8')
+
+
+terminal = rendre_route('/fm/ot/terminal')
+assert '/static/xterm/xterm.js' in terminal
+assert '/static/xterm/addon-fit.js' in terminal
+assert '/static/xterm/addon-web-links.js' in terminal
+assert 'new FA()' in terminal and 'new WL()' in terminal
+assert '/fm/ot/output' in terminal and '/fm/ot/input' in terminal
+assert 'window.otSession' in terminal
+assert 'term.onResize(function(sz)' in terminal and '"/fm/ot/resize"' in terminal, \
+    'FitAddon non relié à la route de redimensionnement'
+assert 'var fitAddon=new FA();' in terminal and 'fitAddon.fit();' in terminal
+assert 'term.fit();' not in terminal, 'Terminal.fit() n’existe pas : utiliser FitAddon.fit()'
+assert KEY not in terminal, 'clé API présente dans le HTML'
+assert 'WebSocket(' not in terminal, 'WebSocket navigateur interdit'
+print('OK  terminal : xterm.js réel, polling HTTP, aucune clé dans le HTML')
 
 service = rendre(b'folder=settings&tab=ot_service')
 assert '127.0.0.1:8889' in service

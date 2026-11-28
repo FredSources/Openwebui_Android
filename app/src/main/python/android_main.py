@@ -643,15 +643,25 @@ def service_control(name: str, action: str) -> str:
     try:
         if name == 'open_terminal':
             if action in ('stop', 'restart') and _ot_server is not None:
+                serveur = _ot_server
                 try:
-                    threading.Thread(target=lambda: setattr(_ot_server, 'should_exit', True), daemon=True).start()
+                    serveur.should_exit = True
+                    # P164 — attendre la libération effective du port 8889 :
+                    # sans cette attente, un restart immédiat échoue avec
+                    # « address already in use » et ne redémarre rien.
+                    for _ in range(50):
+                        if not getattr(serveur, 'started', False):
+                            break
+                        time.sleep(0.1)
                 except Exception:
                     pass
-                _ot_actif = False
-                if action == 'stop':
-                    return 'Open Terminal arrêté'
-            if action in ('run', 'restart'):
                 _ot_server = None
+                _ot_actif = False
+            if action == 'stop':
+                return 'Open Terminal arrêté'
+            if action in ('run', 'restart'):
+                if _ot_actif:
+                    return 'Open Terminal déjà actif'
                 _start_open_terminal()
                 return 'Open Terminal (re)démarré'
             return f'action inconnue : {action}'

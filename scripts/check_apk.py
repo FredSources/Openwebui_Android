@@ -308,6 +308,33 @@ def check_apk(apk: pathlib.Path) -> None:
                                 b"0.0.81" in o for o in fm):
                             err(f"{label} : version du pied de page /fm non à jour "
                                 f"(attendu 0.0.82_ot_beta, sans 0.0.81)")
+                        # P164 — régressions vues sur appareil : ';' avant
+                        # .catch (SyntaxError « Unexpected token . » qui cassait
+                        # tout le panneau), addons xterm 6 exposés sous forme
+                        # d'espace de noms UMD (FitAddon.FitAddon), et boutons
+                        # de pilotage restés dans le Shell root. Le Shell root
+                        # est désormais une iframe autonome, comme SearXNG.
+                        elif not any(b"P164 : Shell root isol" in o for o in fm):
+                            err(f"{label} : marqueur P164 absent de android_fm.pyc "
+                                f"(correctif iframe/UMD non embarqué)")
+                        elif not any(b'src="/fm/ot/terminal"' in o for o in fm):
+                            err(f"{label} : iframe /fm/ot/terminal absente — "
+                                f"Shell root revenues dans la page /fm")
+                        elif not any(b'ctor(window.FitAddon,"FitAddon")' in o
+                                     for o in fm):
+                            err(f"{label} : résolution UMD de FitAddon absente "
+                                f"(TypeError « FitAddon is not a constructor »)")
+                        elif not any(b'fitAddon.fit();' in o for o in fm):
+                            err(f"{label} : FitAddon.fit() absent — "
+                                f"Terminal.fit() n'existe pas, le PTY n'est pas dimensionné")
+                        elif any(b'new FitAddon()' in o for o in fm) or any(
+                                b'new WebLinksAddon()' in o for o in fm):
+                            err(f"{label} : constructeur xterm global utilisé "
+                                f"à tort (addons UMD 6)")
+                        elif any(b'};.catch' in o for o in fm) or any(
+                                b'});.catch' in o for o in fm):
+                            err(f"{label} : relais de reset rompu avant .catch "
+                                f"(SyntaxError sur /fm)")
                     elif "requirements-common" in bundle_nom:
                         check_modules(bundle, label, MODULES_PIP)
                         # R165 : aiohttp 3.14.5 remplace le 3.10.10 épinglé par

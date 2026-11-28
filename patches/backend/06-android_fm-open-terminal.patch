@@ -45,7 +45,7 @@
      def _fm_page(inner: str, title: str = "Fichiers", folder: str = "all", src: str = "both", tab: str = "owui") -> str:
          # P37/P109 — habillage COMPLET et PERMANENT : la sidebar (arbre de
          # navigation) est TOUJOURS présente, le bouton de retour est FIXE en HAUT
-@@ -921,6 +946,121 @@
+@@ -921,6 +946,69 @@
                              + '<button class="primary">&#128190; Enregistrer les réglages</button></div>'
                              + '</form></div><p id="svcmsg" class="sub"></p>' + _js
                          )
@@ -70,7 +70,7 @@
 +                        'if(d.status!=="ok"){if(e)e.textContent=d.detail||"échec";return;}'
 +                        'if(e)e.textContent="Réinitialisation programmée, redémarrage…";'
 +                        'if(window.AndroidSystem&&AndroidSystem.restartApp)'
-+                        '{AndroidSystem.restartApp();}});'
++                        '{AndroidSystem.restartApp();}})'
 +                        '.catch(function(){var e=document.getElementById("svcmsg");'
 +                        'if(e)e.textContent="échec du relais de réinitialisation";});}</script>'
 +                    )
@@ -103,74 +103,83 @@
 +                            + reset_js
 +                        )
 +                    else:
++                        # P164 — comme le moteur de recherche SearXNG : l'onglet
++                        # ne contient QUE l'iframe du service local. État et
++                        # pilotage restent dans « Service » ; xterm.js vit dans
++                        # sa propre page, isolée du DOM de /fm.
 +                        page = (
 +                            sous_onglets
-+                            + '<link rel="stylesheet" href="/static/xterm/xterm.css">'
-+                            + '<div class="settings"><div class="card"><h2>&#128421; Shell root</h2>'
-+                            + '<p class="sub"><span class="dot" style="background:'
-+                            + (_vert if st.get('open_terminal') == 'actif' else _rouge)
-+                            + '"></span> Service : ' + _html.escape(st.get('open_terminal', 'arrêt'))
-+                            + ' — session : <span id="ot-state">à ouvrir</span></p>'
-+                            + '<div class="svcbar">' + svcbar
-+                            + '<button type="button" class="ghost" onclick="otSession()">Ouvrir le shell</button>'
-+                            + '<button type="button" class="ghost" onclick="otClear()">Effacer</button>'
-+                            + '</div>'
-+                            + '<div id="ot-term" style="height:420px;background:#000;padding:6px"></div>'
-+                            + '<p class="sub">La saisie transite par le relais HTTP local '
-+                            + '<code>/fm/ot/*</code> : la clé API du service reste côté serveur.</p>'
-+                            + '<p id="svcmsg" class="sub"></p></div></div>'
-+                            + _js
-+                            + reset_js
-+                            + '<script src="/static/xterm/xterm.js"></script>'
-+                            + '<script src="/static/xterm/addon-fit.js"></script>'
-+                            + '<script src="/static/xterm/addon-web-links.js"></script>'
-+                            + '<script>(function(){'
-+                            + 'var term=null,off=0,busy=false,timer=null;'
-+                            + 'function msg(t){var e=document.getElementById("svcmsg");if(e)e.textContent=t;}'
-+                            + 'function state(t){var e=document.getElementById("ot-state");if(e)e.textContent=t;}'
-+                            + 'function init(){if(term||!window.Terminal){return;}'
-+                            + 'term=new Terminal({cursorBlink:true,convertEol:true,'
-+                            + 'fontFamily:"monospace",fontSize:13,scrollback:5000,theme:{'
-+                            + 'background:"#0b0b0b",foreground:"#e5e5e5"}});'
-+                            + 'term.loadAddon(new FitAddon());'
-+                            + 'term.loadAddon(new WebLinksAddon());'
-+                            + 'term.open(document.getElementById("ot-term"));'
-+                            + 'try{term.fit();}catch(e){}'
-+                            + 'term.onData(function(d){otInput(d);});'
-+                            + 'term.onResize(function(sz){otCall("/fm/ot/resize",'
-+                            + '{rows:sz.rows,cols:sz.cols},function(){});});'
-+                            + 'window.addEventListener("resize",function(){'
-+                            + 'try{term.fit();}catch(e){}});'
-+                            + 'timer=setInterval(otPoll,350);}'
-+                            + 'function otCall(path,body,cb){var x=new XMLHttpRequest();'
-+                            + 'x.open(body?"POST":"GET",path,true);'
-+                            + 'if(body){x.setRequestHeader("Content-Type","application/json");}'
-+                            + 'x.onreadystatechange=function(){if(x.readyState!==4)return;'
-+                            + 'if(x.status>=200&&x.status<300){try{cb(JSON.parse(x.responseText));}'
-+                            + 'catch(e){msg("réponse invalide");}}else{msg("relais : HTTP "+x.status);}};'
-+                            + 'x.send(body?JSON.stringify(body):null);}'
-+                            + 'window.otSession=function(){init();otCall("/fm/ot/session",{},function(r){'
-+                            + 'if(r.status==="ok"){off=0;state("ouverte");msg("shell ouvert");}'
-+                            + 'else{msg(r.detail||"ouverture impossible");}});};'
-+                            + 'window.otInput=function(d){if(!term)return;otCall("/fm/ot/input",'
-+                            + '{input:d},function(){});};'
-+                            + 'window.otClear=function(){if(term){term.clear();off=0;}};'
-+                            + 'function otPoll(){if(!term||busy)return;busy=true;'
-+                            + 'otCall("/fm/ot/output",null,function(r){'
-+                            + 'var txt=r.output||"";if(txt.length>off){term.write(txt.slice(off));off=txt.length;}'
-+                            + 'else if(txt.length<off){term.reset();term.write(txt);off=txt.length;}});'
-+                            + 'busy=false;}'
-+                            + 'document.addEventListener("DOMContentLoaded",function(){init();otSession();});'
-+                            + 'if(document.readyState!=="loading"){init();otSession();}'
-+                            + '})();</script>'
++                            + '<iframe class="sxframe" src="/fm/ot/terminal" '
++                            'title="Shell root Open Terminal" loading="lazy"></iframe>'
 +                        )
                  else:
                      page = """
      <form method="post" action="/fm/settings"><input type="hidden" name="tab" value="owui"><div class="settings">
-@@ -1166,6 +1288,77 @@
+@@ -1166,6 +1288,138 @@
              "fichiers et reglages seront effaces.</p>"))
  
  
++    @app.get('/fm/ot/terminal')
++    async def fm_ot_terminal(user=Depends(get_verified_user)):
++        """P164 : Shell root isolé dans une iframe ; ctor UMD pour xterm 6."""
++        return _HTMLResponse("""<!doctype html><html lang="fr"><head>
++<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
++<title>Shell root</title><link rel="stylesheet" href="/static/xterm/xterm.css">
++<style>
++html,body{margin:0;height:100%;background:#0b0b0b;color:#e5e5e5;font-family:monospace}
++#otbar{padding:6px 10px;background:#151515;border-bottom:1px solid #333;font-size:12px}
++#otbar span{margin-right:10px}
++#otbar button{background:#262626;color:#e5e5e5;border:1px solid #444;border-radius:6px;padding:3px 10px;cursor:pointer}
++#ot-term{height:calc(100vh - 40px);padding:6px;box-sizing:border-box}
++</style></head><body>
++<div id="otbar"><span id="ot-state">connexion…</span>
++<button type="button" onclick="otSession()">Rouvrir</button>
++<button type="button" onclick="otClear()">Effacer</button></div>
++<div id="ot-term"></div>
++<script src="/static/xterm/xterm.js"></script>
++<script src="/static/xterm/addon-fit.js"></script>
++<script src="/static/xterm/addon-web-links.js"></script>
++<script>(function(){
++var term=null,off=0,busy=false,timer=null;
++function state(t){var e=document.getElementById("ot-state");if(e)e.textContent=t;}
++function ctor(o,n){return(o&&o[n])||o;}
++function init(){if(term)return;
++var TT=ctor(window.Terminal,"Terminal"),FA=ctor(window.FitAddon,"FitAddon"),
++WL=ctor(window.WebLinksAddon,"WebLinksAddon");
++if(typeof TT!=="function"||typeof FA!=="function"||typeof WL!=="function"){
++state("bibliothèque terminale indisponible");return;}
++term=new TT({cursorBlink:true,convertEol:true,fontFamily:"monospace",
++fontSize:13,scrollback:5000,theme:{background:"#0b0b0b",foreground:"#e5e5e5"}});
++var fitAddon=new FA();
++term.loadAddon(fitAddon);term.loadAddon(new WL());
++term.open(document.getElementById("ot-term"));
++try{fitAddon.fit();}catch(e){}
++term.onData(function(d){otInput(d);});
++term.onResize(function(sz){otCall("/fm/ot/resize",{rows:sz.rows,cols:sz.cols},function(){});});
++window.addEventListener("resize",function(){try{fitAddon.fit();}catch(e){}});
++timer=setInterval(otPoll,350);}
++function otCall(path,body,cb){var x=new XMLHttpRequest();
++x.open(body?"POST":"GET",path,true);
++if(body){x.setRequestHeader("Content-Type","application/json");}
++x.onreadystatechange=function(){if(x.readyState!==4)return;
++if(x.status>=200&&x.status<300){try{cb(JSON.parse(x.responseText));}
++catch(e){state("réponse invalide");}}else{state("relais : HTTP "+x.status);}};
++x.send(body?JSON.stringify(body):null);}
++window.otSession=function(){init();if(!term)return;
++otCall("/fm/ot/session",{},function(r){if(r.status==="ok"){
++off=0;state("session ouverte");}else{state(r.detail||"ouverture impossible");}});};
++window.otInput=function(d){if(!term)return;
++otCall("/fm/ot/input",{input:d},function(){});};
++window.otClear=function(){if(term){term.clear();off=0;}};
++function otPoll(){if(!term||busy)return;busy=true;
++otCall("/fm/ot/output",null,function(r){var txt=r.output||"";
++if(txt.length>off){term.write(txt.slice(off));off=txt.length;}
++else if(txt.length<off){term.reset();term.write(txt);off=txt.length;}});
++busy=false;}
++otSession();
++})();</script></body></html>""")
++
++
 +    async def _fm_ot_call(method: str, chemin: str, charge: dict | None = None):
 +        """Appel interne à Open Terminal : la clé ne quitte jamais le serveur."""
 +        import httpx

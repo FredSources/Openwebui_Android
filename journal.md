@@ -6053,3 +6053,43 @@ APK vérifiées après téléchargement :
 du HTML, chaîne de signature et versions embarquées. La phase matérielle
 (`proot` depuis les assets, `ptrace`, PTY interactif) reste à confirmer sur un
 appareil ; le repli sans PTY est documenté dans `docs/minidebian-android.typ`.
+
+## P164 — Shell root inopérant sur appareil — 2026-11-28 01:25 UTC
+
+Rétroaction utilisateur sur la prerelease `v0.0.82_ot_beta` :
+`Uncaught SyntaxError: Unexpected token '.'` puis
+`Uncaught TypeError: FitAddon is not a constructor` à la ligne 184 de
+`/fm?folder=settings&tab=ot_shell` et `ot_service`, aucun shell ni ligne de
+commande, et `Démarrer` / `Arrêter` / `Redémarrer` sans effet.
+
+Trois causes distinctes sont corrigées :
+
+- **relais de reset** — un `;` avant `.catch` (`...});.catch(...)`) faisait
+  rejeter tout le bloc `<script>` par le moteur JavaScript, y compris les
+  gestionnaires de l'onglet *Service*. La chaîne est devenue
+  `.then(function(){...}).catch(function(){...})` ;
+- **addons xterm 6** — les bundles UMD exposent `window.FitAddon.FitAddon` et
+  `window.WebLinksAddon.WebLinksAddon` (espace de noms), pas le constructeur
+  directement. La fonction `ctor(o,n)` accepte les deux formes et `fitAddon.fit()` remplace `term.fit()`, qui n'existe pas sur `Terminal` ;
+- **redémarrage du service** — `_ot_server = None` puis relance immédiate
+  d'uvicorn avant la libération du port `8889` provoquait
+  `address already in use` : le service restait arrêté. `service_control()`
+  attend désormais la fin effective du serveur (5 s maximum) avant de relancer
+  et refuse une seconde instance quand le service est déjà actif.
+
+À la demande utilisateur, le **Shell root est une iframe autonome**
+`/fm/ot/terminal`, exactement comme le « Moteur de recherche » de SearXNG :
+l'onglet `/fm` ne contient que l'iframe (classe `sxframe`) et tout xterm.js vit
+dans une page isolée. Les boutons de pilotage du service restent exclusivement
+dans l'onglet *Service*.
+
+`test_p164.py` (nouveau) soumet les blocs JavaScript à `node --check`, valide
+la chaîne `.then().catch()`, la résolution UMD réelle dans un VM Node sur les
+fichiers livrés et la répartition des boutons ; `test_p162.py` couvre l'iframe
+et la route dédiée, `test_p163.py` le restart après libération du port.
+`check_apk.py` exige les marqueurs P164 dans `android_fm.pyc` (docstring,
+iframe, `ctor`) et interdit le retour des constructeurs globaux et du `;` avant
+`.catch`. Les 13 tests passent ; rejeu de `apply_patches.sh` : 38 appliqués,
+9 déjà, 0 échec.
+
+*Livraison, CI et contrôle APK à compléter.*

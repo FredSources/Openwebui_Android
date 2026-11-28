@@ -81,4 +81,29 @@ assert 'fetch("/fm/ot/reset"' in src, 'reset sans appel serveur'
 assert 'action="/fm/ot/reset"' not in src, 'formulaire de reset sans redémarrage'
 print('OK  traçabilité : journal P163, route /fm/ot/reset, redémarrage via AndroidSystem')
 
+# 5 — P164 : un restart attend la libération du port avant de relancer uvicorn.
+class _Serveur:
+    def __init__(self):
+        self.started = True
+        self._exit = False
+
+    @property
+    def should_exit(self):
+        return self._exit
+
+    @should_exit.setter
+    def should_exit(self, value):
+        self._exit = bool(value)
+        self.started = False
+
+
+serveur = _Serveur()
+am._ot_server = serveur
+am._ot_actif = True
+appels = []
+am._start_open_terminal = lambda: appels.append(not serveur.started)
+assert am.service_control('open_terminal', 'restart') == 'Open Terminal (re)démarré'
+assert appels == [True], 'nouveau service lancé avant la libération du port'
+print('OK  restart : port libéré avant le relancement du service')
+
 print('\nTous les cas P163 sont valides.')

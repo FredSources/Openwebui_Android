@@ -108,8 +108,13 @@ La sidebar « Paramètres » de `/fm` contient deux entrées supplémentaires :
 *Open Terminal → Service* et *Shell root*. Chacune porte un point vert
 `#22c55e` quand le service est actif, rouge `#ef4444` sinon. L'onglet Service
 affiche l'état, le port, les boutons démarrer/arrêter/redémarrer et les deux
-boutons de réinitialisation. L'onglet Shell root contient un vrai xterm.js ;
-`FitAddon` ajuste le PTY via `/fm/ot/resize`.
+boutons de réinitialisation ; aucun de ces boutons n'apparaît dans le Shell
+root. Celui-ci est une iframe autonome `/fm/ot/terminal`, sur le même modèle
+que le moteur de recherche SearXNG : la page isolée héberge un vrai xterm.js,
+dont `fitAddon.fit()` ajuste la taille et `term.onResize` relaie le PTY via `/fm/ot/resize`. Les addons 6 sont des
+espaces de noms UMD (`FitAddon.FitAddon`, `WebLinksAddon.WebLinksAddon`) : une
+fonction `ctor(o,n)` résout le constructeur quelle que soit la forme exposée.
+Le redémarrage du service attend la libération effective du port `8889`.
 
 Le navigateur n'envoie jamais la clé API. Il appelle uniquement les routes
 locales de `/fm` ; le relais ajoute l'en-tête `Authorization: Bearer <clé>`
@@ -153,12 +158,15 @@ confirmation explicite.
 
 = Vérifications et limites
 
-Les tests `test_p160.py`, `test_p161.py`, `test_p162.py` et `test_p163.py` contrôlent les
-empreintes, l'absence de `-R`/`-S`, le rendu des onglets, l'absence de clé dans
-le HTML et les deux modes de reset. `check_apk.py` exige les assets
-mini-Debian, les modules Python `open_terminal` et `proot_distro`, les fichiers
-xterm et la taille maximale du rootfs. Aucun serveur de test ne doit écouter
-sur `8080` : seule la fenêtre `8090` est autorisée pour les tests locaux.
+Les tests `test_p160.py`, `test_p161.py`, `test_p162.py`, `test_p163.py` et
+`test_p164.py` contrôlent les empreintes, l'absence de `-R`/`-S`, le rendu des
+onglets et de l'iframe, l'absence de clé dans le HTML, les deux modes de reset,
+la syntaxe JavaScript (`node --check`), la résolution UMD des addons et la
+libération du port au redémarrage. `check_apk.py` exige les assets mini-Debian,
+les modules Python `open_terminal` et `proot_distro`, les fichiers xterm, le
+marqueur P164 dans `android_fm.pyc` et la taille maximale du rootfs. Aucun
+serveur de test ne doit écouter sur `8080` : seule la fenêtre `8090` est
+autorisée pour les tests locaux.
 
 *Limite non levée* : la validation sur appareil d'une build release n'a pas
 encore été réalisée. Il reste à confirmer que `proot` s'exécute depuis les

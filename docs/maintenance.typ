@@ -1495,6 +1495,47 @@ couvrent la reconstruction, le rendu et les deux modes de reset. La procédure
 complète, les versions figées et les limites de la validation matérielle sont
 décrites dans `docs/minidebian-android.typ`.
 
+= Correctifs de la prerelease `v0.0.82_ot_beta` (P164)
+
+La première publication de la prerelease a livré un Shell root inopérant sur
+appareil. La console WebView affichait `Uncaught SyntaxError: Unexpected token '.'`
+à la ligne 184 de `/fm?folder=settings&tab=ot_shell` et `ot_service`, puis
+`Uncaught TypeError: FitAddon is not a constructor`. Trois causes indépendantes
+ont été identifiées et corrigées.
+
+#figure(
+  caption: [Trois pannes rapportées, causes et correctifs P164.],
+  table(
+    columns: (25fr, 37fr, 38fr),
+    inset: 6pt,
+    table.header([*Symptôme*], [*Cause*], [*Correctif*]),
+    [`Unexpected token '.'` sur `/fm`],
+      [Point-virgule avant `.catch` dans le relais de reset : tout le bloc `<script>` était rejeté],
+      [Chaîne `.then(...).catch(...)` continue],
+    [`FitAddon is not a constructor`],
+      [Les paquets UMD 6 exposent un espace de noms (`FitAddon.FitAddon`), pas le constructeur],
+      [Fonction `ctor(o,n)` acceptant les deux formes ; `fitAddon.fit()` remplace `term.fit()` inexistant],
+    [Démarrer / arrêter sans effet],
+      [uvicorn relancé avant la libération du port `8889`],
+      [Attente de la fin du serveur, puis relance ; refus d'une seconde instance],
+  )
+)
+
+À la demande utilisateur, le Shell root est désormais une iframe autonome
+`/fm/ot/terminal`, comme le « Moteur de recherche » de SearXNG : l'onglet `/fm`
+ne porte que l'iframe de classe `sxframe`, et xterm.js avec son relais HTTP vit
+dans une page isolée. Les boutons de pilotage du service restent dans l'onglet
+*Service*. Le redimensionnement du PTY et la clé API côté serveur sont
+inchangés.
+
+Le test `test_p164.py` valide la syntaxe de tous les blocs JavaScript par
+`node --check`, la chaîne de reset, la résolution UMD dans un VM Node sur les
+fichiers livrés et la répartition des boutons. `test_p162.py` couvre l'iframe,
+`test_p163.py` la libération du port. `check_apk.py` exige le marqueur P164 et
+les chaînes de l'iframe et de la fonction `ctor()` dans `android_fm.pyc`, et refuse
+le retour des constructeurs globaux ou du point-virgule fautif. Les contrôles
+précédents ne sont pas assouplis.
+
 = Pistes d'évolution
 
 - Mise à jour in-app de l'APK (GitHub Releases) ;

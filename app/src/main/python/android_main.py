@@ -420,10 +420,14 @@ def _force_machine_connection(data_dir: Path, key: str) -> None:
     import sqlite3
     import time
 
+    # P172 — la connexion reste désactivée tant que 8889 n'écoute pas : Open
+    # WebUI précharge les specs au démarrage et loggerait sinon un
+    # `Connect call failed` avant l'ouverture effective du port.
+    actif = os.environ.get("OPENWEBUI_ANDROID_MACHINE_ENABLED", "1") != "0"
     entree = {
         "id": "embedded-open-terminal",
         "name": "Mini Debian (local)",
-        "enabled": True,
+        "enabled": actif,
         "url": f"http://127.0.0.1:{OPEN_TERMINAL_PORT}",
         "path": "/openapi.json",
         "key": key,
@@ -575,11 +579,12 @@ def _ensure_open_terminal(data_dir: Path, home: Path, exec_home: Path | None = N
     mini = exec_home / "minidebian"
     work = data_dir / "work"
     work.mkdir(parents=True, exist_ok=True)
-    # P169 — stockage de DONNÉES du mini-Debian, sous DATA_DIR (visible dans
-    # le gestionnaire et dans /fm) ; les binaires restent dans exec_home
-    # (getFilesDir(), seul volume exécutable). Le conteneur voit ce dossier
-    # sous /root/storage via un bind explicite.
-    storage = data_dir / "minidebian" / "storage"
+    # P169/P173 — stockage de DONNÉES du mini-Debian, sous $HOME (le même
+    # chemin que celui exposé par MiniDebianDocumentsProvider au navigateur
+    # de fichiers via SAF). Les binaires restent dans exec_home (getFilesDir(),
+    # seul volume exécutable). Le conteneur voit ce dossier sous /root/storage
+    # via un bind explicite.
+    storage = home / "minidebian" / "storage"
     storage.mkdir(parents=True, exist_ok=True)
     (storage / "work").mkdir(parents=True, exist_ok=True)
     os.environ["OPENWEBUI_ANDROID_STORAGE"] = str(storage)
@@ -602,7 +607,21 @@ def _ensure_open_terminal(data_dir: Path, home: Path, exec_home: Path | None = N
         pass
 
     _install_minidebian(data_dir, home, exec_home)
+    # P172 — désactivée au départ, réactivée par _activer_machine_locale()
+    # dès que le port 8889 répond (voir _start_open_terminal()).
+    os.environ["OPENWEBUI_ANDROID_MACHINE_ENABLED"] = "0"
     _force_machine_connection(data_dir, key)
+
+
+def _activer_machine_locale() -> None:
+    """P172 — réactive `machines.connections` dès que 8889 est à l'écoute."""
+    os.environ["OPENWEBUI_ANDROID_MACHINE_ENABLED"] = "1"
+    try:
+        cle = Path(os.environ["OPEN_TERMINAL_API_KEY_FILE"]).read_text(
+            encoding="utf-8").strip()
+        _force_machine_connection(Path(os.environ.get("DATA_DIR", ".")), cle)
+    except Exception as exc:
+        log.warning("réactivation machine locale impossible : %s", exc)
 
 
 def _start_open_terminal() -> None:
@@ -643,6 +662,7 @@ def _start_open_terminal() -> None:
 
     if _port_actif(OPEN_TERMINAL_PORT):
         _ot_actif = True
+        _activer_machine_locale()
         return
     threading.Thread(target=run, name="open-terminal", daemon=True).start()
     # P169 — attendre l'écoute effective : le pont Java est bloquant, le
@@ -650,27 +670,9 @@ def _start_open_terminal() -> None:
     for _ in range(40):
         if _port_actif(OPEN_TERMINAL_PORT):
             _ot_actif = True
+            _activer_machine_locale()
             break
         time.sleep(0.1)
-
-
-def _warm_up_then_open_terminal(data_dir: Path, port: int) -> None:
-    """Démarre Open Terminal après Open WebUI (évite la contention au boot)."""
-    import urllib.request
-
-    url = f"http://127.0.0.1:{port}/health"
-    for _ in range(120):
-        try:
-            with urllib.request.urlopen(url, timeout=1) as resp:
-                if resp.status == 200:
-                    break
-        except Exception:
-            pass
-        time.sleep(1)
-    try:
-        _start_open_terminal()
-    except Exception as exc:
-        log.warning("Open Terminal non démarré : %s", exc)
 
 
 def _start_searxng() -> None:
@@ -894,6 +896,17 @@ def start_server(port: int = APP_PORT, files_dir: str | None = None,
         data_dir = _prepare_env(files_dir, exec_dir)
         _set_status(data_dir, "Démarrage du serveur Open WebUI…", 45)
 
+        # P172 — Open Terminal AVANT l'import de `open_webui.main` : au
+        # démarrage, Open WebUI précharge les specs des tool servers
+        # (`machines.connections` → 127.0.0.1:8889/openapi.json). Le lancer
+        # après Open WebUI produisait `Initialized 0 tool server(s)` et un
+        # `Connect call failed` dans serveur.log, alors que le service finissait
+        # par démarrer quelques secondes plus tard.
+        try:
+            _start_open_terminal()
+        except Exception as exc:
+            log.warning("Open Terminal non démarré avant Open WebUI : %s", exc)
+
         def run() -> None:
             try:
                 import uvicorn
@@ -952,13 +965,7 @@ def start_server(port: int = APP_PORT, files_dir: str | None = None,
             daemon=True,
         ).start()
 
-        # P160 : Open Terminal démarre après Open WebUI, comme SearXNG.
-        threading.Thread(
-            target=_warm_up_then_open_terminal,
-            args=(data_dir, port),
-            name="open-terminal-warmup",
-            daemon=True,
-        ).start()
-
+        # P172 — Open Terminal est déjà à l'écoute (voir ci-dessus) ; SearXNG
+        # reste démarré après Open WebUI pour éviter la contention au boot.
         log.info("serveur Open WebUI lancé sur 127.0.0.1:%s", port)
         return port

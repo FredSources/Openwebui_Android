@@ -229,6 +229,46 @@ jobs:
           } > .tmp/release-body.md
           cat .tmp/release-body.md
 
+      # P169 — supprimer puis recréer un tag (cas fréquent sur `_beta`) laisse
+      # l'ancienne Release transformée en brouillon `untagged-*` côté GitHub.
+      # L'action de release voit alors DEUX objets pour le même tag et échoue
+      # à la finalisation avec `already_exists` / `Too many retries`. Ce
+      # nettoyage est idempotent : il ne touche que la release du tag courant
+      # et les brouillons orphelins dont les assets portent ce même tag.
+      - name: Nettoyage des releases fantômes (tags recréés)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          tag = os.environ["TAG"]
+          repo = os.environ["REPO"]
+          sortie = subprocess.check_output(
+              ["gh", "api", f"repos/{repo}/releases", "--paginate", "--jq", ".[]"],
+              text=True,
+          )
+          for ligne in sortie.splitlines():
+              if not ligne.strip():
+                  continue
+              release = json.loads(ligne)
+              assets = [a.get("name", "") for a in release.get("assets", [])]
+              orphelin = release.get("draft") and any(tag in nom for nom in assets)
+              if release.get("tag_name") == tag or orphelin:
+                  print("Suppression release %s (tag=%s, draft=%s)" % (
+                      release["id"], release.get("tag_name"), release.get("draft")))
+                  subprocess.run(
+                      ["gh", "api", "-X", "DELETE",
+                       f"repos/{repo}/releases/{release['id']}"],
+                      check=True,
+                  )
+          PY
+
       - name: Release GitHub (tags v*)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -236,6 +276,7 @@ jobs:
           files: dist/*.apk
           body_path: .tmp/release-body.md
           generate_release_notes: true
+          overwrite_files: true
           # Les tags *_beta sont des prereleases (jamais « Latest »).
           prerelease: ${{ contains(github.ref_name, '_beta') }}
           make_latest: ${{ !contains(github.ref_name, '_beta') }}

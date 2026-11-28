@@ -1716,13 +1716,14 @@ l'application. `service_control("restart")` attend la libération du port puis
 son ouverture effective avant d'afficher le résultat, et `_ot_actif` est remis
 à `False` dans un `finally` pour ne pas figer l'état après une erreur.
 
-Un dossier visible `data/minidebian/storage` est créé côté Java sous le
-répertoire externe de l'application (`getExternalFilesDir()`), puis monté dans
-le conteneur en `/root/storage` par un bind explicite. Les binaires restent
-dans `getFilesDir()` (interne, exécutable) : le stockage de données ne doit
-jamais être confondu avec le volume d'exécution, sinon `proot` retomberait sous
-`noexec`. Suivant Termux (`TermuxInstaller.java`), les droits des binaires
-extraits sont posés avec `Os.chmod(..., 0700)` — et non plus seulement
+Un dossier `minidebian/storage` est créé côté Java sous le répertoire externe
+de l'application (`getExternalFilesDir()`), puis monté dans le conteneur en
+`/root/storage` par un bind explicite. Il est exposé au navigateur de fichiers
+par le fournisseur SAF ajouté en P173. Les binaires restent dans `getFilesDir()`
+(interne, exécutable) : le stockage de données ne doit jamais être confondu
+avec le volume d'exécution, sinon `proot` retomberait sous `noexec`. Suivant
+Termux (`TermuxInstaller.java`), les droits des binaires extraits sont posés
+avec `Os.chmod(..., 0700)` — et non plus seulement
 `setExecutable(true, false)` — au premier démarrage et à chaque redémarrage.
 
 Depuis P168, le logger `open_terminal` n'a pas de handler fichier : le refus
@@ -1735,6 +1736,61 @@ comportement alors que les patchs sont présents dans le dépôt. Aucun contrôl
 existant n'est assoupli. `scripts/test_p169.py` valide le bouton, la
 restauration, le storage, la sonde de port et le journal direct ; les 18 tests
 passent et `apply_patches.sh --check` indique 49 patchs déjà appliqués, 0 échec.
+
+= Exécutabilité Android 10+, SAF et service 8889 au boot (P171/P172/P173)
+
+Le diagnostic de l'appareil a été décisif : `mode=0o700`, `X_OK=True`,
+`racine=interne`, mais `errno=13` à l'`execve` de `proot`. Le bit exécutable
+était donc bon ; le refus venait de la politique W^X/SELinux d'Android 10+, qui
+interdit à une application ciblant SDK 29+ d'exécuter un fichier situé dans son
+répertoire de données inscriptible. Termux contourne cela en restant
+volontairement en `targetSdkVersion 28` (voir son wiki « Termux and Android
+10 »). `app/build.gradle` cible désormais 28, comme Termux, sans changement de
+`minSdk` (24) ni du périmètre des binaires.
+
+La variante `jniLibs/<abi>/lib*.so` + `nativeLibraryDir`, compatible Play
+Store, ne suffit pas ici : elle rendrait exécutable `proot` seul, mais pas les
+`/bin/bash`, `apt` et `git` du rootfs Debian, qui restent des fichiers de
+l'application. Comme l'APK est distribué sur GitHub et non sur le Play Store,
+le ciblage 28 est conservé. Le storage de données reste distinct du volume
+exécutable interne.
+
+À la demande de l'utilisateur, qui voit apparaître un dossier visible quand il
+lance Termux ou Acode, le storage est exposé exactement comme Termux : un
+`DocumentsProvider` SAF (`MiniDebianDocumentsProvider`, authority
+`org.openwebui.android.minidebian.documents`) publie
+`getExternalFilesDir(null)/minidebian/storage` dans le navigateur de fichiers.
+Aucun dossier public legacy n'est créé et aucun marqueur de chemin n'est
+nécessaire : Java et Python utilisent le même emplacement. Le conteneur monte
+toujours ce dossier en `/root/storage` par un bind explicite.
+
+Enfin, Open WebUI préchargeait les specs des tool servers (`machines.connections`
+→ `127.0.0.1:8889/openapi.json`) avant que le service Open Terminal ne soit
+lancé : d'où `Initialized 0 tool server(s)` et `Connect call failed` dans
+`serveur.log`. `_start_open_terminal()` est désormais appelé avant l'import de
+`open_webui.main`, et le thread de warm-up a été supprimé. En complément,
+`machines.connections` est écrit avec `enabled=false` au départ, puis réactivé
+par `_activer_machine_locale()` dès que 8889 répond : même si l'import du
+service dépasse la fenêtre d'attente, le préchargement ne peut plus logger
+d'erreur réseau. `scripts/test_p171.py` vérifie le ciblage SDK, le fournisseur
+SAF et l'ordre de démarrage ; `scripts/check_apk.py` contrôle que les deux classes SAF sont bien
+présentes dans les dex de l'APK, afin qu'un dossier créé mais non enregistré ne
+passe pas inaperçu.
+
+= Publication idempotente des tags recréés (P170)
+
+Republier une *prerelease* impose de supprimer puis recréer le tag : GitHub
+transforme alors l'ancienne release en brouillon `untagged-*`. L'action
+`softprops/action-gh-release@v2` voyait deux objets pour le même tag et
+échouait à la finalisation avec `already_exists` puis `Too many retries`,
+après avoir pourtant téléchargé les deux APK. Le workflow
+`.github/workflows/build-apk-submodule.yml` nettoie désormais, avant toute
+publication, la release portant le tag courant et les brouillons orphelins
+dont les noms d'assets contiennent ce tag. `overwrite_files: true` est posé
+explicitement. Le nettoyage est idempotent et ne touche ni les autres tags ni
+les brouillons sans rapport. `scripts/test_p170.py` rejoue le nettoyage sur des
+releases factices et vérifie que seules les deux entrées concernées sont
+supprimées.
 
 = Pistes d'évolution
 

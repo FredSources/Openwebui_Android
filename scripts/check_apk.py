@@ -147,6 +147,13 @@ def check_apk(apk: pathlib.Path) -> None:
         if dex and b"last_fm_url" not in dex:
             err(f"{apk.name} : last_fm_url absent des dex — retour au chat "
                 f"après redémarrage au lieu de la page /fm")
+        # P173 — le storage doit être exposé par un DocumentsProvider SAF,
+        # comme Termux expose son $HOME. Sans la classe dans les dex, le
+        # dossier existe mais n'apparaît pas dans le navigateur de fichiers.
+        for marqueur in (b"MiniDebianDocumentsProvider", b"MiniDebianStorage"):
+            if dex and marqueur not in dex:
+                err(f"{apk.name} : {marqueur.decode()} absent des dex — "
+                    f"stockage mini-Debian invisible (SAF manquant)")
         # P123 : garde-fou contre la regression P121 — le patch 06 avait ete
         # regenere depuis une source vierge et la collecte de fichiers de
         # sortie P120 avait disparu du bundle (fichiers execute_code invisibles

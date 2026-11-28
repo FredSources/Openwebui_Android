@@ -393,12 +393,19 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       après correction du marqueur P167, prerelease republiée, APK release et
       debug vérifiées
 - [x] P169 : bouton Actualiser du moteur, restauration de la dernière page `/fm`,
-      état des services mesuré sur le port, storage visible `data/minidebian/storage`
-      monté en `/root/storage`, chmod Termux `Os.chmod 0700`, diagnostic direct
-      dans `serveur.log` — `test_p169.py` vert, 18 tests verts
+      état des services mesuré sur le port, storage `minidebian/storage` monté
+      en `/root/storage` et exposé via SAF en P173, chmod Termux `Os.chmod 0700`,
+      diagnostic direct dans `serveur.log` — `test_p169.py` vert, 18 tests verts
 - [x] P169 : tag `v0.0.82_ot_beta` supprimé puis recréé sur `ab61fa8`, CI
       `46156405804` verte après suppression des doublons de release, prerelease
       republiée le `2026-11-28T15:01:59Z`, APK release et debug vérifiées
 - [ ] P169 : confirmer sur appareil le bouton Actualiser, la restauration `/fm`,
       le storage visible et la ligne `P167/P168/P169 exécution refusée` si le
       shell échoue encore
+- [ ] P170 : vérifier sur un run CI réel que la republication du tag ne produit
+      plus `already_exists` / `Too many retries`
+- [ ] P171/P172/P173 : republier `v0.0.82_ot_beta` avec `targetSdk 28`, le
+      storage exposé via SAF et le service 8889 démarré avant Open WebUI, puis
+      confirmer sur appareil l'exécution du shell root, la présence de
+      « Mini Debian (OpenWebUI) » dans le navigateur et l'absence de
+      `Connect call failed`

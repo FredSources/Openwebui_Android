@@ -219,6 +219,26 @@ Un dossier `storage` est créé sous `Android/data/org.openwebui.android/files/m
 
 L'onglet « Moteur de recherche » a un bouton *Actualiser* qui recharge l'iframe SearXNG avec un cache-buster, et « Redémarrer l'application » restaure la dernière page `/fm` visitée. L'état des services est désormais déduit du port réellement à l'écoute (8888/8889), ce qui évite l'affichage « service arrêté — démarrez-le dans l'onglet Service » alors que le service répond. Le marqueur `P167/P168/P169 exécution refusée` est écrit directement dans `serveur.log`, même sans handler fichier sur le logger `open_terminal`.
 
+= Exécution sous Android 10+ et dossier visible via SAF (P171/P173)
+
+Malgré `chmod 0700` et `X_OK=True`, l'appareil refusait l'exécution de
+`proot` avec `errno=13` sur le volume interne. Ce n'était pas un droit Unix :
+Android 10 interdit l'`execve` d'un binaire dans le répertoire de données d'une
+application qui cible SDK 29 ou plus (règle W^X). Termux reste pour cette raison
+en `targetSdkVersion 28` ; l'APK cible désormais 28 également, ce qui rend le
+shell root possible sans rooter le téléphone. Placer seulement `proot` dans
+`jniLibs` ne suffirait pas : les binaires du rootfs Debian seraient toujours
+exécutés depuis l'espace de l'application.
+
+Comme Termux, l'application n'écrit pas dans un dossier public : elle expose
+`getExternalFilesDir(null)/minidebian/storage` au navigateur de fichiers via un
+`DocumentsProvider` SAF intitulé « Mini Debian (OpenWebUI) ». Le service Python
+utilise le même chemin et le monte dans le conteneur en `/root/storage`. Les
+fichiers déposés là sont visibles dans le navigateur et depuis le shell. Le
+service Open Terminal démarre avant Open WebUI et la connexion machine locale
+reste désactivée jusqu'à l'ouverture effective du port 8889 : la ligne
+`Initialized 0 tool server(s)` et le `Connect call failed` disparaissent.
+
 = Vérifications et limites
 
 Les tests `test_p160.py` à `test_p168.py` contrôlent les empreintes,

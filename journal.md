@@ -6435,3 +6435,112 @@ la restauration de la page `/fm`, l'état réel du service et la présence de
 `/root/storage`. Si le shell échoue encore, la ligne
 `P167/P168/P169 exécution refusée` de `serveur.log` précisera errno, mode,
 `X_OK` et racine.
+
+**P170 — 2026-11-28 (UTC) — publication idempotente des tags recréés**
+
+Demande : « fait en sorte de ne plus avoir ce message sur le build git error
+finalizing release: HttpError: Validation Failed: ... already_exists ... Too
+many retries ». Cause identifiée dans le run `46156405804` : la suppression du
+tag `v0.0.82_ot_beta` avait transformé la release publiée en brouillon
+`untagged-bf31e5d751dcbf2f7799` ; la recréation du tag a fait apparaître un
+second objet release, et `softprops/action-gh-release@v2` a tenté de finaliser
+le brouillon avec un `tag_name` déjà utilisé.
+
+Correctif dans `.github/workflows/build-apk-submodule.yml` : une étape
+« Nettoyage des releases fantômes (tags recréés) », exécutée avant la
+publication, supprime via l'API GitHub la release portant le tag courant et
+les brouillons `untagged-*` dont les assets portent le même tag. Ajout de
+`overwrite_files: true` sur l'action de release. Les expressions `prerelease`
+et `make_latest` restent inchangées : `_beta` n'est jamais `Latest`.
+`scripts/test_p170.py` valide la structure du workflow et rejoue le nettoyage
+sur quatre releases factices : seules la release du tag et la doublon sont
+supprimées, pas `v0.0.81` ni un brouillon sans rapport.
+
+**P171/P172 — 2026-11-28 (UTC) — exécutabilité Android 10+, storage visible, 8889 au boot**
+
+L'utilisateur a fourni la ligne décisive de `serveur.log` :
+`P167/P168/P169 exécution refusée : .../minidebian/proot (errno=13, mode=0o700, X_OK=True, racine=interne)`.
+Le bit exécutable était donc correct : le refus venait de la politique W^X/SELinux
+d'Android 10+, qui interdit à une application ciblant SDK 29+ d'exécuter un
+fichier dans son répertoire de données inscriptible. Comme Termux (wiki « Termux
+and Android 10 »), `app/build.gradle` cible désormais `targetSdk 28` ; le
+`chmod 0700` P169 reste nécessaire mais n'était pas suffisant. Le storage de
+données n'est pas une solution à l'`execve` : il reste séparé du volume
+exécutable interne.
+
+À la demande de l'utilisateur (« dans termux ou acode j'ai un nouveau storage
+dans mon navigateur de fichier »), `ensureMiniDebianStorage()` crée maintenant
+`/storage/emulated/0/minidebian` à la racine du stockage partagé, visible dans
+le navigateur, et y écrit `LISEZ-MOI.txt`. Son chemin est transmis au Python par
+`minidebian-storage.path` (placé hors du dossier `minidebian/` purgé à chaque
+montée de version) et monté dans le conteneur en `/root/storage` ; le repli
+`dataHome/minidebian/storage` est conservé si le stockage partagé n'est pas
+accessible. Le manifest conserve `WRITE_EXTERNAL_STORAGE` pour ce dossier
+legacy.
+
+Le second problème du log — `Initialized 0 tool server(s)` et
+`Connect call failed ('127.0.0.1', 8889)` au démarrage — venait de l'ordre de
+démarrage : Open WebUI préchargeait les specs de `machines.connections` avant
+que le thread de warm-up ne lance Open Terminal. `_start_open_terminal()` est
+désormais appelé avant l'import de `open_webui.main` ; le warm-up a été
+supprimé, SearXNG restant démarré après Open WebUI. `scripts/test_p171.py`
+valide le SDK, le storage visible et l'ordre de démarrage.
+
+**P173 — 2026-11-28 (UTC) — storage exposé via SAF, pas via un dossier public**
+
+L'utilisateur a précisé que Termux « partage via le Storage Access Framework
+(SAF) d'Android ». La tentative P171 d'écrire `/storage/emulated/0/minidebian`
+était donc fausse sur le principe : ce n'est pas ainsi que Termux ou Acode
+rendent leurs données visibles, et sur Android 11+ les chemins publics legacy
+sont inefficaces. Termux déclare `TermuxDocumentsProvider` (autorité
+`com.termux.documents`, action `android.content.action.DOCUMENTS_PROVIDER`,
+permission `MANAGE_DOCUMENTS`) qui expose son `$HOME`.
+
+Nous reprenons exactement ce modèle : `MiniDebianStorage.java` centralise
+`getExternalFilesDir(null)/minidebian/storage`, et
+`MiniDebianDocumentsProvider.java` le publie dans le navigateur sous le nom
+« Mini Debian (OpenWebUI) » avec l'autorité
+`org.openwebui.android.minidebian.documents`. Le fournisseur valide que chaque
+identifiant de document reste dans le storage (canonical path), interdit la
+suppression de la racine, et gère création, lecture, écriture, recherche et
+suppression. Java et Python utilisent désormais le MÊME chemin : le marqueur
+`minidebian-storage.path` et la lecture de `getExternalStorageDirectory()` sont
+supprimés, `OPENWEBUI_ANDROID_STORAGE` reste le bind `/root/storage`.
+
+L'utilisateur a aussi rappelé les quatre pièges Termux. Le nôtre est bien le
+premier (W^X, `targetSdk 34`) et reste réglé par `targetSdk 28`. La variante
+`jniLibs/<abi>/lib*.so` + `nativeLibraryDir`, compatible Play Store, ne suffit
+pas ici : elle ne rendrait exécutable que `proot`, alors que nous exécutons
+aussi `/bin/bash`, `apt` et `git` depuis le rootfs Debian, tous dans l'espace
+de données de l'application. Le projet étant distribué sur GitHub (pas sur le
+Play Store), le ciblage 28 est conservé et journalisé comme choix explicite.
+Les points 2 à 4 sont déjà traités : archive **tar** (symlinks conservés),
+`Os.chmod(..., 0700)`, binds proot `-b`/`-r` sans chemins codés en dur dans les
+binaires, et proot fournit le loader du rootfs.
+
+`scripts/test_p171.py` vérifie désormais le fournisseur SAF, l'absence de
+dossier public et de marqueur, l'ordre de démarrage de 8889 et le ciblage SDK.
+
+Justification du garde-fou `scripts/check_apk.py` (P173) : la présence du
+fournisseur SAF dans l'APK n'était contrôlée que par `test_p171.py` sur les
+sources. Un oubli d'enregistrement du `DocumentsProvider` à la compilation
+laisserait le dossier créé mais invisible dans le navigateur, exactement le
+symptôme signalé par l'utilisateur. Le contrôle vérifie donc que
+`MiniDebianDocumentsProvider` et `MiniDebianStorage` sont bien compilés dans
+les dex. Aucun contrôle existant n'est assoupli.
+
+Correctif de harnais (P173) : `scripts/test_p166.py` passait ses assertions mais
+restait bloqué après `serveur.should_exit = True` — le lifespan appelait
+`process.wait()` alors que l'executor asyncio était déjà éteint (`cannot
+schedule new futures after shutdown`), puis 300 s de jointure. Le test ferme
+maintenant explicitement la session via `DELETE /api/terminals/{id}` avant
+d'arrêter uvicorn. Aucune assertion ni aucun contrôle applicatif n'est modifié.
+
+Renforcement P172 — 2026-11-28 (UTC) : en plus du démarrage de 8889 avant
+l'import de `open_webui.main`, la connexion `machines.connections` est écrite
+avec `enabled=false` au boot (`OPENWEBUI_ANDROID_MACHINE_ENABLED=0`) et
+réactivée par `_activer_machine_locale()` dès que `_port_actif(8889)` est vrai
+(au démarrage comme au redémarrage du service). Ainsi, même si l'import
+d'Open Terminal dépasse la fenêtre d'attente de 4 s, le préchargement des specs
+ne produit aucun `Connect call failed`. Le chargement paresseux
+`get_machines()` recharge la spec à la première utilisation.

@@ -94,7 +94,7 @@ assert '<iframe class="sxframe" src=' not in moteur, \
 print('OK  Moteur de recherche : bouton Actualiser + retour visuel + cache-buster')
 
 assert '/root/storage' in pages['ot']
-assert 'data/minidebian/storage' in pages['ot'], \
+assert 'minidebian/storage' in pages['ot'], \
     'le storage créé n’est pas documenté dans l’onglet Service'
 print('OK  Service Open Terminal : chemin du storage visible')
 
@@ -131,7 +131,7 @@ assert 'def _port_actif(' in source
 assert "'open_terminal': 'actif' if _port_actif(OPEN_TERMINAL_PORT) else 'arrêt'" in source, \
     'l’état du service affiché ne vient pas du port réel'
 assert 'os.environ["OPENWEBUI_ANDROID_STORAGE"] = str(storage)' in source
-assert 'data_dir / "minidebian" / "storage"' in source
+assert 'home / "minidebian" / "storage"' in source
 assert '_ot_actif = False' in source
 print('OK  android_main : état mesuré sur le port, storage et reset du thread')
 
@@ -152,7 +152,7 @@ assert '_allog.journal("open_terminal", _detail, "ERROR")' in runner
 print('OK  runner : bind /root/storage + journal direct du refus d’exécution')
 
 patch = (PROJ / 'patches/backend/08-android_fm-p169.patch').read_text(encoding='utf-8')
-assert 'fmRefreshSx' in patch and 'data/minidebian/storage' in patch, \
+assert 'fmRefreshSx' in patch and 'minidebian/storage' in patch, \
     'le patch P169 n’est pas versionné (reconstruction perdue)'
 print('OK  patch 08-android_fm-p169.patch versionné')
 

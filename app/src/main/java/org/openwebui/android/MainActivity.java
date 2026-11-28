@@ -296,9 +296,10 @@ public class MainActivity extends Activity {
      * lieu qu'une fois par version d'APK. Le bit exécutable de proot est
      * restauré (les assets Android ne le conservent pas).
      *
-     * P169 — crée en plus un « storage » de données sous dataHome/minidebian :
-     * visible dans le gestionnaire de fichiers, il est monté dans le conteneur
-     * sous /root/storage. Les binaires restent seuls dans getFilesDir().
+     * P169/P173 — crée en plus un « storage » de données sous
+     * getExternalFilesDir(null)/minidebian : exposé au navigateur de fichiers
+     * par un DocumentsProvider SAF et monté dans le conteneur sous
+     * /root/storage. Les binaires restent seuls dans getFilesDir().
      *
      * P169 — mêmes droits que Termux pour les binaires extraits des assets :
      * `Os.chmod(..., 0700)` (TermuxInstaller.java applique 0700 aux entrées
@@ -315,27 +316,15 @@ public class MainActivity extends Activity {
     }
 
     private java.io.File ensureMiniDebianStorage() {
-        java.io.File base = new java.io.File(dataHome, "minidebian");
-        java.io.File storage = new java.io.File(base, "storage");
-        java.io.File work = new java.io.File(storage, "work");
+        // P173 — même logique que Termux : le dossier n'est pas copié dans un
+        // répertoire public legacy, il est exposé par MiniDebianDocumentsProvider
+        // (SAF). Binaires et rootfs restent dans getFilesDir().
         try {
-            storage.mkdirs();
-            work.mkdirs();
-            java.io.File notice = new java.io.File(storage, "LISEZ-MOI.txt");
-            if (!notice.exists()) {
-                java.io.FileWriter w = new java.io.FileWriter(notice);
-                w.write("Stockage du mini-Debian OpenWebUI Android\n"
-                        + "Binaires et rootfs : "
-                        + new java.io.File(getFilesDir(), "minidebian").getAbsolutePath() + "\n"
-                        + "Données du conteneur : /root/storage\n"
-                        + "Dossier visible ici : " + storage.getAbsolutePath() + "\n"
-                        + "Effacé à la désinstallation de l'application.\n");
-                w.close();
-            }
+            return MiniDebianStorage.get(this);
         } catch (Exception e) {
             writeStatus(100, "stockage mini-Debian : " + e);
+            return new java.io.File(dataHome, "minidebian/storage");
         }
-        return storage;
     }
 
     private void prepareMiniDebian() {

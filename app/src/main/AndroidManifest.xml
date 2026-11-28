@@ -43,6 +43,20 @@
             </intent-filter>
         </activity>
 
+        <!-- P173 — comme Termux, on expose le storage du mini-Debian via le
+             Storage Access Framework : il apparaît dans le navigateur de
+             fichiers sans écrire dans /storage/emulated/0. -->
+        <provider
+            android:name=".MiniDebianDocumentsProvider"
+            android:authorities="org.openwebui.android.minidebian.documents"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+
         <service
             android:name=".ServerService"
             android:exported="false"

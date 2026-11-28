@@ -134,6 +134,16 @@ try:
     else:
         raise AssertionError('une seconde session a été ouverte malgré la limite')
 finally:
+    # P173 — fermer la session AVANT d'arreter la boucle asyncio : sinon le
+    # lifespan tente `process.wait()` apres le shutdown de l'executor et le
+    # test reste bloque 300 s sur un second planificateur mort.
+    try:
+        sid = locals().get('session', {}).get('id')
+        if sid:
+            appeler('/api/terminals/' + sid, methode='DELETE')
+    except Exception:
+        pass
+    time.sleep(0.3)
     # `uvicorn.Server` n'expose pas close() dans la version embarquee :
     # l'appel doit juste demander l'arret, le thread daemon se termine seul.
     serveur.should_exit = True

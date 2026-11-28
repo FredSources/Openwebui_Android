@@ -11,7 +11,13 @@ android {
     defaultConfig {
         applicationId 'org.openwebui.android'
         minSdk 24
-        targetSdk 34
+        // Termux reste volontairement en 28 : depuis Android 10 (SDK 29), un
+        // application qui cible 29+ ne peut plus execve() un binaire situé dans
+        // son répertoire de données inscriptible (règle W^X / SELinux). Cibler
+        // 34 rendait `proot` inexécutable malgré chmod 0700 et X_OK=True
+        // (errno 13 observé sur l'appareil). On reproduit donc le choix de
+        // Termux, seul moyen non rooté d'exécuter nos binaires embarqués.
+        targetSdk 28
         // versionCode incrémenté à chaque build (scripts/build.sh, -Pvcode) :
         // MainActivity s'en sert pour purger le cache WebView quand l'UI change
         def vcodeStr = project.hasProperty('vcode') ? project.property('vcode') : '1'

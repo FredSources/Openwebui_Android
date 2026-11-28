@@ -1,6 +1,6 @@
 --- a/open_terminal/main.py
 +++ b/open_terminal/main.py
-@@ -2205,12 +2205,57 @@
+@@ -2205,12 +2205,65 @@
                      pass
                  await asyncio.to_thread(process.wait)
  
@@ -39,8 +39,16 @@
 +        cwd = (_get_session_cwd(chat_id, fs) if chat_id else None) or start_directory(fs.home)
 +        spawn_env = sanitized_environ()
 +        spawn_env.setdefault("TERM", "dumb")
++        # Indispensable sur appareil : le binaire proot embarqué charge ses
++        # bibliothèques bionic depuis OPENWEBUI_ANDROID_PROOT_LIB. Le chemin
++        # PTY applique déjà ce réglage (patch 02) ; le repli doit en faire
++        # autant, sinon le shell meurt avant d'afficher quoi que ce soit.
++        spawn_lib = os.environ.get("OPENWEBUI_ANDROID_PROOT_LIB", "")
++        if spawn_lib:
++            spawn_env["LD_LIBRARY_PATH"] = spawn_lib
 +        cmd = android_proot_prefix() + ["/bin/bash", "-i"]
-+        log.warning("P166 repli pipe : cmd=%s cwd=%s", cmd, cwd)
++        log.warning("P166 repli pipe : cmd=%s cwd=%s LD_LIBRARY_PATH=%s",
++                    cmd, cwd, spawn_lib)
 +        process = subprocess.Popen(
 +            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
 +            stderr=subprocess.STDOUT, bufsize=0, cwd=cwd, env=spawn_env,
@@ -58,7 +66,7 @@
      @app.post("/api/terminals", dependencies=[Depends(verify_api_key)], include_in_schema=False)
      async def create_terminal(request: Request):
          """Create a new terminal session and return its ID."""
-@@ -2221,9 +2266,11 @@
+@@ -2221,9 +2274,11 @@
              )
  
          # Prune dead sessions before checking limit
@@ -72,7 +80,7 @@
              dead = [sid for sid, s in _terminal_sessions.items() if not s["pty_process"].isalive()]
          for sid in dead:
              await _cleanup_session(sid)
-@@ -2239,11 +2286,31 @@
+@@ -2239,11 +2294,31 @@
          if _TERMINAL_BACKEND == "pty":
              try:
                  master_fd, slave_fd = pty.openpty()
@@ -108,7 +116,7 @@
  
              try:
                  fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
-@@ -2288,6 +2355,8 @@
+@@ -2288,6 +2363,8 @@
              flags = fcntl.fcntl(master_fd, fcntl.F_GETFL)
              fcntl.fcntl(master_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
  
@@ -117,7 +125,7 @@
              _terminal_sessions[session_id] = {
                  "backend": "pty",
                  "master_fd": master_fd,
-@@ -2347,6 +2416,8 @@
+@@ -2347,6 +2424,8 @@
                      await session["output_consumed"].wait()
                  if session["backend"] == "pty":
                      data = await read_pty(session["master_fd"])
@@ -126,7 +134,7 @@
                  else:
                      try:
                          value = await asyncio.to_thread(session["pty_process"].read, 4096)
-@@ -2368,7 +2439,7 @@
+@@ -2368,7 +2447,7 @@
  
      def _session_is_alive(session: dict) -> bool:
          """Check if a terminal session's process is still running."""
@@ -135,7 +143,7 @@
              return session["process"].poll() is None
          else:
              return session["pty_process"].isalive()
-@@ -2421,6 +2492,14 @@
+@@ -2421,6 +2500,14 @@
          async with session["input_lock"]:
              if session["backend"] == "pty":
                  await write_pty(session["master_fd"], data)

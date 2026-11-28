@@ -92,10 +92,25 @@ def appeler(chemin, charge=None, methode='GET'):
 
 
 try:
+    # Le binaire proot embarqué charge ses bibliothèques bionic depuis
+    # OPENWEBUI_ANDROID_PROOT_LIB : sans LD_LIBRARY_PATH, le repli meurt sur
+    # appareil alors qu'il fonctionne sur un hôte Linux classique.
+    import open_terminal.main as ot_main
+    _popen = ot_main.subprocess.Popen
+    environ_processus = {}
+
+    def _capture_env(*args, **kwargs):
+        environ_processus.update(kwargs.get('env') or {})
+        return _popen(*args, **kwargs)
+
+    ot_main.subprocess.Popen = _capture_env
+
     session = appeler('/api/terminals', {}, 'POST')
     assert session.get('id'), session
     assert session.get('backend') == 'pipe', session
+    assert environ_processus.get('LD_LIBRARY_PATH') == str(PROJ / 'minidebian'), environ_processus
     print('OK  PTY absent : session ouverte en backend pipe')
+    print('OK  LD_LIBRARY_PATH transmis au proot du repli')
 
     # Le shell sans PTY n'a pas d'echo noyau : la saisie est rejouée dans le
     # tampon, puis la commande s'exécute bien dans le mini-Debian via proot.

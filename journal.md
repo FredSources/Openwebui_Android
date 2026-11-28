@@ -6189,4 +6189,13 @@ shell existant est réutilisé sans ouvrir de PTY supplémentaire. Les 15 tests
 `test_p124.py` à `test_p166.py` passent ; `apply_patches.sh --check` indique
 47 patchs déjà appliqués et 0 échec. Aucun port de test ni processus résiduel.
 
+**Complément du 2026-11-28 01:40 UTC** — le repli `pipe` devait propager
+`LD_LIBRARY_PATH` depuis `OPENWEBUI_ANDROID_PROOT_LIB`, exactement comme le
+chemin PTY (patch 02). Sans ce réglage, le shell fonctionnait sur un hôte Linux
+mais le binaire `proot` embarqué ne trouvait pas ses bibliothèques bionic sur
+l'appareil. `test_p166.py` capture désormais l'environnement transmis à
+`Popen` et exige cette variable ; le patch `05-android-pipe-shell.patch` et le
+journalisateur ont été régénérés en conséquence. Le run CI `46093880424`, lancé
+avant ce complément, a été annulé.
+
 *Livraison, CI et contrôle APK à compléter.*

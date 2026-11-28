@@ -1579,7 +1579,10 @@ actif si le relais est réellement indisponible. En dernier recours, un échec d
 la saisie est rejouée dans le tampon d'affichage, la lecture vient du tube, le
 redimensionnement est ignoré proprement et la session nettoie son groupe de
 processus. Les commandes continuent donc de s'exécuter dans le mini-Debian, sans
-prompt interactif.
+prompt interactif. Le repli propage également `LD_LIBRARY_PATH` depuis
+`OPENWEBUI_ANDROID_PROOT_LIB`, comme le chemin PTY : sans ce réglage, le binaire
+`proot` embarqué ne trouve pas ses bibliothèques bionic sur l'appareil, même si
+le test réussit sur un hôte Linux.
 
 Des lignes `P166` journalisent l'échec de `openpty`, l'état de `/dev/ptmx` et de
 `/dev/pts`, le nombre de sessions, la limite et les chemins proot/rootfs/work.
@@ -1592,8 +1595,9 @@ livrer une APK contenant l'ancien code limité au seul PTY alors que les patchs
 sont bien présents dans le dépôt. Les contrôles antérieurs restent inchangés.
 
 `test_p166.py` simule l'absence de PTY, valide l'exécution d'une commande dans le
-mini-Debian en mode tube et la limite d'une session ; `test_p165.py` confirme la
-réutilisation du shell. Les quinze tests passent.
+mini-Debian en mode tube, l'environnement transmis à `Popen` et la limite d'une
+session ; `test_p165.py` confirme la réutilisation du shell. Les quinze tests
+passent.
 
 = Pistes d'évolution
 

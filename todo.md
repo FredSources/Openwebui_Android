@@ -373,7 +373,8 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       différé, démarrage du service à la demande — `test_p165.py` vert
 - [x] P166 : une seule session, réutilisation du shell, repli sans PTY sous
       proot, diagnostic journalisé — `test_p166.py` vert, 15 tests verts
-- [ ] Recréer le tag `v0.0.82_ot_beta` (P166), surveiller la CI, vérifier APK
+- [x] Recréer le tag `v0.0.82_ot_beta` (P166) sur `c8a59cd`, CI #46094209740
+      verte, prerelease republiée, APK release et debug vérifiées
 - [x] P161 : test dédié aux replis Chaquopy (`grp`/`pwd`, `watchfiles`, version,
       `LD_LIBRARY_PATH`) — vert
 - [x] rootfs trixie vérifié (30,9 Mo, SHA-256 au manifest) et xterm.js versionné

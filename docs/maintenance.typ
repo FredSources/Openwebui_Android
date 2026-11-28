@@ -1560,7 +1560,7 @@ l'onglet Service ».
 `test_p165.py` valide le démarrage à la demande sur un serveur local isolé et
 l'absence de relance inutile ; `test_p164.py` contrôle la sidebar et le
 chargement de l'iframe ; `check_apk.py` exige le marqueur P165 dans
-`android_fm.pyc`. *Livraison à compléter.*
+`android_fm.pyc`. Republication finalisée en P166.
 
 = PTY indisponible sur appareil (P166)
 
@@ -1598,6 +1598,23 @@ sont bien présents dans le dépôt. Les contrôles antérieurs restent inchang�
 mini-Debian en mode tube, l'environnement transmis à `Popen` et la limite d'une
 session ; `test_p165.py` confirme la réutilisation du shell. Les quinze tests
 passent.
+
+Le tag `v0.0.82_ot_beta` est supprimé puis recréé sur le commit `c8a59cd` ;
+le run CI `46094209740` est *vert* en 6 min 17 s. La release est republiée en
+*prerelease* le `2026-11-28T01:45:43Z`. `v0.0.81` reste la release stable
+*Latest* et `v0.0.82_beta` demeure inchangée.
+
+L'APK release fait 313 151 611 octets, avec un SHA-256 commençant par
+`7ec012eab` et se terminant par `929877`. Elle est signée par le certificat
+`CN=OpenWebUI Android, O=FredSources`, dont l'empreinte est reportée ci-dessous.
+L'APK debug fait 324 216 008 octets (SHA-256 `4f7744cb…71c14b9`, signature
+Android Debug). Les deux passent `apksigner verify` et `check_apk.py`, y compris
+les marqueurs P164/P165/P166 et la limite d'une session. La validation
+matérielle du shell reste à confirmer sur l'appareil grâce aux lignes `P166` de
+`serveur.log`.
+
+Empreinte du certificat release :
+`7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4`.
 
 = Pistes d'évolution
 

@@ -6144,7 +6144,7 @@ local isolé, y compris l'absence de relance quand le service est déjà actif.
 immédiat de l'iframe et le message d'état. `check_apk.py` exige le marqueur
 P165 dans `android_fm.pyc`.
 
-*Livraison, CI et contrôle APK à compléter.*
+*Livraison remplacée par la republication P166 (le tag P165 a été supprimé).*
 
 ## P166 — Plus de PTY disponible dès l'ouverture — 2026-11-28 01:35 UTC
 
@@ -6198,4 +6198,27 @@ l'appareil. `test_p166.py` capture désormais l'environnement transmis à
 journalisateur ont été régénérés en conséquence. Le run CI `46093880424`, lancé
 avant ce complément, a été annulé.
 
-*Livraison, CI et contrôle APK à compléter.*
+**Livraison — 2026-11-28 01:47 UTC**
+
+Le tag `v0.0.82_ot_beta` est supprimé puis recréé sur le commit `c8a59cd` ; le
+run CI `46094209740` est *vert* en 6 min 17 s (le run `46093880424`, lancé avant
+le complément `LD_LIBRARY_PATH`, a été annulé). La release est republiée en
+**prerelease** le `2026-11-28T01:45:43Z`. `v0.0.81` reste la release stable
+`Latest` et `v0.0.82_beta` demeure inchangée (`2026-11-27T22:52:22Z`).
+
+APK vérifiées après téléchargement :
+
+- `OpenWebUI_Android-0.0.82_ot_beta-release.apk` — `313 151 611` octets,
+  SHA-256 `7ec012eab2ae5ac90d6800a73a88c676c5afa51bf705dfcfe3cc202995929877`,
+  signature `CN=OpenWebUI Android, O=FredSources`, empreinte
+  `7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4` ;
+- `OpenWebUI_Android-0.0.82_ot_beta-debug.apk` — `324 216 008` octets,
+  SHA-256 `4f7744cb1543498880c491b1157e395aef4ac7139363639b03f0a171e71c14b9`,
+  signature Android Debug, `Verifies` OK.
+
+`scripts/check_apk.py` valide les deux APK, y compris les marqueurs P164/P165/P166
+et la limite d'une session dans `android_main.pyc`. Les 15 tests passent,
+`apply_patches.sh --check` indique 47 patchs déjà appliqués et 0 échec. La
+validation matérielle du shell (proot, ptrace, bascule `backend=pipe`) reste à
+confirmer sur l'appareil ; les lignes `P166` de `serveur.log` permettront de la
+suivre.

@@ -1,6 +1,6 @@
 --- a/open_terminal/main.py
 +++ b/open_terminal/main.py
-@@ -2205,12 +2205,65 @@
+@@ -2205,12 +2205,74 @@
                      pass
                  await asyncio.to_thread(process.wait)
  
@@ -49,11 +49,20 @@
 +        cmd = android_proot_prefix() + ["/bin/bash", "-i"]
 +        log.warning("P166 repli pipe : cmd=%s cwd=%s LD_LIBRARY_PATH=%s",
 +                    cmd, cwd, spawn_lib)
-+        process = subprocess.Popen(
-+            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-+            stderr=subprocess.STDOUT, bufsize=0, cwd=cwd, env=spawn_env,
-+            start_new_session=True,
-+        )
++        try:
++            process = subprocess.Popen(
++                cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
++                stderr=subprocess.STDOUT, bufsize=0, cwd=cwd, env=spawn_env,
++                start_new_session=True,
++            )
++        except OSError as exc:
++            # P167 — Android/data est monté en noexec : proot présent mais non
++            # exécutable. Sans ce journal, le diagnostic remontait seulement
++            # « Errno 13 » et le relais relançait le service 20 fois en vain.
++            log.error("P167 proot non exécutable depuis %s : %s — le volume "
++                      "mini-Debian doit être dans getFilesDir(), pas dans "
++                      "Android/data (noexec)", cmd[0], exc)
++            raise
 +        return {
 +            "id": session_id,
 +            "created_at": _datetime.utcnow().isoformat() + "Z",

@@ -6222,3 +6222,51 @@ et la limite d'une session dans `android_main.pyc`. Les 15 tests passent,
 validation matérielle du shell (proot, ptrace, bascule `backend=pipe`) reste à
 confirmer sur l'appareil ; les lignes `P166` de `serveur.log` permettront de la
 suivre.
+
+**P167 — 2026-11-28 09:24 UTC — diagnostic de la panne signalée sur appareil**
+
+L'utilisateur a fourni les lignes `serveur.log` suivantes, à `10:13:38` et
+`10:13:39` : `P166 ot/session : nouvel essai = {'detail': "[Errno 13] Permission
+denied: '/storage/emulated/0/Android/data/org.openwebui.android/files/minidebian/proot'"}`
+puis `P166 ot/session : résultat final = …`. Cause identifiée : Android monte
+`Android/data/...` en **`noexec`**. Le bit exécutable restauré par
+`prepareMiniDebian()` ne suffit pas : le noyau refuse l'exécution du binaire.
+Le rootfs extrait au même endroit aurait posé le même problème pour
+`/bin/bash`. Second défaut : `/fm/ot/session` interprétait n'importe quelle
+absence d'identifiant de session comme un service arrêté et relançait uvicorn
+vingt fois de suite, masquant l'erreur applicative.
+
+Correction retenue (suggestion de l'utilisateur : « peut-être créer un volume
+comme Termux le fait ») : deux racines distinctes.
+
+- `getExternalFilesDir()` reste le stockage utilisateur — base, configuration
+  et `/root/work` — avec les deux modes de reset P163 inchangés ;
+- `getFilesDir()` (mémoire interne) devient le **volume exécutable** : `proot`,
+  les bibliothèques bionic, l'archive et le rootfs extrait, ainsi que l'état
+  d'exécution de proot-distro (`XDG_DATA_HOME`). C'est le modèle Termux
+  (`/data/data/<paquet>/files`) et ce répertoire est **effacé automatiquement
+  lors de la désinstallation**, comme demandé.
+
+`MainActivity.prepareMiniDebian()` extrait désormais dans `getFilesDir()`,
+supprime l'ancienne copie externe et transmet les deux racines à
+`start_server(port, files_dir, exec_dir)`. `android_main.py` migre depuis une
+installation antérieure les binaires et l'archive, pose
+`OPENWEBUI_ANDROID_EXEC_HOME`, ancre `XDG_DATA_HOME` sur le volume interne et
+reconstruit le conteneur interne lors des resets. Le patch
+`05-android-pipe-shell.patch` journalise `P167` dès qu'un `OSError` empêche le
+lancement de `proot` ; le patch `06-android_fm-open-terminal.patch` ne relance
+le service que sur une erreur de connexion et renvoie immédiatement un
+diagnostic explicite sur un `Errno 13`.
+
+`scripts/test_p167.py` (nouveau) vérifie les deux racines, les deux resets et
+l'absence de relance sur `Permission denied`. `check_apk.py` exige désormais
+`getFilesDir` dans les `classes.dex`, `OPENWEBUI_ANDROID_EXEC_HOME` dans
+`android_main.pyc` et `P167` dans `open_terminal/main.pyc` et
+`android_fm.pyc` : justification — sans ces marqueurs, une APK pourrait
+embarquer l'ancien chemin `noexec` alors que les patchs sont présents dans le
+dépôt (piège déjà rencontré aux P164/P165/P166). Aucun contrôle existant
+n'est assoupli. Lors de la reconstruction, la copie du patch P166 laissée par
+inadvertance dans le submodule `vendor/open-terminal` a été restaurée à
+`HEAD` ; les patchs sont la source de vérité, la reconstruction donne
+39 appliqués / 9 déjà / 0 échec. Publication en prerelease à effectuer après
+validation complète des tests et de la CI.

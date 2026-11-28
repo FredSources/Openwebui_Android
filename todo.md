@@ -381,3 +381,6 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [x] reset `/fm` : appel serveur puis `AndroidSystem.restartApp()`, FitAddon
       relié à `/fm/ot/resize`
 - [x] documentation Typst mise à jour et PDF recompilés
+- [ ] P167 : déplacer `proot`/libs/rootfs dans `getFilesDir()` (volume interne
+      exécutable, effacé à la désinstallation), migrer l'ancienne installation,
+      supprimer les relances sur `Errno 13` — `test_p167.py` à finaliser

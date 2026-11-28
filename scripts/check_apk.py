@@ -135,6 +135,13 @@ def check_apk(apk: pathlib.Path) -> None:
             contenu_index = lire(z, "assets/frontend/index.html") or b""
             if b"/fm" not in contenu_index:
                 err(f"{apk.name} : bouton /fm absent de index.html")
+        # P167 — l'extraction Java doit cibler getFilesDir() (volume interne
+        # exécutable, effacé à la désinstallation), jamais Android/data.
+        dex = b"".join(lire(z, n) or b"" for n in noms if n.startswith("classes")
+                       and n.endswith(".dex"))
+        if dex and b"getFilesDir" not in dex:
+            err(f"{apk.name} : getFilesDir absent des dex — extraction du "
+                f"mini-Debian sous Android/data (noexec)")
         # P123 : garde-fou contre la regression P121 — le patch 06 avait ete
         # regenere depuis une source vierge et la collecte de fichiers de
         # sortie P120 avait disparu du bundle (fichiers execute_code invisibles
@@ -220,12 +227,24 @@ def check_apk(apk: pathlib.Path) -> None:
                         if ot_pyc and not any(b"P166" in o for o in ot_pyc):
                             err(f"{label} : marqueur P166 absent de "
                                 f"open_terminal/main.pyc (repli sans PTY non embarqué)")
+                        # P167 — Android/data est monté en noexec : sans le
+                        # volume exécutable interne, proot échoue avec Errno 13
+                        # dès l'ouverture du Shell root. Les trois marqueurs
+                        # (Java, Python, service) doivent être compilés dans
+                        # l'APK, pas seulement présents dans le dépôt.
+                        if ot_pyc and not any(b"P167" in o for o in ot_pyc):
+                            err(f"{label} : marqueur P167 absent de "
+                                f"open_terminal/main.pyc (diagnostic proot non embarqué)")
                         am_pyc = [bundle.read(n) for n in noms_b
                                   if n.endswith("android_main.pyc")]
                         if am_pyc and not any(
                                 b"OPEN_TERMINAL_MAX_SESSIONS" in o for o in am_pyc):
                             err(f"{label} : limite d'une session absente de "
                                 f"android_main.pyc (accumulation des PTY possible)")
+                        if am_pyc and not any(
+                                b"OPENWEBUI_ANDROID_EXEC_HOME" in o for o in am_pyc):
+                            err(f"{label} : volume exécutable interne absent de "
+                                f"android_main.pyc (proot resterait sous noexec)")
                         for xterm in ("xterm.js", "xterm.css", "addon-fit.js",
                                       "addon-web-links.js"):
                             if not any(n.endswith("static/xterm/" + xterm)
@@ -367,6 +386,11 @@ def check_apk(apk: pathlib.Path) -> None:
                         elif not any(b"P166" in o for o in fm):
                             err(f"{label} : marqueur P166 absent de android_fm.pyc "
                                 f"(réutilisation du shell non embarquée)")
+                        # P167 — une erreur applicative (Errno 13, PTY épuisé)
+                        # ne doit pas déclencher 20 relances du service.
+                        elif not any(b"P167" in o for o in fm):
+                            err(f"{label} : marqueur P167 absent de android_fm.pyc "
+                                f"(diagnostic immédiat non embarqué)")
                     elif "requirements-common" in bundle_nom:
                         check_modules(bundle, label, MODULES_PIP)
                         # R165 : aiohttp 3.14.5 remplace le 3.10.10 épinglé par

@@ -1465,8 +1465,9 @@ Deux submodules sont ajoutés sans toucher à `vendor/open-webui`, figé sur
 `proot` et deux bibliothèques Android (`libtalloc.so.2`,
 `libandroid-shmem.so`) sont embarqués avec un rootfs *Debian trixie* arm64
 contenant `bash`, `apt` et `git`. L'ensemble est extrait par
-`MainActivity.prepareMiniDebian()` vers `filesDir/minidebian`, une fois par
-version d'APK, avec restauration du bit exécutable.
+`MainActivity.prepareMiniDebian()` vers `getFilesDir()/minidebian` (mémoire
+interne), une fois par version d'APK, avec restauration du bit exécutable —
+voir P167 : `Android/data` est monté en `noexec`.
 
 Le service tourne sur `127.0.0.1:8889`, lancé en thread daemon après la
 disponibilité d'Open WebUI, comme SearXNG sur `8888`. La clé API est générée
@@ -1615,6 +1616,44 @@ matérielle du shell reste à confirmer sur l'appareil grâce aux lignes `P166` 
 
 Empreinte du certificat release :
 `7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4`.
+
+= Volume exécutable interne (P167)
+
+Après la livraison P166, l'appareil a renvoyé
+`[Errno 13] Permission denied: '/storage/emulated/0/Android/data/org.openwebui.android/files/minidebian/proot'`.
+Le bit exécutable était bien posé, mais Android monte `Android/data` en
+`noexec` : aucun binaire ne peut y être lancé. Le relais `/fm/ot/session`
+interprétait cette erreur applicative comme une panne du service et relançait
+uvicorn vingt fois de suite, masquant la vraie cause.
+
+La correction sépare deux racines, sur le modèle de Termux :
+
+- *données utilisateur* — `getExternalFilesDir()` conserve la base, la
+  configuration et `/root/work` (les deux modes de réinitialisation gardent
+  leur sémantique) ;
+- *volume exécutable* — `getFilesDir()` (mémoire interne) reçoit `proot`, ses
+  bibliothèques bionic, l'archive et le rootfs extrait, ainsi que l'état
+  d'exécution de proot-distro (`XDG_DATA_HOME`). Cet emplacement est
+  exécutable et, point demandé explicitement, *effacé automatiquement à la
+  désinstallation* de l'APK.
+
+`MainActivity` transmet désormais les deux racines à `start_server(port,
+files_dir, exec_dir)` ; l'ancienne copie externe et son marqueur sont supprimés
+au premier démarrage pour éviter qu'une mise à jour ne relise le chemin
+`noexec`. Une migration copie les binaires et l'archive d'une installation
+antérieure vers le volume interne. Le diagnostic `P167` est journalisé dès
+qu'`OSError` empêche le lancement de `proot`, et `/fm/ot/session` ne relance le
+service que sur une erreur de connexion : un `Errno 13` remonte immédiatement
+avec un message invitant à installer une version P167 ou supérieure.
+
+`scripts/test_p167.py` valide les deux racines, les deux modes de
+réinitialisation et l'absence de
+relance sur `Permission denied`. `check_apk.py` exige désormais `getFilesDir`
+dans les `classes.dex`, `OPENWEBUI_ANDROID_EXEC_HOME` dans `android_main.pyc`
+et `P167` dans `open_terminal/main.pyc` et `android_fm.pyc` : justification —
+sans ces marqueurs, une APK pourrait embarquer l'ancien chemin `noexec` alors
+que les patchs sont présents dans le dépôt (piège déjà rencontré aux P164 à
+P166). Aucun contrôle existant n'est assoupli.
 
 = Pistes d'évolution
 

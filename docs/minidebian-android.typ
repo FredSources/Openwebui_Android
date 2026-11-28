@@ -77,7 +77,7 @@ La limite de 100 Mo par fichier imposée par GitHub est vérifiée avant livrais
     participant A as android_main
     participant O as Open WebUI
     participant T as Open Terminal
-    J->>A: start_server(filesDir)
+    J->>A: start_server(dataHome, getFilesDir())
     A->>A: consommer le marqueur de reset éventuel
     A->>A: générer la clé API (0600)
     A->>A: installer le rootfs depuis l'asset
@@ -91,9 +91,12 @@ La limite de 100 Mo par fichier imposée par GitHub est vérifiée avant livrais
 Le marqueur de réinitialisation est traité *avant* le service, pour éviter
 qu'une ancienne connexion et une ancienne clé survivent au redémarrage.
 `prepareMiniDebian()` s'inspire de `prepareFrontend()` : marqueur
-`minidebian.version` dans `filesDir`, extraction de l'arbre `minidebian/`
+`minidebian.version` dans `getFilesDir()`, extraction de l'arbre `minidebian/`
 depuis les assets, puis `proot.setExecutable(true, false)` — Android ne
-conserve pas le bit exécutable dans les assets.
+conserve pas le bit exécutable dans les assets. Depuis P167, cette extraction
+cible la mémoire *interne* : `Android/data` est monté en `noexec` et le bit
+exécutable seul ne suffit pas à lancer `proot`. L'ancienne copie externe est
+supprimée au premier démarrage.
 
 Le service désactive browser, desktop, agents et notebooks. Le shell est
 `/bin/bash -l` dans le rootfs ; les commandes passent par le même préfixe
@@ -156,23 +159,59 @@ Le marqueur `minidebian.version` n'est pas touché : les assets ne changent pas,
 inutile d'extraire à nouveau le rootfs. Le bouton « Tout effacer » demande une
 confirmation explicite.
 
+= Volume exécutable et désinstallation (P167)
+
+#figure(
+  caption: [Deux racines distinctes : données persistantes et volume exécutable.],
+  table(
+    columns: (27fr, 39fr, 34fr),
+    inset: 6pt,
+    table.header([*Racine*], [*Contenu*], [*Cycle de vie*]),
+    [`getExternalFilesDir()`], [Base, configuration, `data/work`],
+      [Conservé aux mises à jour],
+    [`getFilesDir()`], [`proot`, libs, rootfs, état proot-distro],
+      [Exécutable, effacé à la désinstallation],
+  )
+)
+
+Sur l'appareil qui a signalé le P166, le binaire `proot` se trouvait sous
+`/storage/emulated/0/Android/data/org.openwebui.android/files/minidebian/`.
+Android y monte l'espace en `noexec` : `chmod +x` réussit, l'exécution échoue
+avec `Errno 13`. Le service est désormais lancé depuis le volume interne
+`getFilesDir()`, exactement comme Termux installe son préfixe sous
+`/data/data/<paquet>/files`. Ce choix répond aussi à la demande explicite que
+ce volume soit *effacé lors de la désinstallation* : Android nettoie
+automatiquement `getFilesDir()` du paquet, sans script ni permission
+supplémentaire.
+
+`android_main.py` reçoit les deux chemins via `start_server(dataHome,
+getFilesDir())`. `XDG_DATA_HOME` pointe sur le volume interne afin que le
+rootfs extrait par proot-distro y réside également — sans quoi les
+`/bin/bash` du conteneur resteraient sous un montage `noexec`. Les deux
+réinitialisations conservent leur sémantique : `environment` reconstruit le
+conteneur interne en gardant `data/work`, `wipe-work` supprime aussi
+`data/work`.
+
 = Vérifications et limites
 
-Les tests `test_p160.py` à `test_p166.py` contrôlent les empreintes,
+Les tests `test_p160.py` à `test_p167.py` contrôlent les empreintes,
 l'absence de `-R`/`-S`, le rendu des onglets et de l'iframe, l'absence de clé
 dans le HTML, les deux modes de reset, la syntaxe JavaScript (`node --check`),
 la résolution UMD des addons, la libération du port au redémarrage, le
-démarrage du service à la demande (P165) et le repli sans PTY sous proot (P166).
-`check_apk.py` exige les assets mini-Debian, les modules Python `open_terminal`
-et `proot_distro`, les fichiers xterm, les marqueurs P164/P165/P166 dans
-`android_fm.pyc`, le marqueur P166 dans `open_terminal/main.pyc`, la limite
-d'une session dans `android_main.pyc` et la taille maximale du rootfs. Aucun
+démarrage du service à la demande (P165), le repli sans PTY sous proot (P166)
+et le volume exécutable interne avec l'absence de relance sur `Errno 13`
+(P167). `check_apk.py` exige les assets mini-Debian, les modules Python
+`open_terminal` et `proot_distro`, les fichiers xterm, les marqueurs
+P164/P165/P166/P167 dans `android_fm.pyc`, les marqueurs P166/P167 dans
+`open_terminal/main.pyc`, `OPENWEBUI_ANDROID_EXEC_HOME` dans
+`android_main.pyc`, `getFilesDir` dans les `classes.dex` et la taille maximale
+du rootfs. Aucun
 serveur de test ne doit écouter sur `8080` : seule la fenêtre `8090` est
 autorisée pour les tests locaux.
 
 *Limite non levée* : la validation sur appareil d'une build release n'a pas
-encore été réalisée. Il reste à confirmer que `proot` s'exécute depuis les
-assets et que `ptrace` est autorisé. Depuis P166, l'absence de `pty.openpty()`
+encore été réalisée. P167 lève le blocage `noexec` en déplaçant `proot` vers
+`getFilesDir()` ; il reste à confirmer que `ptrace` est autorisé. Depuis P166, l'absence de `pty.openpty()`
 n'est plus une impasse : le shell bascule en `backend=pipe`, conserve les
 commandes dans le mini-Debian et l'interface l'indique clairement. Le prompt
 interactif coloré reste indisponible dans ce mode ; les lignes `P166` de

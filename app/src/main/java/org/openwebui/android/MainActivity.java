@@ -184,7 +184,11 @@ public class MainActivity extends Activity {
             AndroidAudio audioBridge = new AndroidAudio();
             py.getModule("android_main").callAttr("register_audio_split",
                     (java.util.function.Function<String, String>) audioBridge::apply);
-            py.getModule("android_main").callAttr("start_server", 8080, dataHome.getAbsolutePath());
+            // P167 — deux racines distinctes : dataHome reste le stockage
+            // externe (base, configuration, /root/work) ; getFilesDir() est
+            // le « volume » exécutable à la Termux (proot, libs, rootfs).
+            py.getModule("android_main").callAttr("start_server", 8080,
+                    dataHome.getAbsolutePath(), getFilesDir().getAbsolutePath());
         } catch (Exception e) {
             writeStatus(100, "Erreur : " + e);
             mainHandler.post(() -> showError("Erreur Python : " + e.getMessage()));
@@ -281,14 +285,17 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * P160 — extrait le mini-Debian (binaire proot, bibliothèques Android et
-     * rootfs trixie) depuis les assets vers filesDir/minidebian. Marqueur de
-     * version : l'extraction n'a lieu qu'une fois par version d'APK. Le bit
-     * exécutable de proot est restauré (les assets Android ne le conservent pas).
+     * P160/P167 — extrait le mini-Debian (binaire proot, bibliothèques Android
+     * et rootfs trixie) depuis les assets vers filesDir/minidebian (MÉMOIRE
+     * INTERNE). P167 : Android/data est monté en noexec — `proot` et les
+     * exécutables du rootfs ne peuvent pas être lancés depuis cet emplacement,
+     * même avec le bit exécutable posé. Marqueur de version : l'extraction n'a
+     * lieu qu'une fois par version d'APK. Le bit exécutable de proot est
+     * restauré (les assets Android ne le conservent pas).
      */
     private void prepareMiniDebian() {
-        java.io.File target = new java.io.File(dataHome, "minidebian");
-        java.io.File marker = new java.io.File(dataHome, "minidebian.version");
+        java.io.File target = new java.io.File(getFilesDir(), "minidebian");
+        java.io.File marker = new java.io.File(getFilesDir(), "minidebian.version");
         long current;
         try {
             android.content.pm.PackageManager pm = getPackageManager();
@@ -314,6 +321,14 @@ public class MainActivity extends Activity {
             java.io.File proot = new java.io.File(target, "proot");
             if (proot.exists()) {
                 proot.setExecutable(true, false);
+            }
+            // P167 — supprime l'ancienne copie externe (montée en noexec) et
+            // son marqueur : sinon une mise à jour conserverait les deux
+            // installations et le service pourrait reprendre la mauvaise.
+            try {
+                deleteRecursive(new java.io.File(dataHome, "minidebian"));
+                new java.io.File(dataHome, "minidebian.version").delete();
+            } catch (Exception ignored) {
             }
             java.io.FileWriter w = new java.io.FileWriter(marker);
             w.write(String.valueOf(current));

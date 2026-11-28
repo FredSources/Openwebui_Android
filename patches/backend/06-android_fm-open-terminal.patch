@@ -113,7 +113,7 @@
                  else:
                      page = """
      <form method="post" action="/fm/settings"><input type="hidden" name="tab" value="owui"><div class="settings">
-@@ -1166,6 +1288,186 @@
+@@ -1166,6 +1288,214 @@
              "fichiers et reglages seront effaces.</p>"))
  
  
@@ -230,10 +230,32 @@
 +        resultat = await _fm_ot_call('POST', '/api/terminals', {})
 +        _jfm.warning('P166 ot/session : création = %s',
 +                     {k: str(v)[:120] for k, v in resultat.items()})
-+        # Une session ouverte contient toujours un `id`. Tout autre retour
-+        # (exception de connexion, HTTP 503, `"Out of PTY devices"`) signale un
-+        # service indisponible ou saturé : on le relance puis on réessaie.
-+        if 'id' not in resultat:
++        def _indisponible(r):
++            # Un 503 du service arrêté peut n'avoir que « detail » :
++            # ne pas exiger le champ « status » pour déclencher la relance.
++            d = str(r.get('detail', '')).lower()
++            return any(m in d for m in (
++                'connecterror', 'connection refused',
++                'all connection attempts failed',
++                'connect timeout', 'service arrete',
++                'service arrêté'))
++
++        def _diagnostic(r):
++            d = str(r.get('detail', ''))
++            if ('permission denied' in d.lower()
++                    or 'errno 13' in d):
++                return ('proot non exécutable : le volume '
++                        'mini-Debian doit être dans getFilesDir() '
++                        '(stockage interne), pas dans Android/data '
++                        'monté en noexec. Installez une version '
++                        'P167 ou supérieure.')
++            return d or 'shell indisponible'
++
++        # Une session ouverte contient toujours un `id`. P167 : on ne relance
++        # le service QUE sur une erreur de connexion. Une erreur applicative
++        # (proot non exécutable, PTY épuisé, HTTP 4xx) remonte immédiatement :
++        # 20 relances masquaient la vraie cause.
++        if 'id' not in resultat and _indisponible(resultat):
 +            try:
 +                import android_main as _am
 +                _am.service_control('open_terminal', 'run')
@@ -250,7 +272,13 @@
 +                        break
 +            except Exception as _exc:
 +                _jfm.exception('P166 ot/session : relance impossible (%s)', _exc)
-+        _jfm.warning('P166 ot/session : résultat final = %s',
++        elif 'id' not in resultat:
++            _jfm.warning('P167 ot/session : erreur applicative, pas de relance : %s',
++                         {k: str(v)[:160]
++                          for k, v in resultat.items()})
++            resultat = {'status': 'error',
++                        'detail': _diagnostic(resultat)}
++        _jfm.warning('P166/P167 ot/session : résultat final = %s',
 +                     {k: str(v)[:120] for k, v in resultat.items()})
 +        return resultat
 +

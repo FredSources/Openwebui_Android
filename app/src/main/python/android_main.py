@@ -74,21 +74,39 @@ def _set_status(data_dir: Path, message: str, progress: int | None = None) -> No
         pass
 
 
-def _prepare_env(files_dir: str | None = None) -> Path:
+def _prepare_env(files_dir: str | None = None, exec_dir: str | None = None) -> Path:
     """Variables d'environnement Open WebUI pour Android (avant tout import du package).
 
     Garantie d'isolation : TOUT fichier (base, uploads, cache, temporaires) est
     écrit dans l'espace privé de l'application — <files>/data, <files>/tmp,
-    <files>/cache — où <files> est getFilesDir() fourni par MainActivity.
+    <files>/cache — où <files> est getExternalFilesDir() fourni par MainActivity.
+
+    P167 — deux racines distinctes :
+      * ``home`` (stockage externe de l'app) : base, configuration, /root/work ;
+      * ``exec_home`` (``getFilesDir()``, mémoire INTERNE) : « volume » à la
+        Termux. ``proot``, ses bibliothèques et le rootfs y sont extraits afin
+        d'être exécutables — ``Android/data`` est monté en ``noexec`` sur Android.
+        Ce volume est aussi **effacé automatiquement à la désinstallation**.
     """
     import open_webui  # noqa: F401  (le paquet doit être localisable)
     pkg_dir = Path(open_webui.__file__).parent
 
-    # files_dir (getFilesDir()) est prioritaire sur HOME : aucune écriture ne
-    # doit dépendre d'un HOME implicite du runtime.
+    # files_dir est prioritaire sur HOME : aucune écriture ne doit dépendre
+    # d'un HOME implicite du runtime.
     home = Path(files_dir or os.environ.get("HOME") or pkg_dir.parent).resolve()
     home.mkdir(parents=True, exist_ok=True)
     os.environ["HOME"] = str(home)  # forcé (et non setdefault) pour tous les importeurs
+
+    # P167 — volume exécutable interne. Sur l'hôte (tests), repli sur ``home``
+    # pour ne rien changer au comportement des scripts de validation.
+    exec_home = Path(
+        exec_dir or os.environ.get("OPENWEBUI_ANDROID_EXEC_HOME") or home
+    ).resolve()
+    exec_home.mkdir(parents=True, exist_ok=True)
+    os.environ["OPENWEBUI_ANDROID_EXEC_HOME"] = str(exec_home)
+    # proot-distro ancre ses conteneurs (rootfs, cache, locks, sessions) sous
+    # XDG_DATA_HOME : le lui faire pointer vers le volume exécable interne.
+    os.environ["XDG_DATA_HOME"] = str(exec_home)
     for sub, var in (("tmp", "TMPDIR"), ("cache", "XDG_CACHE_HOME")):
         d = home / sub
         d.mkdir(parents=True, exist_ok=True)
@@ -106,7 +124,7 @@ def _prepare_env(files_dir: str | None = None) -> Path:
     data_dir.mkdir(parents=True, exist_ok=True)
 
     # P163 — réinitialisation ciblée de l'environnement Open Terminal.
-    _apply_open_terminal_reset(home, data_dir)
+    _apply_open_terminal_reset(home, data_dir, exec_home)
 
     # Réinitialisation complète demandée depuis /fm : efface TOUTES les données
     # (base, uploads, vecteurs, cache) puis repart de zéro.
@@ -132,7 +150,8 @@ def _prepare_env(files_dir: str | None = None) -> Path:
     # (P38), la persistance /mnt/uploads (IDBFS) et la remontée des fichiers
     # (P41). Sans ça : ModuleNotFoundError systématiques côté appareil.
     os.environ.setdefault("ENABLE_PYODIDE_FILE_PERSISTENCE", "true")
-    log.warning("espace applicatif : HOME=%s DATA_DIR=%s", home, data_dir)
+    log.warning("espace applicatif : HOME=%s DATA_DIR=%s EXEC=%s (effacé à la désinstallation)",
+                home, data_dir, exec_home)
     # Frontend : extrait par MainActivity dans $HOME/frontend (assets, versionné) ;
     # repli sur le paquet Python pour les tests hôte.
     extracted = Path(home) / "frontend"
@@ -323,11 +342,15 @@ def searxng_settings_save(formats, limiter: bool, rekey: bool = False) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _apply_open_terminal_reset(home: Path, data_dir: Path) -> None:
-    """P163 — consomme le marqueur écrit depuis /fm puis reconstruit l'environnement.
+def _apply_open_terminal_reset(home: Path, data_dir: Path, exec_home: Path | None = None) -> None:
+    """P163/P167 — consomme le marqueur écrit depuis /fm puis reconstruit l'environnement.
 
     Deux modes : environnement seul (fichiers de /root/work conservés) ou
     `wipe-work` (effacement complet, état de première installation).
+
+    P167 : le conteneur vit désormais dans le volume exécutable interne
+    (``exec_home``). Les anciens emplacements externes restent dans la liste
+    pour purger une installation issue d'une version antérieure.
     """
     marqueur = data_dir / "open-terminal-reset-requested"
     if not marqueur.exists():
@@ -336,7 +359,8 @@ def _apply_open_terminal_reset(home: Path, data_dir: Path) -> None:
         mode = marqueur.read_text(encoding="utf-8").strip().lower()
     except Exception:
         mode = ""
-    log.warning("P163 réinitialisation Open Terminal demandée (mode=%s)", mode or "standard")
+    log.warning("P163/P167 réinitialisation Open Terminal demandée (mode=%s)", mode or "standard")
+    exec_home = exec_home or Path(os.environ.get("OPENWEBUI_ANDROID_EXEC_HOME", str(home)))
     cibles = [
         data_dir / "open-terminal-api.key",
         data_dir / "open-terminal.log",
@@ -344,6 +368,10 @@ def _apply_open_terminal_reset(home: Path, data_dir: Path) -> None:
         data_dir / "proot-distro" / "cache",
         data_dir / "proot-distro" / "locks",
         data_dir / "proot-distro" / "sessions",
+        exec_home / "proot-distro" / "containers" / "minidebian",
+        exec_home / "proot-distro" / "cache",
+        exec_home / "proot-distro" / "locks",
+        exec_home / "proot-distro" / "sessions",
     ]
     if mode == "wipe-work":
         cibles.append(data_dir / "work")
@@ -426,22 +454,54 @@ def _force_machine_connection(data_dir: Path, key: str) -> None:
         log.warning("force machines.connections impossible : %s", exc)
 
 
-def _install_minidebian(data_dir: Path, home: Path) -> None:
-    """P160 — installe le rootfs embarqué dans le conteneur proot-distro.
+def _install_minidebian(data_dir: Path, home: Path, exec_home: Path | None = None) -> None:
+    """P160/P167 — installe le rootfs embarqué dans le conteneur proot-distro.
 
     Passe par le CLI proot-distro (fixups /etc, manifest) avec repli sur une
     extraction tar directe si l'outil est indisponible sur l'appareil.
+
+    P167 : le binaire ``proot``, l'archive et le rootfs extrait résident dans
+    ``exec_home`` (``getFilesDir()``), seul emplacement exécutable et effacé
+    lors d'une désinstallation.
     """
-    rootfs = data_dir / "proot-distro" / "containers" / "minidebian" / "rootfs"
+    exec_home = exec_home or Path(os.environ.get("OPENWEBUI_ANDROID_EXEC_HOME", str(home)))
+    rootfs = exec_home / "proot-distro" / "containers" / "minidebian" / "rootfs"
     if rootfs.is_dir() and (rootfs / "usr" / "bin" / "git").exists():
         return
-    archive = home / "minidebian" / "rootfs.tar.xz"
+    archive = exec_home / "minidebian" / "rootfs.tar.xz"
+    if not archive.is_file():
+        # Installation antérieure : l'archive externe est encore présente.
+        # On la COPIE dans le volume interne avant extraction, sinon les
+        # exécutables du rootfs resteraient sous un montage noexec.
+        ancienne = home / "minidebian" / "rootfs.tar.xz"
+        if ancienne.is_file():
+            try:
+                (exec_home / "minidebian").mkdir(parents=True, exist_ok=True)
+                import shutil as _sh
+
+                _sh.copyfile(ancienne, archive)
+                log.warning("P167 archive mini-Debian migrée vers le volume exécutable")
+            except Exception as exc:
+                log.warning("P167 migration archive impossible : %s", exc)
     if not archive.is_file():
         log.warning("mini-Debian absent : %s", archive)
         return
     _set_status(data_dir, "Préparation du mini Debian…", 88)
-    os.environ.setdefault("PD_PROOT_BIN", str(home / "minidebian" / "proot"))
-    os.environ.setdefault("XDG_DATA_HOME", str(data_dir))
+    proot = exec_home / "minidebian" / "proot"
+    if not proot.is_file():
+        ancien_proot = home / "minidebian" / "proot"
+        if ancien_proot.is_file():
+            try:
+                (exec_home / "minidebian").mkdir(parents=True, exist_ok=True)
+                import shutil as _sh
+
+                _sh.copy2(ancien_proot, proot)
+                os.chmod(proot, 0o700)
+                log.warning("P167 binaire proot migré vers le volume exécutable")
+            except Exception as exc:
+                log.warning("P167 migration proot impossible : %s", exc)
+    os.environ["PD_PROOT_BIN"] = str(proot)
+    os.environ["XDG_DATA_HOME"] = str(exec_home)
     try:
         import sys as _sys
 
@@ -468,8 +528,8 @@ def _install_minidebian(data_dir: Path, home: Path) -> None:
         log.exception("extraction mini-Debian impossible : %s", exc)
 
 
-def _ensure_open_terminal(data_dir: Path, home: Path) -> None:
-    """P160 — clé privée, environnement proot et connexion machine du service local."""
+def _ensure_open_terminal(data_dir: Path, home: Path, exec_home: Path | None = None) -> None:
+    """P160/P167 — clé privée, environnement proot et connexion machine du service local."""
     key_path = data_dir / "open-terminal-api.key"
     if not key_path.exists() or key_path.stat().st_size == 0:
         key_path.write_text(secrets.token_urlsafe(48), encoding="utf-8")
@@ -488,17 +548,19 @@ def _ensure_open_terminal(data_dir: Path, home: Path) -> None:
     os.environ["OPEN_TERMINAL_MAX_SESSIONS"] = "1"
     os.environ["OPEN_TERMINAL_CORS_ALLOWED_ORIGINS"] = "http://127.0.0.1:8080"
 
-    mini = home / "minidebian"
+    exec_home = exec_home or Path(os.environ.get("OPENWEBUI_ANDROID_EXEC_HOME", str(home)))
+    mini = exec_home / "minidebian"
     work = data_dir / "work"
     work.mkdir(parents=True, exist_ok=True)
     os.environ["OPEN_TERMINAL_FILE_BROWSER_ROOT"] = str(work)
     os.environ["OPEN_TERMINAL_START_DIR"] = str(work)
     os.environ["OPENWEBUI_ANDROID_PROOT"] = str(mini / "proot")
     os.environ["OPENWEBUI_ANDROID_ROOTFS"] = str(
-        data_dir / "proot-distro" / "containers" / "minidebian" / "rootfs"
+        exec_home / "proot-distro" / "containers" / "minidebian" / "rootfs"
     )
     os.environ["OPENWEBUI_ANDROID_WORK"] = str(work)
     os.environ["OPENWEBUI_ANDROID_PROOT_LIB"] = str(mini)
+    os.environ["OPENWEBUI_ANDROID_EXEC_HOME"] = str(exec_home)
     try:
         import shutil as _sh
 
@@ -508,7 +570,7 @@ def _ensure_open_terminal(data_dir: Path, home: Path) -> None:
     except Exception:
         pass
 
-    _install_minidebian(data_dir, home)
+    _install_minidebian(data_dir, home, exec_home)
     _force_machine_connection(data_dir, key)
 
 
@@ -767,13 +829,18 @@ def register_audio_split(fn) -> None:
         logging.getLogger(__name__).warning("pont audio Android non enregistre", exc_info=True)
 
 
-def start_server(port: int = APP_PORT, files_dir: str | None = None) -> int:
-    """Lance uvicorn dans un thread daemon. Retourne le port. Idempotent."""
+def start_server(port: int = APP_PORT, files_dir: str | None = None,
+                 exec_dir: str | None = None) -> int:
+    """Lance uvicorn dans un thread daemon. Retourne le port. Idempotent.
+
+    ``files_dir`` est le stockage utilisateur (externe), ``exec_dir`` le volume
+    exécutable interne (``getFilesDir()``) — voir P167.
+    """
     global _started
     with _lock:
         if _started:
             return port
-        data_dir = _prepare_env(files_dir)
+        data_dir = _prepare_env(files_dir, exec_dir)
         _set_status(data_dir, "Démarrage du serveur Open WebUI…", 45)
 
         def run() -> None:

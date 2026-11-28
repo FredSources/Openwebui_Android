@@ -116,7 +116,7 @@ assert rendre(base + b'&sub=service') == html_service, 'sub=service doit être i
 print('OK  /fm?sub=service identique au défaut')
 
 html_engine = rendre(base + b'&sub=engine')
-assert '<iframe class="sxframe" src="http://127.0.0.1:8888/"' in html_engine
+assert '<iframe id="sx-frame" class="sxframe" src="http://127.0.0.1:8888/"' in html_engine
 assert html_engine.count('<iframe') == 1, 'une seule iframe autorisée'
 assert 'subtab on' in html_engine and 'sub=engine' in html_engine
 # P157 — aucune autre carte ni action dans la vue Moteur.
@@ -128,7 +128,7 @@ print('OK  /fm?sub=engine : uniquement l’iframe (les barres d’onglets resten
 
 etat['searxng'] = 'arrêt'
 html_arret = rendre(base + b'&sub=engine')
-assert '<iframe class="sxframe" src="http://127.0.0.1:8888/"' in html_arret
+assert '<iframe id="sx-frame" class="sxframe" src="http://127.0.0.1:8888/"' in html_arret
 assert 'Service arrêté' not in html_arret and 'Démarrer le service' not in html_arret
 html_service_arret = rendre(base + b'&sub=service')
 assert '<b>arrêt</b>' in html_service_arret and 'Démarrer' in html_service_arret

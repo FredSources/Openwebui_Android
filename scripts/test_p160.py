@@ -56,7 +56,7 @@ assert 'OPEN_TERMINAL_API_KEY_FILE' in am_src
 assert 'secrets.token_urlsafe(48)' in am_src
 assert "_force_machine_connection(data_dir, key)" in am_src
 assert 'name == \'open_terminal\'' in am_src
-assert "'open_terminal': 'actif' if _ot_actif" in am_src
+assert "'open_terminal': 'actif' if _port_actif(OPEN_TERMINAL_PORT) else 'arrêt'" in am_src
 assert 'ws="none"' in am_src, 'WebSocket navigateur non désactivé'
 assert 'websockets' not in (PROJ / 'requirements-min.txt').read_text(encoding='utf-8')
 gradle = (PROJ / 'app/build.gradle').read_text(encoding='utf-8')
@@ -67,7 +67,8 @@ print('OK  service : 8889, clé fichier 600, pas de websockets, pilotage /fm')
 java = (PROJ / 'app/src/main/java/org/openwebui/android/MainActivity.java').read_text(encoding='utf-8')
 assert 'prepareMiniDebian();' in java
 assert 'private void prepareMiniDebian()' in java
-assert 'proot.setExecutable(true, false)' in java
+assert ('proot.setExecutable(true, false)' in java
+        or 'android.system.Os.chmod(binaire.getAbsolutePath(), 0700)' in java)
 assert 'minidebian.version' in java
 apply = (PROJ / 'scripts/apply_patches.sh').read_text(encoding='utf-8')
 assert 'vendor/open-terminal/open_terminal:src/open_terminal' in apply

@@ -201,7 +201,10 @@ finally:
 journal = (PROJ / 'journal.md').read_text(encoding='utf-8')
 assert 'P167' in journal, 'décision P167 non journalisée'
 main_ot = (PROJ / 'src/open_terminal/main.py').read_text(encoding='utf-8')
-assert 'P167/P168 — le binaire' in main_ot and 'P168 exécution refusée' in main_ot
+assert ('P167/P168 — le binaire' in main_ot
+        or 'P167/P168/P169 — le binaire' in main_ot)
+assert ('P168 exécution refusée' in main_ot
+        or 'P167/P168/P169 exécution refusée' in main_ot)
 print('OK  traçabilité : journal et diagnostic Open Terminal')
 
 print('\nTous les cas P167 sont valides.')

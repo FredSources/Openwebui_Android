@@ -1,9 +1,10 @@
 --- a/open_terminal/utils/runner.py
 +++ b/open_terminal/utils/runner.py
-@@ -9,6 +9,43 @@
+@@ -8,6 +8,76 @@
+ from abc import ABC, abstractmethod
  
  from open_terminal.env import sanitized_environ
- 
++
 +# P160 — Android : les commandes et le shell interactif tournent dans le
 +# mini-Debian via proot (voir docs/open-terminal-android.typ). Sans ces
 +# variables, le comportement amont est strictement inchangé.
@@ -11,6 +12,7 @@
 +_ANDROID_ROOTFS = os.environ.get("OPENWEBUI_ANDROID_ROOTFS", "")
 +_ANDROID_WORK = os.environ.get("OPENWEBUI_ANDROID_WORK", "")
 +_ANDROID_LIB = os.environ.get("OPENWEBUI_ANDROID_PROOT_LIB", "")
++_ANDROID_STORAGE = os.environ.get("OPENWEBUI_ANDROID_STORAGE", "")
 +
 +
 +def android_proot_prefix() -> list[str]:
@@ -27,8 +29,33 @@
 +    try:
 +        if not os.access(_ANDROID_PROOT, os.X_OK):
 +            os.chmod(_ANDROID_PROOT, 0o700)
-+    except OSError:
-+        pass
++    except OSError as exc:
++        _detail = "P169 chmod proot impossible : %s — %s" % (_ANDROID_PROOT, exc)
++        try:
++            from open_webui import android_logs as _allog
++            _allog.journal("open_terminal", _detail, "ERROR")
++        except Exception:
++            pass
++        raise RuntimeError(_detail)
++    if not os.access(_ANDROID_PROOT, os.X_OK):
++        # P169 — un « Errno 13 » opaque venait du noyau : journaliser l'état
++        # réel avant de lever une erreur lisible dans /fm et serveur.log.
++        try:
++            _mode = oct(os.stat(_ANDROID_PROOT).st_mode & 0o777)
++        except OSError as exc:
++            _mode = "stat impossible : %s" % exc
++        _detail = ("P169 proot non exécutable après chmod : %s (mode=%s, "
++                   "X_OK=%s, racine=%s)" % (
++                       _ANDROID_PROOT, _mode,
++                       os.access(_ANDROID_PROOT, os.X_OK),
++                       "externe(noexec)" if "Android/data" in _ANDROID_PROOT
++                       else "interne"))
++        try:
++            from open_webui import android_logs as _allog
++            _allog.journal("open_terminal", _detail, "ERROR")
++        except Exception:
++            pass
++        raise RuntimeError(_detail)
 +    prefix = [
 +        _ANDROID_PROOT, "-0", "-r", _ANDROID_ROOTFS,
 +        "-b", "/dev", "-b", "/proc", "-b", "/sys",
@@ -38,13 +65,19 @@
 +    resolv = os.path.join(os.path.dirname(_ANDROID_WORK), "resolv.conf")
 +    if os.path.isfile(resolv):
 +        prefix[4:4] = ["-b", f"{resolv}:/etc/resolv.conf"]
++    if _ANDROID_STORAGE:
++        # P169 — stockage dédié du mini-Debian, monté en /root/storage.
++        try:
++            os.makedirs(_ANDROID_STORAGE, exist_ok=True)
++        except OSError:
++            pass
++        prefix[4:4] = ["-b", f"{_ANDROID_STORAGE}:/root/storage"]
 +    return prefix
 +
-+
+ 
  try:
      import fcntl
-     import pty
-@@ -349,6 +378,12 @@
+@@ -349,6 +419,12 @@
      run_as_user: str | None = None,
  ) -> ProcessRunner:
      """Factory: create a PTY runner on Unix, WinPTY runner on Windows, or pipe fallback."""

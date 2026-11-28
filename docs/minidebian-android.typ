@@ -213,6 +213,12 @@ désactivent la barre pendant l'action puis affichent le résultat réel renvoy�
 par `service_control`. « Redémarrer l'application » affiche une confirmation
 avant l'extinction.
 
+= Stockage visible et rafraîchissement (P169)
+
+Un dossier `storage` est créé sous `Android/data/org.openwebui.android/files/minidebian/storage` : il est visible dans le gestionnaire de fichiers et monté dans le conteneur en `/root/storage` par un bind explicite. Les fichiers que l'utilisateur y dépose persistent et sont accessibles depuis le shell root. Les binaires restent dans `getFilesDir()` (interne, exécutable) : le stockage visible n'est jamais utilisé pour exécuter `proot`, qui échouerait sous `noexec`.
+
+L'onglet « Moteur de recherche » a un bouton *Actualiser* qui recharge l'iframe SearXNG avec un cache-buster, et « Redémarrer l'application » restaure la dernière page `/fm` visitée. L'état des services est désormais déduit du port réellement à l'écoute (8888/8889), ce qui évite l'affichage « service arrêté — démarrez-le dans l'onglet Service » alors que le service répond. Le marqueur `P167/P168/P169 exécution refusée` est écrit directement dans `serveur.log`, même sans handler fichier sur le logger `open_terminal`.
+
 = Vérifications et limites
 
 Les tests `test_p160.py` à `test_p168.py` contrôlent les empreintes,
@@ -222,10 +228,12 @@ la résolution UMD des addons, la libération du port au redémarrage, le
 démarrage du service à la demande (P165), le repli sans PTY sous proot (P166)
 et le volume exécutable interne avec l'absence de relance sur `Errno 13`
 (P167), puis le retour visuel des boutons et la réparation automatique du bit exécutable
-(P168). `check_apk.py` exige les assets mini-Debian, les modules Python
-`open_terminal` et `proot_distro`, les fichiers xterm, les marqueurs
-P164/P165/P166/P167/P168 dans `android_fm.pyc`, les marqueurs P166/P167/P168
-dans `open_terminal/main.pyc`, `OPENWEBUI_ANDROID_EXEC_HOME` dans
+(P168), puis le bouton Actualiser, le storage visible, la sonde de port et le
+journal direct (P169). `check_apk.py` exige les assets mini-Debian, les modules
+Python `open_terminal` et `proot_distro`, les fichiers xterm, les marqueurs
+P164/P165/P166/P167/P168/P169 dans `android_fm.pyc` et les marqueurs
+P166/P167/P168/P169 dans `open_terminal/main.pyc`. Il exige aussi
+`OPENWEBUI_ANDROID_EXEC_HOME` et `OPENWEBUI_ANDROID_STORAGE` dans
 `android_main.pyc`, `getFilesDir` dans les `classes.dex` et la taille maximale
 du rootfs. Aucun
 serveur de test ne doit écouter sur `8080` : seule la fenêtre `8090` est

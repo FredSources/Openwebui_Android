@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 import secrets
+import socket
 import threading
 import time
 from pathlib import Path
@@ -29,6 +30,22 @@ _searx_actif = False
 # P160/P163 — service Open Terminal embarqué (mini-Debian sous proot).
 _ot_server = None
 _ot_actif = False
+
+
+def _port_actif(port: int) -> bool:
+    """P169 — état RÉEL d'un service local, indépendant des variables de thread.
+
+    Les boutons peuvent être utilisés juste après un redémarrage de l'app :
+    `_ot_actif` est alors faux alors que le service tourne déjà, ou vrai alors
+    que le thread uvicorn est mort. Un connect TCP sur 127.0.0.1 ne coûte rien
+    et dit la vérité sur le port attendu.
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.3)
+            return s.connect_ex(("127.0.0.1", int(port))) == 0
+    except Exception:
+        return False
 
 
 def _load_env_file(data_dir: Path, override: bool = False) -> None:
@@ -466,6 +483,12 @@ def _install_minidebian(data_dir: Path, home: Path, exec_home: Path | None = Non
     """
     exec_home = exec_home or Path(os.environ.get("OPENWEBUI_ANDROID_EXEC_HOME", str(home)))
     rootfs = exec_home / "proot-distro" / "containers" / "minidebian" / "rootfs"
+    # P169 — point de montage du storage dans le conteneur, même sur une
+    # installation déjà présente (chemin rapide).
+    try:
+        (rootfs / "root" / "storage").mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
     if rootfs.is_dir() and (rootfs / "usr" / "bin" / "git").exists():
         return
     archive = exec_home / "minidebian" / "rootfs.tar.xz"
@@ -529,7 +552,7 @@ def _install_minidebian(data_dir: Path, home: Path, exec_home: Path | None = Non
 
 
 def _ensure_open_terminal(data_dir: Path, home: Path, exec_home: Path | None = None) -> None:
-    """P160/P167 — clé privée, environnement proot et connexion machine du service local."""
+    """P160/P167/P169 — clé privée, environnement proot, stockage et connexion machine."""
     key_path = data_dir / "open-terminal-api.key"
     if not key_path.exists() or key_path.stat().st_size == 0:
         key_path.write_text(secrets.token_urlsafe(48), encoding="utf-8")
@@ -552,6 +575,14 @@ def _ensure_open_terminal(data_dir: Path, home: Path, exec_home: Path | None = N
     mini = exec_home / "minidebian"
     work = data_dir / "work"
     work.mkdir(parents=True, exist_ok=True)
+    # P169 — stockage de DONNÉES du mini-Debian, sous DATA_DIR (visible dans
+    # le gestionnaire et dans /fm) ; les binaires restent dans exec_home
+    # (getFilesDir(), seul volume exécutable). Le conteneur voit ce dossier
+    # sous /root/storage via un bind explicite.
+    storage = data_dir / "minidebian" / "storage"
+    storage.mkdir(parents=True, exist_ok=True)
+    (storage / "work").mkdir(parents=True, exist_ok=True)
+    os.environ["OPENWEBUI_ANDROID_STORAGE"] = str(storage)
     os.environ["OPEN_TERMINAL_FILE_BROWSER_ROOT"] = str(work)
     os.environ["OPEN_TERMINAL_START_DIR"] = str(work)
     os.environ["OPENWEBUI_ANDROID_PROOT"] = str(mini / "proot")
@@ -597,7 +628,6 @@ def _start_open_terminal() -> None:
             log.info("Open Terminal embarqué sur http://127.0.0.1:%s", OPEN_TERMINAL_PORT)
             _ot_server.run()
         except Exception as exc:
-            _ot_actif = False
             log.exception("Open Terminal indisponible : %s", exc)
             try:
                 (Path(os.environ.get("DATA_DIR", ".")) / "open-terminal.log").write_text(
@@ -605,10 +635,23 @@ def _start_open_terminal() -> None:
                 )
             except Exception:
                 pass
+        finally:
+            # P169 — sans ce reset, un arrêt naturel du serveur laissait
+            # `_ot_actif` à True et le bouton « Démarrer » répondait
+            # « déjà actif » alors que le port était libre.
+            _ot_actif = False
 
-    if _ot_actif:
+    if _port_actif(OPEN_TERMINAL_PORT):
+        _ot_actif = True
         return
     threading.Thread(target=run, name="open-terminal", daemon=True).start()
+    # P169 — attendre l'écoute effective : le pont Java est bloquant, le
+    # message « (re)démarré » doit correspondre à un port réellement ouvert.
+    for _ in range(40):
+        if _port_actif(OPEN_TERMINAL_PORT):
+            _ot_actif = True
+            break
+        time.sleep(0.1)
 
 
 def _warm_up_then_open_terminal(data_dir: Path, port: int) -> None:
@@ -708,28 +751,34 @@ def service_control(name: str, action: str) -> str:
     action = (action or '').lower()
     try:
         if name == 'open_terminal':
-            if action in ('stop', 'restart') and _ot_server is not None:
+            if action in ('stop', 'restart') and (
+                    _ot_server is not None or _port_actif(OPEN_TERMINAL_PORT)):
                 serveur = _ot_server
-                try:
-                    serveur.should_exit = True
-                    # P164 — attendre la libération effective du port 8889 :
-                    # sans cette attente, un restart immédiat échoue avec
-                    # « address already in use » et ne redémarre rien.
-                    for _ in range(50):
-                        if not getattr(serveur, 'started', False):
-                            break
-                        time.sleep(0.1)
-                except Exception:
-                    pass
+                if serveur is not None:
+                    try:
+                        serveur.should_exit = True
+                    except Exception:
+                        pass
+                # P164/P169 — attendre la libération EFFECTIVE du port 8889 :
+                # `started` peut rester vrai et un restart immédiat échoue avec
+                # « address already in use » sans jamais redémarrer le service.
+                for _ in range(50):
+                    if not _port_actif(OPEN_TERMINAL_PORT):
+                        break
+                    time.sleep(0.1)
                 _ot_server = None
                 _ot_actif = False
             if action == 'stop':
-                return 'Open Terminal arrêté'
+                return ('Open Terminal arrêté' if not _port_actif(OPEN_TERMINAL_PORT)
+                        else 'Open Terminal encore actif (port 8889 occupé)')
             if action in ('run', 'restart'):
-                if _ot_actif:
+                if _port_actif(OPEN_TERMINAL_PORT):
+                    _ot_actif = True
                     return 'Open Terminal déjà actif'
                 _start_open_terminal()
-                return 'Open Terminal (re)démarré'
+                if _port_actif(OPEN_TERMINAL_PORT):
+                    return 'Open Terminal (re)démarré'
+                return 'Open Terminal : démarrage impossible (voir serveur.log)'
             return f'action inconnue : {action}'
         if name == 'searxng':
             if action == 'stop':
@@ -799,8 +848,10 @@ def service_status() -> dict:
     """P89 — état réel des services (pour l'onglet /fm Paramètres)."""
     return {
         'openwebui': 'actif' if _started else 'arrêt',
-        'searxng': 'actif' if _searx_actif else 'arrêt',
-        'open_terminal': 'actif' if _ot_actif else 'arrêt',
+        'searxng': 'actif' if _searx_actif or _port_actif(SEARXNG_PORT) else 'arrêt',
+        # P169 — l'état affiché dans /fm vient du port réel : après un
+        # redémarrage de l'app ou un crash du thread, il ne ment plus.
+        'open_terminal': 'actif' if _port_actif(OPEN_TERMINAL_PORT) else 'arrêt',
     }
 
 

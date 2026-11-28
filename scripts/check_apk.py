@@ -142,6 +142,11 @@ def check_apk(apk: pathlib.Path) -> None:
         if dex and b"getFilesDir" not in dex:
             err(f"{apk.name} : getFilesDir absent des dex — extraction du "
                 f"mini-Debian sous Android/data (noexec)")
+        # P169 — la page /fm ouverte avant « Redémarrer l'application » doit
+        # être restaurée (sinon l'utilisateur croit que le service a disparu).
+        if dex and b"last_fm_url" not in dex:
+            err(f"{apk.name} : last_fm_url absent des dex — retour au chat "
+                f"après redémarrage au lieu de la page /fm")
         # P123 : garde-fou contre la regression P121 — le patch 06 avait ete
         # regenere depuis une source vierge et la collecte de fichiers de
         # sortie P120 avait disparu du bundle (fichiers execute_code invisibles
@@ -241,6 +246,13 @@ def check_apk(apk: pathlib.Path) -> None:
                         if ot_pyc and not any(b"P168" in o for o in ot_pyc):
                             err(f"{label} : marqueur P168 absent de "
                                 f"open_terminal/main.pyc (diagnostic errno non embarqué)")
+                        # P169 — Errno 13 sans ligne de diagnostic sur l'appareil :
+                        # le logger open_terminal n'a pas de handler fichier.
+                        # Le journal direct et le bind /root/storage doivent
+                        # être compilés dans l'APK, pas seulement dans les patchs.
+                        if ot_pyc and not any(b"P169" in o for o in ot_pyc):
+                            err(f"{label} : marqueur P169 absent de "
+                                f"open_terminal/main.pyc (diagnostic direct absent)")
                         am_pyc = [bundle.read(n) for n in noms_b
                                   if n.endswith("android_main.pyc")]
                         if am_pyc and not any(
@@ -251,6 +263,10 @@ def check_apk(apk: pathlib.Path) -> None:
                                 b"OPENWEBUI_ANDROID_EXEC_HOME" in o for o in am_pyc):
                             err(f"{label} : volume exécutable interne absent de "
                                 f"android_main.pyc (proot resterait sous noexec)")
+                        if am_pyc and not any(
+                                b"OPENWEBUI_ANDROID_STORAGE" in o for o in am_pyc):
+                            err(f"{label} : stockage mini-Debian absent de "
+                                f"android_main.pyc (/root/storage non monté)")
                         for xterm in ("xterm.js", "xterm.css", "addon-fit.js",
                                       "addon-web-links.js"):
                             if not any(n.endswith("static/xterm/" + xterm)
@@ -402,6 +418,12 @@ def check_apk(apk: pathlib.Path) -> None:
                         elif not any(b"P168" in o for o in fm):
                             err(f"{label} : marqueur P168 absent de android_fm.pyc "
                                 f"(retour des boutons non embarqué)")
+                        # P169 — bouton Actualiser du moteur SearXNG et
+                        # restauration de la page /fm après redémarrage de
+                        # l'application (marqueur dans android_fm.pyc).
+                        elif not any(b"P169" in o for o in fm):
+                            err(f"{label} : marqueur P169 absent de android_fm.pyc "
+                                f"(bouton Actualiser non embarqué)")
                     elif "requirements-common" in bundle_nom:
                         check_modules(bundle, label, MODULES_PIP)
                         # R165 : aiohttp 3.14.5 remplace le 3.10.10 épinglé par

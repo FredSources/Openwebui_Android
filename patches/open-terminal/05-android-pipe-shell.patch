@@ -1,6 +1,6 @@
 --- a/open_terminal/main.py
 +++ b/open_terminal/main.py
-@@ -2205,12 +2205,82 @@
+@@ -2205,12 +2205,93 @@
                      pass
                  await asyncio.to_thread(process.wait)
  
@@ -46,30 +46,41 @@
 +        spawn_lib = os.environ.get("OPENWEBUI_ANDROID_PROOT_LIB", "")
 +        if spawn_lib:
 +            spawn_env["LD_LIBRARY_PATH"] = spawn_lib
-+        cmd = android_proot_prefix() + ["/bin/bash", "-i"]
-+        log.warning("P166 repli pipe : cmd=%s cwd=%s LD_LIBRARY_PATH=%s",
-+                    cmd, cwd, spawn_lib)
 +        try:
++            cmd = android_proot_prefix() + ["/bin/bash", "-i"]
++            log.warning("P166 repli pipe : cmd=%s cwd=%s LD_LIBRARY_PATH=%s",
++                        cmd, cwd, spawn_lib)
 +            process = subprocess.Popen(
 +                cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
 +                stderr=subprocess.STDOUT, bufsize=0, cwd=cwd, env=spawn_env,
 +                start_new_session=True,
 +            )
-+        except OSError as exc:
-+            # P167/P168 — le binaire est désormais dans getFilesDir() (volume
-+            # interne, équivalent du $PREFIX Termux). Un « Errno 13 » ici ne
-+            # vient donc PLUS du noexec externe : journaliser le mode, l'errno
-+            # et le type de chemin pour distinguer bit exécutable perdu,
-+            # SELinux ou montage /data verrouillé.
++        except (OSError, RuntimeError) as exc:
++            # P167/P168/P169 — le binaire est dans getFilesDir() (volume interne,
++            # équivalent du $PREFIX Termux). Un « Errno 13 » ne vient donc PLUS
++            # du noexec externe : journaliser l'état réel du fichier. Le
++            # journal direct fonctionne même si le logger open_terminal n'a
++            # pas de handler fichier (piège vu sur l'appareil).
 +            try:
-+                _mode = oct(os.stat(cmd[0]).st_mode & 0o777)
++                _binaire = cmd[0]
++            except (NameError, IndexError, TypeError):
++                _binaire = os.environ.get("OPENWEBUI_ANDROID_PROOT", "?")
++            try:
++                _mode = oct(os.stat(_binaire).st_mode & 0o777)
 +            except OSError:
 +                _mode = "absent"
-+            log.error("P167/P168 exécution refusée : %s (errno=%s, mode=%s, "
-+                      "X_OK=%s, racine=%s) — %s", cmd[0], getattr(exc, "errno", "?"),
-+                      _mode, os.access(cmd[0], os.X_OK),
-+                      "externe(noexec)" if "Android/data" in cmd[0] else "interne",
-+                      exc)
++            _detail = ("P167/P168/P169 exécution refusée : %s (errno=%s, mode=%s, "
++                       "X_OK=%s, racine=%s) — %s" % (
++                           _binaire, getattr(exc, "errno", "?"), _mode,
++                           os.access(_binaire, os.X_OK),
++                           "externe(noexec)" if "Android/data" in _binaire
++                           else "interne", exc))
++            log.error("%s", _detail)
++            try:
++                from open_webui import android_logs as _allog
++                _allog.journal("open_terminal", _detail, "ERROR")
++            except Exception:
++                pass
 +            raise
 +        return {
 +            "id": session_id,

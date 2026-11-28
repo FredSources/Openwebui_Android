@@ -1699,6 +1699,43 @@ l'empreinte stable
 `7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4`. Les 17
 tests passent et `check_apk.py` valide les deux APK téléchargées.
 
+= Actualisation, restauration et stockage (P169)
+
+Trois points remontés après P168 sont corrigés. Le sous-onglet « Moteur de
+recherche » dispose d'un bouton *Actualiser* : la fenêtre SearXNG est rechargeable sans quitter `/fm`, avec un cache-buster `?_=` et un retour visuel
+(`⏳ Actualisation…`, puis « page rechargée » ou « inaccessible »). La
+dernière URL `/fm` est mémorisée dans `SharedPreferences["last_fm_url"]` et
+restaurée par `restartApp()` : « Redémarrer l'application » ne renvoie plus sur
+le chat. La clé est purgée quand `versionCode` change, pour éviter de rouvrir
+une page devenue invalide.
+
+L'état des services dans `/fm` est mesuré par une connexion TCP sur le port
+réel (8888 et 8889), et non plus par la seule variable du thread : un service
+déjà à l'écoute n'est plus affiché « arrêté » après un redémarrage de
+l'application. `service_control("restart")` attend la libération du port puis
+son ouverture effective avant d'afficher le résultat, et `_ot_actif` est remis
+à `False` dans un `finally` pour ne pas figer l'état après une erreur.
+
+Un dossier visible `data/minidebian/storage` est créé côté Java sous le
+répertoire externe de l'application (`getExternalFilesDir()`), puis monté dans
+le conteneur en `/root/storage` par un bind explicite. Les binaires restent
+dans `getFilesDir()` (interne, exécutable) : le stockage de données ne doit
+jamais être confondu avec le volume d'exécution, sinon `proot` retomberait sous
+`noexec`. Suivant Termux (`TermuxInstaller.java`), les droits des binaires
+extraits sont posés avec `Os.chmod(..., 0700)` — et non plus seulement
+`setExecutable(true, false)` — au premier démarrage et à chaque redémarrage.
+
+Depuis P168, le logger `open_terminal` n'a pas de handler fichier : le refus
+d'exécution est journalisé directement dans `serveur.log` via
+`android_logs.journal()` avec le marqueur `P167/P168/P169 exécution refusée`,
+l'errno, le mode, `X_OK` et la racine. `check_apk.py` exige désormais
+`OPENWEBUI_ANDROID_STORAGE` dans `android_main.pyc` et `P169` dans
+`android_fm.pyc` : sans ces marqueurs, une APK pourrait embarquer l'ancien
+comportement alors que les patchs sont présents dans le dépôt. Aucun contrôle
+existant n'est assoupli. `scripts/test_p169.py` valide le bouton, la
+restauration, le storage, la sonde de port et le journal direct ; les 18 tests
+passent et `apply_patches.sh --check` indique 49 patchs déjà appliqués, 0 échec.
+
 = Pistes d'évolution
 
 - Mise à jour in-app de l'APK (GitHub Releases) ;

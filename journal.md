@@ -6367,3 +6367,40 @@ appliqués et 0 échec, et `check_apk.py` valide les deux APK. Il reste à
 confirmer sur l'appareil que le chmod P168 suffit et que `ptrace` est autorisé ;
 la ligne `P167/P168` de `serveur.log` donnera errno, mode et racine si le refus
 persiste.
+
+**P169 — 2026-11-28 (UTC) — Actualiser, restauration /fm et storage mini-Debian**
+
+À la demande explicite de l'utilisateur : « dans l'onglet moteur de recherche,
+ajouter un bouton refresh pour la page. quand je redemarre, la page ne
+reapparait pas. et je pense que le service ne redmarre pas. pour shell root
+.service arrêté — démarrez-le dans l'onglet Service. de plus toujours pas de
+storage cree pour le mini system debain. je veux un storage. »
+
+Décisions retenues :
+
+- le bouton `id="sx-refresh"` appelle `fmRefreshSx()` qui recharge l'iframe
+  `id="sx-frame"` avec `?_=Date.now()` et un message d'état ;
+- `SharedPreferences["last_fm_url"]` mémorise la dernière page `/fm` et est
+  restaurée par `restartApp()`, avec purge sur changement de `versionCode` ;
+- l'état des services est mesuré par `_port_actif()` (connexion TCP sur 8888
+  et 8889), et `service_control("restart")` attend la libération puis
+  l'ouverture effective du port ; `_ot_actif` est remis à `False` en `finally` ;
+- `dataHome/minidebian/storage` est créé, exposé via
+  `OPENWEBUI_ANDROID_STORAGE` et monté en `/root/storage` par un bind explicite
+  dans `android_proot_prefix()`. Les deux resets gardent leur sémantique
+  (`environment` garde `/root/work`, `wipe-work` le supprime) ;
+- `chmodProot()` applique `android.system.Os.chmod(..., 0700)` comme
+  `TermuxInstaller.java` de Termux, sur les deux chemins (marqueur présent et
+  extraction) — `setExecutable(true, false)` seul laissait 0744 ;
+- le refus d'exécution est journalisé directement dans `serveur.log` via
+  `android_logs.journal("open_terminal", ...)`, car le logger n'a pas de
+  handler fichier : marqueur `P167/P168/P169 exécution refusée` avec errno,
+  mode, `X_OK` et racine interne/externe.
+
+Validation locale : 18 tests verts (`test_p124` à `test_p169`, dont le nouveau
+`scripts/test_p169.py`), `node --check` sur les blocs JavaScript rendus,
+`py_compile` sur les modules modifiés, compilation Java `:app:compileDebugJavaWithJavac`
+avec le JDK 21 portable (le JDK 25 système casse Gradle 8.10.2), et
+`apply_patches.sh --check` à 49 patchs déjà appliqués / 0 échec. Aucun
+processus ni port 8080 résiduel. La livraison (commit, tag recréé, CI, release)
+est journalisée dans l'entrée suivante.

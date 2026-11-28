@@ -123,7 +123,7 @@ java = (PROJ / 'app/src/main/java/org/openwebui/android/MainActivity.java').read
     encoding='utf-8')
 assert 'callAttr("service_control", name, action).toString()' in java, \
     'le pont Java ne renvoie pas le résultat réel de service_control'
-assert 'if (deja.exists() && !deja.setExecutable(true, false))' in java, \
+assert 'chmodProot(deja)' in java, \
     'le bit exécutable n’est pas réappliqué sur le chemin rapide'
 print('OK  Java : résultat réel renvoyé, chmod proot réappliqué au démarrage')
 
@@ -133,9 +133,12 @@ assert 'os.chmod(_ANDROID_PROOT, 0o700)' in runner
 print('OK  runner.py : self-heal du bit exécutable avant ouverture du shell')
 
 main_py = (PROJ / 'src/open_terminal/main.py').read_text(encoding='utf-8')
-assert 'P168 exécution refusée' in main_py
+assert ('P168 exécution refusée' in main_py
+        or 'P167/P168/P169 exécution refusée' in main_py)
 assert 'mode=%s' in main_py and 'X_OK=%s' in main_py
-assert '"externe(noexec)" if "Android/data" in cmd[0] else "interne"' in main_py
+assert ('"Android/data" in cmd[0]' in main_py
+        or '"Android/data" in _binaire' in main_py), \
+    'la racine interne/externe n’est plus distinguée dans le diagnostic'
 fm_py = (PROJ / 'src/open_webui/android_fm.py').read_text(encoding='utf-8')
 assert 'proot présent dans getFilesDir() (stockage interne)' in fm_py, \
     'le diagnostic P167 trompeur est encore présent'

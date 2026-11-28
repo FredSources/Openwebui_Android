@@ -156,7 +156,10 @@ public class MainActivity extends Activity {
             long last = prefs.getLong("last_version_code", -1);
             if (last != current) {
                 webView.clearCache(true);
-                prefs.edit().putLong("last_version_code", current).apply();
+                // P169 — ne pas restaurer une vue /fm d'une version précédente :
+                // les onglets ont changé (bouton Actualiser, nouveau stockage).
+                prefs.edit().putLong("last_version_code", current)
+                        .remove("last_fm_url").apply();
             }
         } catch (Exception ignored) {
         }
@@ -292,8 +295,52 @@ public class MainActivity extends Activity {
      * même avec le bit exécutable posé. Marqueur de version : l'extraction n'a
      * lieu qu'une fois par version d'APK. Le bit exécutable de proot est
      * restauré (les assets Android ne le conservent pas).
+     *
+     * P169 — crée en plus un « storage » de données sous dataHome/minidebian :
+     * visible dans le gestionnaire de fichiers, il est monté dans le conteneur
+     * sous /root/storage. Les binaires restent seuls dans getFilesDir().
+     *
+     * P169 — mêmes droits que Termux pour les binaires extraits des assets :
+     * `Os.chmod(..., 0700)` (TermuxInstaller.java applique 0700 aux entrées
+     * `bin/`, `libexec/` et `lib/apt/` de son bootstrap). `setExecutable()` seul
+     * laissait 0744 et n'a pas suffi sur l'appareil de l'utilisateur.
      */
+    private void chmodProot(java.io.File binaire) {
+        try {
+            android.system.Os.chmod(binaire.getAbsolutePath(), 0700);
+        } catch (Exception e) {
+            writeStatus(100, "proot non exécutable : " + binaire.getAbsolutePath()
+                    + " — " + e);
+        }
+    }
+
+    private java.io.File ensureMiniDebianStorage() {
+        java.io.File base = new java.io.File(dataHome, "minidebian");
+        java.io.File storage = new java.io.File(base, "storage");
+        java.io.File work = new java.io.File(storage, "work");
+        try {
+            storage.mkdirs();
+            work.mkdirs();
+            java.io.File notice = new java.io.File(storage, "LISEZ-MOI.txt");
+            if (!notice.exists()) {
+                java.io.FileWriter w = new java.io.FileWriter(notice);
+                w.write("Stockage du mini-Debian OpenWebUI Android\n"
+                        + "Binaires et rootfs : "
+                        + new java.io.File(getFilesDir(), "minidebian").getAbsolutePath() + "\n"
+                        + "Données du conteneur : /root/storage\n"
+                        + "Dossier visible ici : " + storage.getAbsolutePath() + "\n"
+                        + "Effacé à la désinstallation de l'application.\n");
+                w.close();
+            }
+        } catch (Exception e) {
+            writeStatus(100, "stockage mini-Debian : " + e);
+        }
+        return storage;
+    }
+
     private void prepareMiniDebian() {
+        ensureMiniDebianStorage();
+
         java.io.File target = new java.io.File(getFilesDir(), "minidebian");
         java.io.File marker = new java.io.File(getFilesDir(), "minidebian.version");
         long current;
@@ -316,8 +363,8 @@ public class MainActivity extends Activity {
                     // le marqueur de version ne doit pas empêcher de le
                     // réappliquer au démarrage suivant.
                     java.io.File deja = new java.io.File(target, "proot");
-                    if (deja.exists() && !deja.setExecutable(true, false)) {
-                        writeStatus(100, "proot non exécutable : " + deja.getAbsolutePath());
+                    if (deja.exists()) {
+                        chmodProot(deja);
                     }
                     return;
                 }
@@ -328,7 +375,7 @@ public class MainActivity extends Activity {
             copyAssetFolder(getAssets(), "minidebian", target, done, total);
             java.io.File proot = new java.io.File(target, "proot");
             if (proot.exists()) {
-                proot.setExecutable(true, false);
+                chmodProot(proot);
             }
             // P167 — supprime l'ancienne copie externe (montée en noexec) et
             // son marqueur : sinon une mise à jour conserverait les deux
@@ -448,7 +495,16 @@ public class MainActivity extends Activity {
                 if (up) {
                     progressBar.setProgress(100);
                     progressLabel.setText("100 %");
-                    webView.loadUrl(APP_URL);
+                    // P169 — après « Redémarrer l'application », revenir à la
+                    // dernière page /fm (Moteur de recherche, Shell root…) au
+                    // lieu de retomber sur le chat : c'est ce qui donnait
+                    // l'impression que la page n'était plus là.
+                    String retour = getSharedPreferences("openwebui_state", MODE_PRIVATE)
+                            .getString("last_fm_url", APP_URL);
+                    if (retour == null || !retour.startsWith(APP_URL + "/fm")) {
+                        retour = APP_URL;
+                    }
+                    webView.loadUrl(retour);
                 } else {
                     updateProgressFromStatus(attempt);
                     mainHandler.postDelayed(() -> loadWhenReady(attempt + 1), RETRY_DELAY_MS);
@@ -851,6 +907,12 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView v, String url) {
+                // P169 — mémoriser la dernière page /fm pour la restaurer après
+                // un redémarrage complet de l'application.
+                if (url != null && url.startsWith(APP_URL + "/fm")) {
+                    getSharedPreferences("openwebui_state", MODE_PRIVATE).edit()
+                            .putString("last_fm_url", url).apply();
+                }
                 v.evaluateJavascript(SPEECH_POLYFILL, null);
                 // P128 — shim speechSynthesis → AndroidTTS (voix locale)
                 v.evaluateJavascript(assetJs("tts_polyfill.js"), null);

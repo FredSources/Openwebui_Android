@@ -1,0 +1,64 @@
+--- a/android_fm.py
++++ b/android_fm.py
+@@ -7,6 +7,8 @@
+ P159 : premier niveau d'onglets supprimé ; état des services dans la sidebar.
+ R162 : bouton de test SearXNG retiré de la carte Service.
+ R163 : surlignement Paramètres aligné sur la page rendue (tab transmis).
++P169 : bouton « Actualiser » dans le sous-onglet Moteur de recherche, état des
++services mesuré sur le port réel, stockage mini-Debian documenté dans Service.
+ 
+ Module AJOUTÉ hors amont (audit de divergence 2026-11-09) : ces routes
+ vivent ici pour garder main.py identique à l'origine Open WebUI.
+@@ -913,16 +915,31 @@
+                         + '&#8635; Redémarrer</button>'
+                     )
+                     if sub == 'engine':
+-                        # P155/P157 — demande utilisateur : le sous-onglet
+-                        # « Moteur de recherche » ne contient QUE l'iframe du
+-                        # service local. État, boutons de service, lien
+-                        # d'ouverture et messages restent dans « Service ».
+-                        # Les seuls autres éléments sont les barres d'onglets,
+-                        # indispensables pour revenir à la page Service.
++                        # P155/P157 — le sous-onglet « Moteur de recherche »
++                        # garde l'iframe du service local et les barres
++                        # d'onglets ; P169 ajoute seulement le bouton Actualiser
++                        # demandé après un redémarrage de l'application.
+                         page = (
+                             sous_onglets
+-                            + '<iframe class="sxframe" src="http://127.0.0.1:8888/" '
++                            + '<div style="display:flex;align-items:center;gap:10px;'
++                            'margin-bottom:10px">'
++                            + '<button type="button" class="ghost" id="sx-refresh" '
++                            'onclick="fmRefreshSx()">&#8635; Actualiser</button>'
++                            + '<span class="sub" id="sx-refresh-msg"></span></div>'
++                            + '<iframe id="sx-frame" class="sxframe" '
++                            'src="http://127.0.0.1:8888/" '
+                             'title="Moteur de recherche SearXNG" loading="lazy"></iframe>'
++                            + '<script>function fmRefreshSx(){'
++                            'var f=document.getElementById("sx-frame");'
++                            'var b=document.getElementById("sx-refresh");'
++                            'var m=document.getElementById("sx-refresh-msg");'
++                            'if(!f)return;'
++                            'if(b){b.disabled=true;b.textContent="⏳ Actualisation…";}'
++                            'if(m)m.textContent="Rechargement du moteur local…";'
++                            'f.src="http://127.0.0.1:8888/?_="+Date.now();'
++                            'setTimeout(function(){'
++                            'if(b){b.disabled=false;b.textContent="↻ Actualiser";}'
++                            'if(m)m.textContent="";},1200);}</script>'
+                         )
+                     else:
+                         sx = _am.searxng_settings_load()
+@@ -1002,8 +1019,11 @@
+                             + _html.escape(st.get('open_terminal', 'arrêt'))
+                             + '</b> — écoute locale <code>127.0.0.1:8889</code></p>'
+                             + '<p class="sub">Shell root : mini-Debian trixie isolé sous proot. '
+-                            + 'Seul <code>/root/work</code> est partagé avec '
+-                            + '<code>data/work</code> de l’application.</p>'
++                            + '<code>/root/work</code> correspond à '
++                            + '<code>data/work</code> et <code>/root/storage</code> à '
++                            + '<code>data/minidebian/storage</code> (visible dans le '
++                            + 'gestionnaire de fichiers). Les binaires restent dans '
++                            + 'le stockage interne de l’application.</p>'
+                             + '<div class="svcbar">' + svcbar + '</div></div>'
+                             + '<div class="card"><h2>&#9888; Réinitialisation</h2>'
+                             + '<p class="sub">Deux actions distinctes : préserver ou effacer '

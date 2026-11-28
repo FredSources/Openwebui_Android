@@ -81,7 +81,12 @@ assert 'fetch("/fm/ot/reset"' in src, 'reset sans appel serveur'
 assert 'action="/fm/ot/reset"' not in src, 'formulaire de reset sans redémarrage'
 print('OK  traçabilité : journal P163, route /fm/ot/reset, redémarrage via AndroidSystem')
 
-# 5 — P164 : un restart attend la libération du port avant de relancer uvicorn.
+# 5 — P164/P169 : un restart attend la libération du port avant de relancer
+# uvicorn, et l'état renvoyé vient du port réel (pas d'une variable de thread).
+port_occupe = [True]
+am._port_actif = lambda _port: port_occupe[0]
+
+
 class _Serveur:
     def __init__(self):
         self.started = True
@@ -95,15 +100,23 @@ class _Serveur:
     def should_exit(self, value):
         self._exit = bool(value)
         self.started = False
+        port_occupe[0] = False  # le port se libère quand uvicorn s'arrête
 
 
 serveur = _Serveur()
 am._ot_server = serveur
 am._ot_actif = True
 appels = []
-am._start_open_terminal = lambda: appels.append(not serveur.started)
+
+
+def _relance():
+    appels.append(not serveur.started)
+    port_occupe[0] = True  # le nouveau service ouvre le port
+
+
+am._start_open_terminal = _relance
 assert am.service_control('open_terminal', 'restart') == 'Open Terminal (re)démarré'
 assert appels == [True], 'nouveau service lancé avant la libération du port'
-print('OK  restart : port libéré avant le relancement du service')
+print('OK  restart : port libéré puis réouvert avant le résultat affiché')
 
 print('\nTous les cas P163 sont valides.')

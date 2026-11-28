@@ -392,3 +392,10 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [x] P168 : tag `v0.0.82_ot_beta` recréé sur `2de40d4`, CI #46139047935 verte
       après correction du marqueur P167, prerelease republiée, APK release et
       debug vérifiées
+- [x] P169 : bouton Actualiser du moteur, restauration de la dernière page `/fm`,
+      état des services mesuré sur le port, storage visible `data/minidebian/storage`
+      monté en `/root/storage`, chmod Termux `Os.chmod 0700`, diagnostic direct
+      dans `serveur.log` — `test_p169.py` vert, 18 tests verts
+- [ ] P169 : republier `v0.0.82_ot_beta` (tag supprimé puis recréé), surveiller la
+      CI, vérifier prerelease/APK/hashes/signature, puis demander à l'utilisateur
+      la ligne `P167/P168/P169 exécution refusée` si le shell échoue encore

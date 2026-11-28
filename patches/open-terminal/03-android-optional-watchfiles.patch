@@ -1,0 +1,23 @@
+--- a/open_terminal/utils/events.py
++++ b/open_terminal/utils/events.py
+@@ -7,7 +7,10 @@
+ 
+ import anyio
+ from fastapi import HTTPException, WebSocket, WebSocketDisconnect
+-import watchfiles
++try:
++    import watchfiles
++except ImportError:  # P161 — watchfiles natif absent sous Chaquopy/Android
++    watchfiles = None
+ 
+ from open_terminal.utils.git import GitRepository
+ 
+@@ -35,6 +38,8 @@
+     """
+ 
+     def __init__(self, key: tuple[tuple[str, ...], bool]):
++        if watchfiles is None:  # P161 — aucun watcher natif sur Android
++            raise RuntimeError("surveillance de fichiers indisponible sur cet appareil")
+         self.key = key
+         self.subscribers: set[asyncio.Queue] = set()
+         self.ready = False

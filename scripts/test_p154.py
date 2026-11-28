@@ -79,12 +79,12 @@ for pur in ('aiohappyeyeballs-2.7.1', 'aiosignal-1.4.0', 'attrs-26.1.0', 'idna-3
     assert (PROJ / 'wheels' / f'{pur}-py3-none-any.whl').exists(), pur
 print('OK  wheels : 5 natifs Android + 4 purs, tags et suffixes conformes')
 
-# 5. Version de livraison : prerelease v0.0.82_beta, stable v0.0.81 intacte.
+# 5. Version de livraison : prerelease v0.0.82_ot_beta, stable v0.0.81 intacte.
 gradle = (PROJ / 'app/build.gradle').read_text(encoding='utf-8')
-assert "versionName '0.0.82_beta'" in gradle, 'versionName pas en v0.0.82_beta'
+assert "versionName '0.0.82_ot_beta'" in gradle, 'versionName pas en v0.0.82_ot_beta'
 fm = (PROJ / 'patches/backend/02-android_fm.py.patch').read_text()
-assert '_FM_VERSION = "0.0.82_beta"' in fm
-assert 'P101 version=0.0.82_beta' in fm
-print('OK  version : v0.0.82_beta dans build.gradle et /fm')
+assert '_FM_VERSION = "0.0.82_ot_beta"' in fm
+assert 'P101 version=0.0.82_ot_beta' in fm
+print('OK  version : v0.0.82_ot_beta dans build.gradle et /fm')
 
 print('\nTous les cas R165 sont valides.')

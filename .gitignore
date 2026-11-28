@@ -11,7 +11,13 @@
 !/tools/ndk-cc/
 !/tools/wrappers/
 /downloads/
-/vendor/
+/vendor/*
+!/vendor/open-webui/
+!/vendor/searxng/
+!/vendor/open-terminal
+!/vendor/open-terminal/
+!/vendor/proot-distro
+!/vendor/proot-distro/
 /.venv313/
 /.venv/
 
@@ -28,8 +34,9 @@
 __pycache__/
 *.pyc
 
-# --- Générés (prepare_src.py, Gradle) ---
+# --- Générés (prepare_src.py, Gradle, apply_patches.sh) ---
 /src/
+/src-assets/
 /app/build/
 /build/
 /.gradle/

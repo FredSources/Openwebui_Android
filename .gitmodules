@@ -4,3 +4,9 @@
 [submodule "vendor/searxng"]
 	path = vendor/searxng
 	url = https://github.com/searxng/searxng.git
+[submodule "vendor/open-terminal"]
+	path = vendor/open-terminal
+	url = https://github.com/open-webui/open-terminal.git
+[submodule "vendor/proot-distro"]
+	path = vendor/proot-distro
+	url = https://github.com/termux/proot-distro.git

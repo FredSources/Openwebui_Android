@@ -5952,3 +5952,77 @@ Contrôles complémentaires sur les deux APK : `apksigner verify --print-certs`
 `client_session_kwargs`. Aucun processus de test résiduel (port 8090
 uniquement, jamais 8080). `vendor/open-webui` reste figé sur `v0.13.5`
 (`926f826ea`).
+
+### Intégration Open Terminal — P160/P161/P162/P163 — 2026-11-27 23:54 UTC
+
+Demande : intégrer Open Terminal « à la façon de SearXNG », avec un mini-Debian
+embarqué sous proot, un vrai émulateur xterm.js dans `/fm`, et deux actions de
+réinitialisation distinctes. Décisions appliquées sans rouvrir le périmètre
+R164 (M0+M1+M2) : aucun embedding local, LLM distant, `LocalVectorDB` locale.
+
+- *Sources figées* : `vendor/open-terminal` sur `v0.18.8`
+  (`1413e9be11677266a400744480dc2e8c0de69916`, MIT) et `vendor/proot-distro`
+  sur `v5.10.3` (`737306f53fc86213db0ce0ac3e76aa3fda8dcb90`, GPL-3.0-only),
+  ajoutés comme submodules ; `vendor/open-webui` reste à `926f826ea` (v0.13.5).
+  `proot-distro` n'est utilisé que comme orchestrateur Python : le binaire
+  `proot` et deux bibliothèques bionic sont embarqués dans `assets/minidebian`.
+- *P161* — compatibilité Chaquopy : import `grp` et `pwd` optionnels dans
+  `helpers/rootfs.py`, `watchfiles` optionnel dans `utils/events.py` (le
+  service WebSocket n'est pas utilisé), repli de version `0.18.8` quand le
+  `dist-info` d'Open Terminal n'existe pas dans l'APK. Aucun faux module
+  global `grp.py` n'est créé.
+- *P160* — service local : `android_main.py` génère une clé API privée dans
+  `data/open-terminal-api.key` (mode 0600), force l'entrée
+  `machines.connections` `embedded-open-terminal` vers `127.0.0.1:8889`,
+  désactive browser/desktop/agents/notebooks, installe le rootfs trixie dans
+  `data/proot-distro/containers/minidebian/rootfs`, puis lance uvicorn en
+  thread daemon avec `ws="none"` après la disponibilité d'Open WebUI. Les
+  commandes et le shell passent par `proot -0 -r <rootfs> -b /dev -b /proc
+  -b /sys -b <work>:/root/work -w /root/work /bin/bash` : **jamais** `-R`/`-S`,
+  qui lieraient `$HOME` et exposeraient la base et les secrets à l'intérieur
+  du conteneur. `MainActivity.prepareMiniDebian()` extrait les assets une fois
+  par version et restaure le bit exécutable de `proot`.
+- *P162* — `/fm` gagne « Open Terminal → Service » et « Shell root » dans la
+  sidebar Paramètres, chacun avec point vert `#22c55e` / rouge `#ef4444`.
+  Le shell est un *vrai* xterm.js 6.0.0 (`@xterm/addon-fit` 0.11.0 et
+  `@xterm/addon-web-links` 0.12.0, versions et SHA-256 dans
+  `static/xterm/manifest.json`). Les entrées/sorties passent par le relais HTTP
+  local `/fm/ot/{session,output,input,resize}` : le navigateur ne voit jamais
+  la clé API (ajoutée côté serveur dans l'en-tête `Authorization: Bearer`).
+  Un WebSocket navigateur est impossible ici (en-têtes `x-user-id` /
+  `x-session-id` et token de premier message) ; il est donc écarté.
+- *P163* — deux resets distincts : marqueur `data/open-terminal-reset-requested`
+  avec contenu `environment` (clé, rootfs, log et connexion recréés,
+  `/root/work` conservé) ou `wipe-work` (plus suppression de `data/work`),
+  consommés avant le démarrage des services puis redémarrage via
+  `AndroidSystem.restartApp()`. Le marqueur `minidebian.version` n'est pas
+  touché : les assets ne changent pas, seul le conteneur est reconstruit.
+
+Le numéro de version passe en `v0.0.82_ot_beta` (prerelease) dans
+`build.gradle`, `/fm` et les tests/contrôles APK. `v0.0.82_beta` reste publiée
+inchangée et `v0.0.81` reste la release stable `Latest`. Les tests
+`test_p160.py`, `test_p161.py`, `test_p162.py` et `test_p163.py` sont ajoutés ; `check_apk.py`
+exige désormais les assets mini-Debian, les modules `open_terminal` /
+`proot_distro`, les fichiers xterm et l'absence de clé dans le HTML.
+*Phase matérielle encore à valider* : exécution de `proot` depuis les assets
+d'une build release, autorisation `ptrace` et `pty.openpty()` sur l'appareil.
+Sans `ptrace`, repli annoncé : commandes sans PTY, pas de shell interactif.
+
+### Finalisation intégration Open Terminal — 2026-11-28 00:15 UTC
+
+Rootfs livré et vérifié : `minidebian/rootfs.tar.xz`, 30 885 448 octets,
+SHA-256 `e64977f8981f2e0be70661abe6af3204480aaa5a968c6c57e79597024b3d92b5`,
+Debian 13.7 trixie arm64, glibc 2.41, instantané Debian figé au
+`20261027T000000Z`, 105 paquets dont `git 2.47.3` et `apt 3.0.3`. Le manifest
+consigne les empreintes de `proot` (`bc3e5416…`), de `libtalloc.so.2`
+(`742b438c…`) et de `libandroid-shmem.so` (`84475798…`). Vérification locale
+`proot -r <rootfs> /bin/bash -lc …` réussie (root, git et apt présents). La
+limite de 100 Mo par fichier imposée par GitHub est respectée.
+
+Deux corrections apportées à l'interface `/fm` : les boutons de reset appellent
+désormais `fetch('/fm/ot/reset')` puis `AndroidSystem.restartApp()` (le redémarrage
+n'était auparavant pas déclenché), et `FitAddon.onResize` relaisse la taille du
+PTY vers `/fm/ot/resize`. Le test `test_p161.py` est ajouté pour les replis
+Chaquopy. `test_p160.py`, `test_p161.py`, `test_p162.py`, `test_p163.py` et
+`test_p154.py` / `test_p159.py` passent ; rejeu de `apply_patches.sh` :
+38 appliqués, 9 déjà, 0 échec. Aucun résidu sur le port 8090.

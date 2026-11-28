@@ -1,0 +1,34 @@
+{
+  "usage": "Assets xterm.js embarqués pour l'onglet /fm « Shell root ». Servis par le mount /static de open_webui (STATIC_DIR). Versions alignées sur vendor/open-webui/package.json.",
+  "files": {
+    "xterm.js": {
+      "package": "@xterm/xterm",
+      "version": "6.0.0",
+      "url": "https://unpkg.com/@xterm/xterm@6.0.0/lib/xterm.js",
+      "sha256": "14903579ff54664cd72f8e8699e6961a6272c21863ec1c3b118cdc8af5d4a972"
+    },
+    "xterm.css": {
+      "package": "@xterm/xterm",
+      "version": "6.0.0",
+      "url": "https://unpkg.com/@xterm/xterm@6.0.0/css/xterm.css",
+      "sha256": "854a7c0fb70e8b1a083c16797ab827299fb18744f5ad34f227b48337e33293c6"
+    },
+    "addon-fit.js": {
+      "package": "@xterm/addon-fit",
+      "version": "0.11.0",
+      "url": "https://unpkg.com/@xterm/addon-fit@0.11.0/lib/addon-fit.js",
+      "sha256": "ba3ea256ce0620a0992a197d6c9baea64823fc93d8da07a9e366ca9943c18527"
+    },
+    "addon-web-links.js": {
+      "package": "@xterm/addon-web-links",
+      "version": "0.12.0",
+      "url": "https://unpkg.com/@xterm/addon-web-links@0.12.0/lib/addon-web-links.js",
+      "sha256": "b74864125ef3889753b94e61eb4dabb99b2a27f920f0c9a7bd53cbe6d10f032a"
+    }
+  },
+  "licenses": {
+    "xterm-LICENSE": "MIT",
+    "addon-fit-LICENSE": "MIT",
+    "addon-web-links-LICENSE": "MIT"
+  }
+}

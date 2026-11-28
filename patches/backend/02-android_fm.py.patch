@@ -31,11 +31,11 @@ new file mode 100644
 +        from open_webui import android_logs as _allog
 +        _allog.install()
 +        import os as _osv
-+        _allog.journal_exec("P101 version=0.0.82_beta ping_timeout=%s" % _osv.environ.get('WEBSOCKET_SERVER_PING_TIMEOUT', '?'))
++        _allog.journal_exec("P101 version=0.0.82_ot_beta ping_timeout=%s" % _osv.environ.get('WEBSOCKET_SERVER_PING_TIMEOUT', '?'))
 +    except Exception:
 +        pass
 +
-+    _FM_VERSION = "0.0.82_beta"
++    _FM_VERSION = "0.0.82_ot_beta"
 +    import html as _html
 +    import os as _osj
 +    import re as _re

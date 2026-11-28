@@ -176,6 +176,7 @@ public class MainActivity extends Activity {
             writeStatus(3, "Préparation de l'interface…");
             prepareFrontend();
             prepareTypstPackages();  // D14 — paquets @preview embarqués (hors ligne)
+            prepareMiniDebian();     // P160 — proot + rootfs Debian trixie embarqués
             writeStatus(45, "Démarrage du serveur Open WebUI…");
             Python py = Python.getInstance();
             // P130 — pont de découpage audio (MediaExtractor/MediaMuxer) pour
@@ -276,6 +277,49 @@ public class MainActivity extends Activity {
             w.close();
         } catch (Exception e) {
             writeStatus(100, "Erreur d'extraction de l'interface : " + e);
+        }
+    }
+
+    /**
+     * P160 — extrait le mini-Debian (binaire proot, bibliothèques Android et
+     * rootfs trixie) depuis les assets vers filesDir/minidebian. Marqueur de
+     * version : l'extraction n'a lieu qu'une fois par version d'APK. Le bit
+     * exécutable de proot est restauré (les assets Android ne le conservent pas).
+     */
+    private void prepareMiniDebian() {
+        java.io.File target = new java.io.File(dataHome, "minidebian");
+        java.io.File marker = new java.io.File(dataHome, "minidebian.version");
+        long current;
+        try {
+            android.content.pm.PackageManager pm = getPackageManager();
+            current = android.os.Build.VERSION.SDK_INT >= 28
+                    ? pm.getPackageInfo(getPackageName(), 0).getLongVersionCode()
+                    : pm.getPackageInfo(getPackageName(), 0).versionCode;
+        } catch (Exception e) {
+            current = -1;
+        }
+        try {
+            if (target.isDirectory() && marker.exists()) {
+                java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(marker));
+                String v = r.readLine();
+                r.close();
+                if (v != null && v.equals(String.valueOf(current))) {
+                    return;
+                }
+            }
+            deleteRecursive(target);
+            final int total = Math.max(1, countAssets("minidebian"));
+            final int[] done = {0};
+            copyAssetFolder(getAssets(), "minidebian", target, done, total);
+            java.io.File proot = new java.io.File(target, "proot");
+            if (proot.exists()) {
+                proot.setExecutable(true, false);
+            }
+            java.io.FileWriter w = new java.io.FileWriter(marker);
+            w.write(String.valueOf(current));
+            w.close();
+        } catch (Exception e) {
+            writeStatus(100, "Erreur d'extraction du mini Debian : " + e);
         }
     }
 

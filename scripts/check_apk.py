@@ -164,6 +164,20 @@ def check_apk(apk: pathlib.Path) -> None:
             err(f"{apk.name} : embedded-searxng absent du frontend compilé — "
                 f"moteur de recherche web indisponible dans le menu")
 
+        # P160 — mini-Debian embarqué (proot + bibliothèques bionic + rootfs).
+        # Le rootfs est extrait par MainActivity vers filesDir/minidebian ;
+        # son absence rend le « Shell root » inopérant sans message d'erreur.
+        for requis in ("assets/minidebian/proot",
+                       "assets/minidebian/rootfs.tar.xz",
+                       "assets/minidebian/manifest.json",
+                       "assets/minidebian/libtalloc.so.2",
+                       "assets/minidebian/libandroid-shmem.so"):
+            if requis not in noms:
+                err(f"{apk.name} : absent — {requis} (mini-Debian P160)")
+        racine = lire(z, "assets/minidebian/rootfs.tar.xz") or b""
+        if racine and len(racine) > 100_000_000:
+            err(f"{apk.name} : rootfs trop volumineux ({len(racine)} octets)")
+
     # 4/5. natifs de lib/
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -190,6 +204,18 @@ def check_apk(apk: pathlib.Path) -> None:
                     label = pathlib.Path(bundle_nom).name
                     if "app.imy" in bundle_nom:
                         noms_b = bundle.namelist()
+                        # P160/P162 — Open Terminal, proot-distro et xterm.js
+                        # sont copiés dans src/ puis embarqués dans app.imy.
+                        for module in ("open_terminal/main.pyc",
+                                       "proot_distro/helpers/rootfs.pyc"):
+                            if not any(n.endswith(module) for n in noms_b):
+                                err(f"{label} : {module} absent (service P160)")
+                        for xterm in ("xterm.js", "xterm.css", "addon-fit.js",
+                                      "addon-web-links.js"):
+                            if not any(n.endswith("static/xterm/" + xterm)
+                                       for n in noms_b):
+                                err(f"{label} : static/xterm/{xterm} absent "
+                                    f"(Shell root P162)")
                         for requis in ("searx/settings.yml", "searx/version_frozen.py"):
                             if requis not in noms_b:
                                 err(f"{label} : absent — {requis} (piège git SearXNG)")
@@ -277,11 +303,11 @@ def check_apk(apk: pathlib.Path) -> None:
                         # faisait échouer le run 45916306148. Corrigé à la
                         # source, le contrôle reste strict : nouvelle constante
                         # présente ET ancienne absente — aucun garde-fou n'est
-                        # affaibli. R165 : passage à 0.0.82_beta.
-                        elif not any(b"0.0.82_beta" in o for o in fm) or any(
+                        # affaibli. R166 : passage à 0.0.82_ot_beta.
+                        elif not any(b"0.0.82_ot_beta" in o for o in fm) or any(
                                 b"0.0.81" in o for o in fm):
                             err(f"{label} : version du pied de page /fm non à jour "
-                                f"(attendu 0.0.82_beta, sans 0.0.81)")
+                                f"(attendu 0.0.82_ot_beta, sans 0.0.81)")
                     elif "requirements-common" in bundle_nom:
                         check_modules(bundle, label, MODULES_PIP)
                         # R165 : aiohttp 3.14.5 remplace le 3.10.10 épinglé par

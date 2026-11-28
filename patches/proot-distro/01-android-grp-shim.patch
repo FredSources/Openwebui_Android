@@ -1,0 +1,33 @@
+--- a/proot_distro/helpers/rootfs.py
++++ b/proot_distro/helpers/rootfs.py
+@@ -39,9 +39,15 @@
+ # path form is for a caller that holds only a name (optionally with the
+ # rootfs descriptor to start from) and does a single fixup.
+ 
+-import grp
++try:
++    import grp
++except ImportError:  # Chaquopy/Android has no Unix group database
++    grp = None
+ import os
+-import pwd
++try:
++    import pwd
++except ImportError:  # Chaquopy/Android has no Unix passwd database
++    pwd = None
+ import stat
+ 
+ from proot_distro import dirfd
+@@ -279,9 +285,9 @@
+ 
+     for g in all_gids:
+         try:
+-            gname = grp.getgrgid(g).gr_name
+-        except KeyError:
+-            continue
++            gname = grp.getgrgid(g).gr_name if grp else f"gid_{g}"
++        except Exception:
++            gname = f"gid_{g}"
+         _append_at(
+             etc_fd, "group", f"aid_{gname}:x:{g}:root,aid_{username_result}\n",
+             create=True,

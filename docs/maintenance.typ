@@ -1451,6 +1451,50 @@ que Chaquopy les place dans `requirements-common.imy`. Le contrôle y a été
 déplacé (sans être assoupli) : il exige toujours les six versions reconstruites,
 et l'absence du helper P154 reste vérifiée dans `aws.pyc` de `app.imy`.
 
+= Intégration d'Open Terminal et du mini-Debian (P160–P163)
+
+La livraison suivante est une *prerelease* `v0.0.82_ot_beta`. La prerelease
+`v0.0.82_beta` déjà publiée reste inchangée et `v0.0.81` demeure la release
+stable `Latest`. Le numéro de version est relevé dans `app/build.gradle`, le
+pied de page `/fm` et les contrôles APK ; les références à `0.0.82_beta` dans
+les sections précédentes sont historiques.
+
+Deux submodules sont ajoutés sans toucher à `vendor/open-webui`, figé sur
+`v0.13.5` : *Open Terminal* `v0.18.8` (MIT) et *proot-distro* `v5.10.3`
+(GPL-3.0-only). proot-distro sert uniquement d'orchestrateur Python ; le binaire
+`proot` et deux bibliothèques Android (`libtalloc.so.2`,
+`libandroid-shmem.so`) sont embarqués avec un rootfs *Debian trixie* arm64
+contenant `bash`, `apt` et `git`. L'ensemble est extrait par
+`MainActivity.prepareMiniDebian()` vers `filesDir/minidebian`, une fois par
+version d'APK, avec restauration du bit exécutable.
+
+Le service tourne sur `127.0.0.1:8889`, lancé en thread daemon après la
+disponibilité d'Open WebUI, comme SearXNG sur `8888`. La clé API est générée
+une seule fois dans `data/open-terminal-api.key` (mode `0600`) et la connexion
+machine `embedded-open-terminal` est forcée dans `machines.connections`. Les
+commandes et le shell interactif passent par des binds explicites vers
+`/root/work` ; les options `-R`/`-S` sont proscrites car elles lieraient
+`$HOME`, donc le répertoire de données et ses secrets. Trois patchs de
+compatibilité Chaquopy évitent les imports indisponibles (`grp`, `pwd`,
+`watchfiles`) et l'absence de `dist-info` du paquet Open Terminal.
+
+La page `/fm` gagne deux entrées dans « Paramètres », avec point vert ou rouge
+selon l'état du service. L'onglet *Shell root* utilise un vrai *xterm.js* 6.0.0
+avec `FitAddon` et `WebLinksAddon` ; les entrées et sorties passent par le
+relais HTTP local `/fm/ot/*`, qui ajoute la clé côté serveur. Le WebSocket
+navigateur n'est pas utilisable (en-têtes d'identification et token de premier
+message), ce qui motive ce relais. Deux actions de réinitialisation sont
+proposées : reconstruction de l'environnement en conservant `/root/work`, ou
+effacement complet de ce répertoire. Les deux consomment un marqueur au
+démarrage, recréent le conteneur et la clé, puis redémarrent l'application.
+
+Les contrôles `check_apk.py` exigent désormais les assets mini-Debian, les
+modules `open_terminal` et `proot_distro`, les fichiers xterm et l'absence de
+clé dans le HTML ; les tests `test_p160.py`, `test_p161.py`, `test_p162.py` et `test_p163.py`
+couvrent la reconstruction, le rendu et les deux modes de reset. La procédure
+complète, les versions figées et les limites de la validation matérielle sont
+décrites dans `docs/minidebian-android.typ`.
+
 = Pistes d'évolution
 
 - Mise à jour in-app de l'APK (GitHub Releases) ;

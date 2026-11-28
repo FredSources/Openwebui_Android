@@ -1,0 +1,88 @@
+--- a/open_terminal/main.py
++++ b/open_terminal/main.py
+@@ -27,7 +27,17 @@
+ 
+ from fastapi import Depends, FastAPI, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
+ from fastapi.exceptions import RequestValidationError
+-from open_terminal.browser.router import BrowserCORSMiddleware
++# P160 — under Android the browser/desktop stack is disabled: avoid importing
++# websockets through browser.router (unavailable in Chaquopy).
++if os.environ.get("OPEN_TERMINAL_ENABLE_BROWSER", "true").lower() in ("false", "0", "no"):
++    class BrowserCORSMiddleware:  # type: ignore[no-redef]
++        def __init__(self, app, **kwargs):
++            self.app = app
++
++        async def __call__(self, scope, receive, send):
++            await self.app(scope, receive, send)
++else:
++    from open_terminal.browser.router import BrowserCORSMiddleware
+ from fastapi.responses import JSONResponse, StreamingResponse
+ from starlette.formparsers import MultiPartParser, MultiPartException, parse_options_header
+ from pydantic import BaseModel, Field, TypeAdapter, ValidationError
+@@ -37,7 +47,7 @@
+ from open_terminal.dependencies import get_filesystem, matches_api_key, verify_api_key
+ from open_terminal.env import API_KEY, BINARY_FILE_MIME_PREFIXES, CORS_ALLOWED_ORIGINS, ENABLE_BROWSER, ENABLE_DESKTOP, ENABLE_NOTEBOOKS, ENABLE_SYSTEM_PROMPT, ENABLE_TERMINAL, EXECUTE_DESCRIPTION, EXECUTE_TIMEOUT, FILE_BROWSER_ROOT, LOG_DIR, MAX_TERMINAL_SESSIONS, MULTI_USER, OPEN_TERMINAL_INFO, PROCESS_LOG_RETENTION, SESSION_CWD_TTL, SYSTEM_PROMPT, TERMINAL_TERM
+ from open_terminal.env import sanitized_environ
+-from open_terminal.utils.runner import PipeRunner, ProcessRunner, create_runner, read_pty, write_pty, PtyRunner
++from open_terminal.utils.runner import PipeRunner, ProcessRunner, android_proot_prefix, create_runner, read_pty, write_pty, PtyRunner
+ from open_terminal.utils.fs import UserFS, FullFileResponse as FileResponse, TemporaryFileResponse, edit_patch, text_file_response, line_range_offsets
+ from open_terminal.utils.limits import (CHUNK_SIZE, NormalizeNullQueryMiddleware, run_io, run_worker)
+ from open_terminal.utils.file_compare import CompareRequest, run_comparison
+@@ -2254,6 +2264,7 @@
+                 chat_id = request.headers.get("x-session-id")
+                 session_cwd = _get_session_cwd(chat_id, fs) if chat_id else None
+ 
++                spawn_lib = ""
+                 if fs.username:
+                     shell_cmd = [
+                         "script", "-qc",
+@@ -2262,11 +2273,19 @@
+                     ]
+                     cwd = session_cwd or start_directory(fs.home)
+                 else:
+-                    shell_cmd = [os.environ.get("SHELL", "/bin/sh")]
++                    _prefix = android_proot_prefix()
++                    if _prefix:
++                        shell_cmd = _prefix + ["/bin/bash", "-l"]
++                        spawn_lib = os.environ.get("OPENWEBUI_ANDROID_PROOT_LIB", "")
++                    else:
++                        shell_cmd = [os.environ.get("SHELL", "/bin/sh")]
++                        spawn_lib = ""
+                     cwd = session_cwd or start_directory(fs.home)
+ 
+                 spawn_env = sanitized_environ()
+                 spawn_env.setdefault("TERM", TERMINAL_TERM)
++                if spawn_lib:
++                    spawn_env["LD_LIBRARY_PATH"] = spawn_lib
+                 process = subprocess.Popen(
+                     shell_cmd,
+                     stdin=slave_fd,
+@@ -2448,6 +2467,28 @@
+         return {"status": "ok"}
+ 
+ 
++    @app.post("/api/terminals/user/resize", operation_id="resize_user_terminal", dependencies=[Depends(verify_api_key)])
++    async def resize_user_terminal(request: Request, body: dict):
++        """P162 — resize the active user shell from the xterm.js FitAddon."""
++        session = _user_terminal(request)
++        try:
++            rows = max(1, min(200, int(body.get("rows", 24))))
++            cols = max(1, min(400, int(body.get("cols", 80))))
++        except (TypeError, ValueError):
++            raise HTTPException(status_code=400, detail="Invalid rows/cols")
++        try:
++            if session["backend"] == "pty":
++                fcntl.ioctl(
++                    session["master_fd"], termios.TIOCSWINSZ,
++                    struct.pack("HHHH", rows, cols, 0, 0),
++                )
++            else:
++                session["pty_process"].setwinsize(rows, cols)
++        except Exception as exc:
++            raise HTTPException(status_code=409, detail=f"resize impossible : {exc}")
++        return {"status": "ok", "rows": rows, "cols": cols}
++
++
+     @app.get("/api/terminals", dependencies=[Depends(verify_api_key)], include_in_schema=False)
+     async def list_terminals(request: Request):
+         """List active terminal sessions."""

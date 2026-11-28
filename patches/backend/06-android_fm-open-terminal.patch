@@ -1,0 +1,247 @@
+--- a/android_fm.py
++++ b/android_fm.py
+@@ -355,11 +355,16 @@
+             "".join(_lien(f"/fm?folder={k}&src={src}", lib, k == folder, ic)
+                     for k, lib, ic in feuilles))
+         entrees = [("/fm?folder=settings&tab=owui", "Open WebUI", "brain",
+-                    folder == 'settings' and tab != 'searxng',
++                    folder == 'settings' and tab == 'owui',
+                     _vert if st.get('openwebui') == 'actif' else _rouge),
+                    ("/fm?folder=settings&tab=searxng", "SearXNG", "search",
+                     folder == 'settings' and tab == 'searxng',
+                     _vert if st.get('searxng') == 'actif' else _rouge),
++                   ("/fm?folder=settings&tab=ot_service", "Open Terminal", "plug",
++                    folder == 'settings' and tab in ('ot_service', 'ot_shell'),
++                    _vert if st.get('open_terminal') == 'actif' else _rouge),
++                   ("/fm?folder=settings&tab=ot_shell", "Shell root", "code",
++                    folder == 'settings' and tab == 'ot_shell', ''),
+                    ("/fm?folder=maintenance", "Maintenance", "tools",
+                     folder == 'maintenance', ''),
+                    ("/fm?folder=logs", "Journaux", "page-text",
+@@ -397,6 +402,26 @@
+         )
+ 
+ 
++    def _fm_ot_sous_onglets(actif: str = "service", etat: str = "arrêt") -> str:
++        """P160 — sous-onglets « Service » et « Shell root » d'Open Terminal."""
++        _vert, _rouge = '#22c55e', '#ef4444'
++        dot = ('<span class="dot" style="background:'
++               + (_vert if etat == 'actif' else _rouge) + '"></span> ')
++
++        def _s(k, label, href, ic, prefix=''):
++            return (f'<a class="subtab{" on" if k == actif else ""}" href="{href}">'
++                    f'{_fm_ico(ic, 14)}{prefix}{label}</a>')
++
++        return (
++            '<div class="subtabs">'
++            + _s('service', 'Service', '/fm?folder=settings&tab=ot_service',
++                 'plug', dot)
++            + _s('shell', 'Shell root', '/fm?folder=settings&tab=ot_shell',
++                 'code')
++            + '</div>'
++        )
++
++
+     def _fm_page(inner: str, title: str = "Fichiers", folder: str = "all", src: str = "both", tab: str = "owui") -> str:
+         # P37/P109 — habillage COMPLET et PERMANENT : la sidebar (arbre de
+         # navigation) est TOUJOURS présente, le bouton de retour est FIXE en HAUT
+@@ -921,6 +946,121 @@
+                             + '<button class="primary">&#128190; Enregistrer les réglages</button></div>'
+                             + '</form></div><p id="svcmsg" class="sub"></p>' + _js
+                         )
++                elif tab in ('ot_service', 'ot_shell'):
++                    sous_onglets = _fm_ot_sous_onglets(
++                        'shell' if tab == 'ot_shell' else 'service',
++                        st.get('open_terminal', 'arrêt'))
++                    svcbar = (
++                        '<button type="button" class="ghost" onclick="svc(&quot;open_terminal&quot;,&quot;run&quot;)">'
++                        '&#9654; Démarrer</button>'
++                        '<button type="button" class="ghost" onclick="svc(&quot;open_terminal&quot;,&quot;stop&quot;)">'
++                        '&#9208; Arrêter</button>'
++                        '<button type="button" class="ghost" onclick="svc(&quot;open_terminal&quot;,&quot;restart&quot;)">'
++                        '&#8635; Redémarrer</button>'
++                    )
++                    reset_js = (
++                        '<script>function otReset(mode){'
++                        'var f=new FormData();f.append("mode",mode);'
++                        'fetch("/fm/ot/reset",{method:"POST",body:f})'
++                        '.then(function(r){return r.json();})'
++                        '.then(function(d){var e=document.getElementById("svcmsg");'
++                        'if(d.status!=="ok"){if(e)e.textContent=d.detail||"échec";return;}'
++                        'if(e)e.textContent="Réinitialisation programmée, redémarrage…";'
++                        'if(window.AndroidSystem&&AndroidSystem.restartApp)'
++                        '{AndroidSystem.restartApp();}});'
++                        '.catch(function(){var e=document.getElementById("svcmsg");'
++                        'if(e)e.textContent="échec du relais de réinitialisation";});}</script>'
++                    )
++                    if tab == 'ot_service':
++                        page = (
++                            sous_onglets
++                            + '<div class="settings"><div class="card"><h2>&#128268; Service</h2>'
++                            + '<p class="sub"><span class="dot" style="background:'
++                            + (_vert if st.get('open_terminal') == 'actif' else _rouge)
++                            + '"></span> État : <b>'
++                            + _html.escape(st.get('open_terminal', 'arrêt'))
++                            + '</b> — écoute locale <code>127.0.0.1:8889</code></p>'
++                            + '<p class="sub">Shell root : mini-Debian trixie isolé sous proot. '
++                            + 'Seul <code>/root/work</code> est partagé avec '
++                            + '<code>data/work</code> de l’application.</p>'
++                            + '<div class="svcbar">' + svcbar + '</div></div>'
++                            + '<div class="card"><h2>&#9888; Réinitialisation</h2>'
++                            + '<p class="sub">Deux actions distinctes : préserver ou effacer '
++                            + 'les fichiers de <code>/root/work</code>. Les deux actions '
++                            + 'recréent le conteneur et la clé API locale.</p>'
++                            + '<p class="sub">La réinitialisation redémarre l’application.</p>'
++                            + '<button class="ghost" type="button" id="ot-reset-env" '
++                            + 'onclick="otReset(&quot;environment&quot;)">'
++                            + 'Réinitialiser l’environnement (work conservé)</button> '
++                            + '<button class="ghost" type="button" id="ot-reset-wipe" '
++                            + 'onclick="if(confirm(&quot;Effacer TOUS les fichiers de '
++                            + '/root/work ?&quot;))otReset(&quot;wipe-work&quot;)">'
++                            + 'Tout effacer (work supprimé)</button>'
++                            + '</div><p id="svcmsg" class="sub"></p></div>' + _js
++                            + reset_js
++                        )
++                    else:
++                        page = (
++                            sous_onglets
++                            + '<link rel="stylesheet" href="/static/xterm/xterm.css">'
++                            + '<div class="settings"><div class="card"><h2>&#128421; Shell root</h2>'
++                            + '<p class="sub"><span class="dot" style="background:'
++                            + (_vert if st.get('open_terminal') == 'actif' else _rouge)
++                            + '"></span> Service : ' + _html.escape(st.get('open_terminal', 'arrêt'))
++                            + ' — session : <span id="ot-state">à ouvrir</span></p>'
++                            + '<div class="svcbar">' + svcbar
++                            + '<button type="button" class="ghost" onclick="otSession()">Ouvrir le shell</button>'
++                            + '<button type="button" class="ghost" onclick="otClear()">Effacer</button>'
++                            + '</div>'
++                            + '<div id="ot-term" style="height:420px;background:#000;padding:6px"></div>'
++                            + '<p class="sub">La saisie transite par le relais HTTP local '
++                            + '<code>/fm/ot/*</code> : la clé API du service reste côté serveur.</p>'
++                            + '<p id="svcmsg" class="sub"></p></div></div>'
++                            + _js
++                            + reset_js
++                            + '<script src="/static/xterm/xterm.js"></script>'
++                            + '<script src="/static/xterm/addon-fit.js"></script>'
++                            + '<script src="/static/xterm/addon-web-links.js"></script>'
++                            + '<script>(function(){'
++                            + 'var term=null,off=0,busy=false,timer=null;'
++                            + 'function msg(t){var e=document.getElementById("svcmsg");if(e)e.textContent=t;}'
++                            + 'function state(t){var e=document.getElementById("ot-state");if(e)e.textContent=t;}'
++                            + 'function init(){if(term||!window.Terminal){return;}'
++                            + 'term=new Terminal({cursorBlink:true,convertEol:true,'
++                            + 'fontFamily:"monospace",fontSize:13,scrollback:5000,theme:{'
++                            + 'background:"#0b0b0b",foreground:"#e5e5e5"}});'
++                            + 'term.loadAddon(new FitAddon());'
++                            + 'term.loadAddon(new WebLinksAddon());'
++                            + 'term.open(document.getElementById("ot-term"));'
++                            + 'try{term.fit();}catch(e){}'
++                            + 'term.onData(function(d){otInput(d);});'
++                            + 'term.onResize(function(sz){otCall("/fm/ot/resize",'
++                            + '{rows:sz.rows,cols:sz.cols},function(){});});'
++                            + 'window.addEventListener("resize",function(){'
++                            + 'try{term.fit();}catch(e){}});'
++                            + 'timer=setInterval(otPoll,350);}'
++                            + 'function otCall(path,body,cb){var x=new XMLHttpRequest();'
++                            + 'x.open(body?"POST":"GET",path,true);'
++                            + 'if(body){x.setRequestHeader("Content-Type","application/json");}'
++                            + 'x.onreadystatechange=function(){if(x.readyState!==4)return;'
++                            + 'if(x.status>=200&&x.status<300){try{cb(JSON.parse(x.responseText));}'
++                            + 'catch(e){msg("réponse invalide");}}else{msg("relais : HTTP "+x.status);}};'
++                            + 'x.send(body?JSON.stringify(body):null);}'
++                            + 'window.otSession=function(){init();otCall("/fm/ot/session",{},function(r){'
++                            + 'if(r.status==="ok"){off=0;state("ouverte");msg("shell ouvert");}'
++                            + 'else{msg(r.detail||"ouverture impossible");}});};'
++                            + 'window.otInput=function(d){if(!term)return;otCall("/fm/ot/input",'
++                            + '{input:d},function(){});};'
++                            + 'window.otClear=function(){if(term){term.clear();off=0;}};'
++                            + 'function otPoll(){if(!term||busy)return;busy=true;'
++                            + 'otCall("/fm/ot/output",null,function(r){'
++                            + 'var txt=r.output||"";if(txt.length>off){term.write(txt.slice(off));off=txt.length;}'
++                            + 'else if(txt.length<off){term.reset();term.write(txt);off=txt.length;}});'
++                            + 'busy=false;}'
++                            + 'document.addEventListener("DOMContentLoaded",function(){init();otSession();});'
++                            + 'if(document.readyState!=="loading"){init();otSession();}'
++                            + '})();</script>'
++                        )
+                 else:
+                     page = """
+     <form method="post" action="/fm/settings"><input type="hidden" name="tab" value="owui"><div class="settings">
+@@ -1166,6 +1288,77 @@
+             "fichiers et reglages seront effaces.</p>"))
+ 
+ 
++    async def _fm_ot_call(method: str, chemin: str, charge: dict | None = None):
++        """Appel interne à Open Terminal : la clé ne quitte jamais le serveur."""
++        import httpx
++        from open_webui.config import DATA_DIR as _DD
++
++        cle = (_DD / 'open-terminal-api.key').read_text(encoding='utf-8').strip()
++        entetes = {
++            'Authorization': 'Bearer ' + cle,
++            'x-user-id': 'embedded',
++            'x-session-id': 'fm',
++        }
++        url = 'http://127.0.0.1:8889' + chemin
++        try:
++            async with httpx.AsyncClient(timeout=8.0, trust_env=False) as client:
++                rep = await client.request(method, url, headers=entetes, json=charge)
++            try:
++                return rep.json()
++            except Exception:
++                return {'status': 'error', 'detail': 'HTTP ' + str(rep.status_code)}
++        except Exception as exc:
++            return {'status': 'error', 'detail': str(exc)}
++
++
++    @app.post('/fm/ot/session')
++    async def fm_ot_session(user=Depends(get_verified_user)):
++        """P160 — ouvre le shell du mini-Debian via le relais local (clé serveur)."""
++        return await _fm_ot_call('POST', '/api/terminals', {})
++
++
++    @app.get('/fm/ot/output')
++    async def fm_ot_output(user=Depends(get_verified_user)):
++        """P162 — lit la sortie du shell (jamais la clé API côté navigateur)."""
++        return await _fm_ot_call('GET', '/api/terminals/user/output')
++
++
++    @app.post('/fm/ot/input')
++    async def fm_ot_input(request: Request, user=Depends(get_verified_user)):
++        """P162 — relaie la saisie xterm.js vers le PTY du service local."""
++        try:
++            corps = await request.json()
++        except Exception:
++            corps = {}
++        return await _fm_ot_call('POST', '/api/terminals/user/input',
++                                 {'input': str(corps.get('input', ''))})
++
++
++    @app.post('/fm/ot/resize')
++    async def fm_ot_resize(request: Request, user=Depends(get_verified_user)):
++        """P162 — ajuste la taille du PTY à celle du conteneur xterm.js."""
++        try:
++            corps = await request.json()
++        except Exception:
++            corps = {}
++        return await _fm_ot_call('POST', '/api/terminals/user/resize',
++                                 {'rows': corps.get('rows', 24),
++                                  'cols': corps.get('cols', 80)})
++
++
++    @app.post('/fm/ot/reset')
++    async def fm_ot_reset(request: Request, user=Depends(get_verified_user)):
++        """P163 — programme la reconstruction du conteneur proot au redémarrage."""
++        forme = await request.form()
++        mode = 'wipe-work' if forme.get('mode') == 'wipe-work' else 'environment'
++        try:
++            from open_webui.config import DATA_DIR as _DD
++            (_DD / 'open-terminal-reset-requested').write_text(mode, encoding='utf-8')
++        except Exception as exc:
++            return {'status': 'error', 'detail': str(exc)}
++        return {'status': 'ok', 'mode': mode}
++
++
+     @app.post('/fm/fix-index')
+     async def fm_fix_index(request: Request, user=Depends(get_verified_user)):
+         """P31 : supprime les collections orphelines de l'index vectoriel

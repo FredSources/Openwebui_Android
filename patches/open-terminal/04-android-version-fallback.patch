@@ -1,0 +1,15 @@
+--- a/open_terminal/main.py
++++ b/open_terminal/main.py
+@@ -1,5 +1,11 @@
+ import asyncio
+-from importlib.metadata import version as _pkg_version
++def _pkg_version(nom):  # P161 — pas de dist-info dans l'APK Chaquopy
++    try:
++        from importlib.metadata import version as _v
++
++        return _v(nom)
++    except Exception:
++        return "0.18.8"
+ import fnmatch
+ import heapq
+ import json

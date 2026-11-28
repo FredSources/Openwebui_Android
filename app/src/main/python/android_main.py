@@ -20,11 +20,15 @@ _lock = threading.Lock()
 _started = False
 
 APP_PORT = 8080
+OPEN_TERMINAL_PORT = 8889
 
 
 _uvicorn_server = None
 _searx_httpd = None
 _searx_actif = False
+# P160/P163 — service Open Terminal embarqué (mini-Debian sous proot).
+_ot_server = None
+_ot_actif = False
 
 
 def _load_env_file(data_dir: Path, override: bool = False) -> None:
@@ -100,6 +104,9 @@ def _prepare_env(files_dir: str | None = None) -> Path:
 
     data_dir = home / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
+
+    # P163 — réinitialisation ciblée de l'environnement Open Terminal.
+    _apply_open_terminal_reset(home, data_dir)
 
     # Réinitialisation complète demandée depuis /fm : efface TOUTES les données
     # (base, uploads, vecteurs, cache) puis repart de zéro.
@@ -180,6 +187,9 @@ def _prepare_env(files_dir: str | None = None) -> Path:
 
     # SearXNG embarqué : réglages locaux (clé secrète propre à l'appareil)
     _ensure_searxng_settings(data_dir)
+
+    # P160 — Open Terminal embarqué : clé privée, service local, connexion machine.
+    _ensure_open_terminal(data_dir, home)
     return data_dir
 
     # Point d'entrée LLM distant — modifiable via l'appli (Réglages → Connexions)
@@ -308,6 +318,252 @@ def searxng_settings_save(formats, limiter: bool, rekey: bool = False) -> str:
     return "Réglages SearXNG enregistrés — appliqués au redémarrage du service."
 
 
+# ---------------------------------------------------------------------------
+# P160/P163 — Open Terminal embarqué dans le mini-Debian (proot)
+# ---------------------------------------------------------------------------
+
+
+def _apply_open_terminal_reset(home: Path, data_dir: Path) -> None:
+    """P163 — consomme le marqueur écrit depuis /fm puis reconstruit l'environnement.
+
+    Deux modes : environnement seul (fichiers de /root/work conservés) ou
+    `wipe-work` (effacement complet, état de première installation).
+    """
+    marqueur = data_dir / "open-terminal-reset-requested"
+    if not marqueur.exists():
+        return
+    try:
+        mode = marqueur.read_text(encoding="utf-8").strip().lower()
+    except Exception:
+        mode = ""
+    log.warning("P163 réinitialisation Open Terminal demandée (mode=%s)", mode or "standard")
+    cibles = [
+        data_dir / "open-terminal-api.key",
+        data_dir / "open-terminal.log",
+        data_dir / "proot-distro" / "containers" / "minidebian",
+        data_dir / "proot-distro" / "cache",
+        data_dir / "proot-distro" / "locks",
+        data_dir / "proot-distro" / "sessions",
+    ]
+    if mode == "wipe-work":
+        cibles.append(data_dir / "work")
+    import shutil as _sh
+
+    for cible in cibles:
+        try:
+            if cible.is_dir():
+                _sh.rmtree(cible)
+            elif cible.exists():
+                cible.unlink()
+        except Exception as exc:
+            log.warning("P163 effacement impossible %s : %s", cible.name, exc)
+    try:
+        marqueur.unlink()
+    except Exception:
+        pass
+    try:
+        from open_webui import android_logs as _allog
+
+        _allog.journal_exec("P163 open-terminal reset mode=%s" % (mode or "standard"))
+    except Exception:
+        pass
+
+
+def _force_machine_connection(data_dir: Path, key: str) -> None:
+    """P160 — connexion machine embarquée forcée, sans écraser les autres."""
+    import json
+    import sqlite3
+    import time
+
+    entree = {
+        "id": "embedded-open-terminal",
+        "name": "Mini Debian (local)",
+        "enabled": True,
+        "url": f"http://127.0.0.1:{OPEN_TERMINAL_PORT}",
+        "path": "/openapi.json",
+        "key": key,
+        "auth_type": "bearer",
+        "forward_cookies": False,
+    }
+    os.environ["MACHINE_CONNECTIONS"] = json.dumps([entree])
+    db = data_dir / "webui.db"
+    if not db.exists():
+        return
+    try:
+        con = sqlite3.connect(db, timeout=5)
+        try:
+            row = con.execute(
+                "SELECT value FROM config WHERE key='machines.connections'"
+            ).fetchone()
+            actuel = []
+            if row is not None:
+                try:
+                    actuel = json.loads(row[0])
+                except Exception:
+                    actuel = []
+            if not isinstance(actuel, list):
+                actuel = []
+            maj = [c for c in actuel if not (isinstance(c, dict) and c.get("id") == entree["id"])]
+            maj.append(entree)
+            if maj == actuel:
+                return
+            maintenant = int(time.time())
+            if row is None:
+                con.execute(
+                    "INSERT INTO config (key, value, updated_at) VALUES (?, ?, ?)",
+                    ("machines.connections", json.dumps(maj), maintenant),
+                )
+            else:
+                con.execute(
+                    "UPDATE config SET value=?, updated_at=? WHERE key=?",
+                    (json.dumps(maj), maintenant, "machines.connections"),
+                )
+            con.commit()
+            log.info("connexion machine embarquée forcée (clé régénérée ou absente)")
+        finally:
+            con.close()
+    except Exception as exc:
+        log.warning("force machines.connections impossible : %s", exc)
+
+
+def _install_minidebian(data_dir: Path, home: Path) -> None:
+    """P160 — installe le rootfs embarqué dans le conteneur proot-distro.
+
+    Passe par le CLI proot-distro (fixups /etc, manifest) avec repli sur une
+    extraction tar directe si l'outil est indisponible sur l'appareil.
+    """
+    rootfs = data_dir / "proot-distro" / "containers" / "minidebian" / "rootfs"
+    if rootfs.is_dir() and (rootfs / "usr" / "bin" / "git").exists():
+        return
+    archive = home / "minidebian" / "rootfs.tar.xz"
+    if not archive.is_file():
+        log.warning("mini-Debian absent : %s", archive)
+        return
+    _set_status(data_dir, "Préparation du mini Debian…", 88)
+    os.environ.setdefault("PD_PROOT_BIN", str(home / "minidebian" / "proot"))
+    os.environ.setdefault("XDG_DATA_HOME", str(data_dir))
+    try:
+        import sys as _sys
+
+        from proot_distro.cli import main as _pd_main
+
+        argv = _sys.argv
+        try:
+            _sys.argv = ["proot-distro", "install", "-n", "minidebian", "-q", str(archive)]
+            _pd_main()
+        finally:
+            _sys.argv = argv
+        log.info("mini-Debian installé via proot-distro : %s", rootfs)
+        return
+    except Exception as exc:
+        log.warning("proot-distro install indisponible (%s) — extraction directe", exc)
+    try:
+        import tarfile
+
+        rootfs.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(archive, "r:xz") as tar:
+            tar.extractall(rootfs, filter="data")
+        log.info("mini-Debian extrait directement : %s", rootfs)
+    except Exception as exc:
+        log.exception("extraction mini-Debian impossible : %s", exc)
+
+
+def _ensure_open_terminal(data_dir: Path, home: Path) -> None:
+    """P160 — clé privée, environnement proot et connexion machine du service local."""
+    key_path = data_dir / "open-terminal-api.key"
+    if not key_path.exists() or key_path.stat().st_size == 0:
+        key_path.write_text(secrets.token_urlsafe(48), encoding="utf-8")
+        os.chmod(key_path, 0o600)
+    key = key_path.read_text(encoding="utf-8").strip()
+    os.environ["OPEN_TERMINAL_API_KEY_FILE"] = str(key_path)
+    os.environ["OPEN_TERMINAL_PORT"] = str(OPEN_TERMINAL_PORT)
+    os.environ["OPEN_TERMINAL_ENABLE_BROWSER"] = "false"
+    os.environ["OPEN_TERMINAL_ENABLE_DESKTOP"] = "false"
+    os.environ["OPEN_TERMINAL_ENABLE_AGENTS"] = "false"
+    os.environ["OPEN_TERMINAL_ENABLE_NOTEBOOKS"] = "false"
+    os.environ["OPEN_TERMINAL_ENABLE_TERMINAL"] = "true"
+    os.environ["OPEN_TERMINAL_CORS_ALLOWED_ORIGINS"] = "http://127.0.0.1:8080"
+
+    mini = home / "minidebian"
+    work = data_dir / "work"
+    work.mkdir(parents=True, exist_ok=True)
+    os.environ["OPEN_TERMINAL_FILE_BROWSER_ROOT"] = str(work)
+    os.environ["OPEN_TERMINAL_START_DIR"] = str(work)
+    os.environ["OPENWEBUI_ANDROID_PROOT"] = str(mini / "proot")
+    os.environ["OPENWEBUI_ANDROID_ROOTFS"] = str(
+        data_dir / "proot-distro" / "containers" / "minidebian" / "rootfs"
+    )
+    os.environ["OPENWEBUI_ANDROID_WORK"] = str(work)
+    os.environ["OPENWEBUI_ANDROID_PROOT_LIB"] = str(mini)
+    try:
+        import shutil as _sh
+
+        resolv = Path("/etc/resolv.conf")
+        if resolv.is_file():
+            _sh.copyfile(resolv, data_dir / "resolv.conf")
+    except Exception:
+        pass
+
+    _install_minidebian(data_dir, home)
+    _force_machine_connection(data_dir, key)
+
+
+def _start_open_terminal() -> None:
+    """Lance Open Terminal sur 127.0.0.1:8889 (thread daemon, façon SearXNG)."""
+
+    def run() -> None:
+        global _ot_server, _ot_actif
+        try:
+            import uvicorn
+
+            from open_terminal.main import app as ot_app
+
+            config = uvicorn.Config(
+                ot_app,
+                host="127.0.0.1",
+                port=OPEN_TERMINAL_PORT,
+                log_level="warning",
+                access_log=False,
+                ws="none",  # l'UI /fm passe par le relais HTTP, pas par WebSocket
+            )
+            _ot_server = uvicorn.Server(config)
+            _ot_actif = True
+            log.info("Open Terminal embarqué sur http://127.0.0.1:%s", OPEN_TERMINAL_PORT)
+            _ot_server.run()
+        except Exception as exc:
+            _ot_actif = False
+            log.exception("Open Terminal indisponible : %s", exc)
+            try:
+                (Path(os.environ.get("DATA_DIR", ".")) / "open-terminal.log").write_text(
+                    str(exc), encoding="utf-8"
+                )
+            except Exception:
+                pass
+
+    if _ot_actif:
+        return
+    threading.Thread(target=run, name="open-terminal", daemon=True).start()
+
+
+def _warm_up_then_open_terminal(data_dir: Path, port: int) -> None:
+    """Démarre Open Terminal après Open WebUI (évite la contention au boot)."""
+    import urllib.request
+
+    url = f"http://127.0.0.1:{port}/health"
+    for _ in range(120):
+        try:
+            with urllib.request.urlopen(url, timeout=1) as resp:
+                if resp.status == 200:
+                    break
+        except Exception:
+            pass
+        time.sleep(1)
+    try:
+        _start_open_terminal()
+    except Exception as exc:
+        log.warning("Open Terminal non démarré : %s", exc)
+
+
 def _start_searxng() -> None:
     """Lance l'instance SearXNG embarquée sur 127.0.0.1:8888 (thread daemon)."""
 
@@ -378,13 +634,27 @@ def _warm_up_then_searxng(data_dir: Path, port: int) -> None:
 def service_control(name: str, action: str) -> str:
     """P89 — pilotage des services depuis /fm (pont Java → Python).
 
-    name: 'openwebui' | 'searxng' ; action: 'run' | 'stop' | 'restart'.
+    name: 'openwebui' | 'searxng' | 'open_terminal' ; action: 'run' | 'stop' | 'restart'.
     Les boutons passent par le pont Java : utilisables même serveur arrêté.
     """
-    global _started, _searx_actif
+    global _started, _searx_actif, _ot_actif, _ot_server
     name = (name or '').lower()
     action = (action or '').lower()
     try:
+        if name == 'open_terminal':
+            if action in ('stop', 'restart') and _ot_server is not None:
+                try:
+                    threading.Thread(target=lambda: setattr(_ot_server, 'should_exit', True), daemon=True).start()
+                except Exception:
+                    pass
+                _ot_actif = False
+                if action == 'stop':
+                    return 'Open Terminal arrêté'
+            if action in ('run', 'restart'):
+                _ot_server = None
+                _start_open_terminal()
+                return 'Open Terminal (re)démarré'
+            return f'action inconnue : {action}'
         if name == 'searxng':
             if action == 'stop':
                 if _searx_httpd is not None:
@@ -454,7 +724,22 @@ def service_status() -> dict:
     return {
         'openwebui': 'actif' if _started else 'arrêt',
         'searxng': 'actif' if _searx_actif else 'arrêt',
+        'open_terminal': 'actif' if _ot_actif else 'arrêt',
     }
+
+
+def open_terminal_reset_request(mode: str = 'environment') -> str:
+    """P163 — programme la réinitialisation au prochain démarrage de l'app."""
+    try:
+        home = Path(os.environ.get('HOME', '.'))
+        data = home / 'data'
+        data.mkdir(parents=True, exist_ok=True)
+        (data / 'open-terminal-reset-requested').write_text(
+            'wipe-work' if mode == 'wipe-work' else 'environment', encoding='utf-8'
+        )
+        return 'Réinitialisation programmée — redémarrage de l’application…'
+    except Exception as exc:
+        return f'erreur : {exc}'
 
 
 def register_audio_split(fn) -> None:
@@ -532,6 +817,14 @@ def start_server(port: int = APP_PORT, files_dir: str | None = None) -> int:
             target=_warm_up_then_searxng,
             args=(data_dir, port),
             name="openwebui-warmup",
+            daemon=True,
+        ).start()
+
+        # P160 : Open Terminal démarre après Open WebUI, comme SearXNG.
+        threading.Thread(
+            target=_warm_up_then_open_terminal,
+            args=(data_dir, port),
+            name="open-terminal-warmup",
             daemon=True,
         ).start()
 

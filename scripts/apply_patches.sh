@@ -69,6 +69,32 @@ for p in "$PATCHES"/backend/*.patch; do
   appliquer "$p" "$CIBLE"
 done
 
+echo "=== Open Terminal + proot-distro embarqués (v0.18.8 / v5.10.3) ==="
+if [ "$CHECK" = "0" ]; then
+  for paire in "vendor/open-terminal/open_terminal:src/open_terminal" "vendor/proot-distro/proot_distro:src/proot_distro"; do
+    src="${paire%%:*}"; dst="${paire#*:}"
+    if [ -d "$PROJ/$src" ]; then
+      rm -rf "$PROJ/$dst"
+      cp -a "$PROJ/$src" "$PROJ/$dst"
+      find "$PROJ/$dst" -name "__pycache__" -type d -prune -exec rm -rf {} + 2>/dev/null
+      find "$PROJ/$dst" -name "*.pyc" -delete 2>/dev/null
+      echo "  copié : $src -> $dst"
+    else
+      echo "  ATTENTION : $src absent"
+    fi
+  done
+fi
+for p in "$PATCHES"/open-terminal/*.patch; do
+  [ -f "$p" ] || continue
+  [ -d "$PROJ/src/open_terminal" ] || continue
+  appliquer "$p" "$PROJ/src"
+done
+for p in "$PATCHES"/proot-distro/*.patch; do
+  [ -f "$p" ] || continue
+  [ -d "$PROJ/src/proot_distro" ] || continue
+  appliquer "$p" "$PROJ/src"
+done
+
 echo "=== patchs frontend (source Svelte/TS, dans le submodule) ==="
 for p in "$PATCHES"/frontend/*.patch; do
   [ -f "$p" ] || continue
@@ -91,6 +117,19 @@ if [ "$CHECK" = "0" ]; then
     echo "  copié : vendor/searxng/searx -> src/searx"
   else
     echo "  ATTENTION : vendor/searxng/searx absent (SearXNG ne démarrera pas)"
+  fi
+  # xterm.js (onglet /fm « Shell root ») — versions figées dans manifest.json.
+  if [ -d "$PROJ/static/xterm" ]; then
+    rm -rf "$CIBLE/static/xterm"
+    cp -a "$PROJ/static/xterm" "$CIBLE/static/xterm"
+    echo "  copié : static/xterm -> src/open_webui/static/xterm"
+  fi
+  # Mini-Debian trixie embarqué (extraction par MainActivity vers filesDir).
+  if [ -d "$PROJ/minidebian" ]; then
+    mkdir -p "$PROJ/src-assets"
+    rm -rf "$PROJ/src-assets/minidebian"
+    cp -a "$PROJ/minidebian" "$PROJ/src-assets/minidebian"
+    echo "  copié : minidebian -> src-assets/minidebian"
   fi
   # shims (tiktoken natif absent, google-re2 absent) + searx/version_frozen.py
   # (piege git SearXNG) — fichiers versionnés, chemins relatifs preserves

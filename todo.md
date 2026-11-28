@@ -352,3 +352,21 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
 - [x] R165-ter : contrôle dist-info déplacé dans requirements-common.imy
       (CI #46077668862) ; tag recréé, CI #46078600186 verte, APK vérifiées,
       prerelease `v0.0.82_beta` publiée, `v0.0.81` toujours Latest
+- [x] P160/P161 : submodules Open Terminal v0.18.8 et proot-distro v5.10.3
+      figés, patchs de compatibilité Chaquopy (grp/pwd, watchfiles, version),
+      rootfs trixie embarqué, service local 8889 et extraction Java — tests
+      locaux en attente de l'artefact rootfs
+- [x] P162 : onglets `/fm` Service / Shell root, xterm.js 6.0.0 réel, relais
+      HTTP avec clé côté serveur, endpoint resize — test `test_p162.py` vert
+- [x] P163 : deux resets distincts (environment conserve work / wipe-work
+      supprime work), marqueur consommé au démarrage — test `test_p163.py`
+- [ ] Validation matérielle (build release sur appareil) : `proot` depuis les
+      assets, `ptrace` autorisé, `pty.openpty()` + `/bin/bash -l` fonctionnels
+- [ ] Recréer le tag `v0.0.82_ot_beta`, surveiller la CI, vérifier APK et
+      prerelease ; garder `v0.0.81` `Latest` et `v0.0.82_beta` inchangée
+- [x] P161 : test dédié aux replis Chaquopy (`grp`/`pwd`, `watchfiles`, version,
+      `LD_LIBRARY_PATH`) — vert
+- [x] rootfs trixie vérifié (30,9 Mo, SHA-256 au manifest) et xterm.js versionné
+- [x] reset `/fm` : appel serveur puis `AndroidSystem.restartApp()`, FitAddon
+      relié à `/fm/ot/resize`
+- [x] documentation Typst mise à jour et PDF recompilés

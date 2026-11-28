@@ -134,7 +134,7 @@ print('OK  runner.py : self-heal du bit exécutable avant ouverture du shell')
 
 main_py = (PROJ / 'src/open_terminal/main.py').read_text(encoding='utf-8')
 assert 'P168 exécution refusée' in main_py
-assert 'mode=%s, X_OK=%s' in main_py
+assert 'mode=%s' in main_py and 'X_OK=%s' in main_py
 assert '"externe(noexec)" if "Android/data" in cmd[0] else "interne"' in main_py
 fm_py = (PROJ / 'src/open_webui/android_fm.py').read_text(encoding='utf-8')
 assert 'proot présent dans getFilesDir() (stockage interne)' in fm_py, \

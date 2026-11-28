@@ -65,8 +65,8 @@
 +                _mode = oct(os.stat(cmd[0]).st_mode & 0o777)
 +            except OSError:
 +                _mode = "absent"
-+            log.error("P168 exécution refusée : %s (errno=%s, mode=%s, X_OK=%s, "
-+                      "racine=%s) — %s", cmd[0], getattr(exc, "errno", "?"),
++            log.error("P167/P168 exécution refusée : %s (errno=%s, mode=%s, "
++                      "X_OK=%s, racine=%s) — %s", cmd[0], getattr(exc, "errno", "?"),
 +                      _mode, os.access(cmd[0], os.X_OK),
 +                      "externe(noexec)" if "Android/data" in cmd[0] else "interne",
 +                      exc)

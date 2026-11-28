@@ -113,7 +113,7 @@
                  else:
                      page = """
      <form method="post" action="/fm/settings"><input type="hidden" name="tab" value="owui"><div class="settings">
-@@ -1166,6 +1288,214 @@
+@@ -1166,6 +1288,218 @@
              "fichiers et reglages seront effaces.</p>"))
  
  
@@ -244,11 +244,15 @@
 +            d = str(r.get('detail', ''))
 +            if ('permission denied' in d.lower()
 +                    or 'errno 13' in d):
-+                return ('proot non exécutable : le volume '
-+                        'mini-Debian doit être dans getFilesDir() '
-+                        '(stockage interne), pas dans Android/data '
-+                        'monté en noexec. Installez une version '
-+                        'P167 ou supérieure.')
++                if 'Android/data' in d:
++                    return ('proot non exécutable : volume encore sous '
++                            'Android/data (noexec). Installez P167 ou supérieur.')
++                # P168 — le chemin est bien le volume interne. Le message
++                # P167 était trompeur : il laissait croire à un noexec externe.
++                return ('proot présent dans getFilesDir() (stockage interne) '
++                        'mais exécution refusée (errno 13). Voir la ligne P168 '
++                        'de serveur.log (mode, errno, SELinux) ; installez '
++                        'P168 ou supérieur.')
 +            return d or 'shell indisponible'
 +
 +        # Une session ouverte contient toujours un `id`. P167 : on ne relance

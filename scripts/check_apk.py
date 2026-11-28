@@ -235,6 +235,12 @@ def check_apk(apk: pathlib.Path) -> None:
                         if ot_pyc and not any(b"P167" in o for o in ot_pyc):
                             err(f"{label} : marqueur P167 absent de "
                                 f"open_terminal/main.pyc (diagnostic proot non embarqué)")
+                        # P168 — le bit exécutable n'étant pas conservé dans les
+                        # assets, il doit être réappliqué côté runner et le
+                        # refus d'exécution journalisé avec errno/mode/racine.
+                        if ot_pyc and not any(b"P168" in o for o in ot_pyc):
+                            err(f"{label} : marqueur P168 absent de "
+                                f"open_terminal/main.pyc (diagnostic errno non embarqué)")
                         am_pyc = [bundle.read(n) for n in noms_b
                                   if n.endswith("android_main.pyc")]
                         if am_pyc and not any(
@@ -391,6 +397,11 @@ def check_apk(apk: pathlib.Path) -> None:
                         elif not any(b"P167" in o for o in fm):
                             err(f"{label} : marqueur P167 absent de android_fm.pyc "
                                 f"(diagnostic immédiat non embarqué)")
+                        # P168 — retour visuel des boutons de service et
+                        # diagnostic honnête quand proot est au bon endroit.
+                        elif not any(b"P168" in o for o in fm):
+                            err(f"{label} : marqueur P168 absent de android_fm.pyc "
+                                f"(retour des boutons non embarqué)")
                     elif "requirements-common" in bundle_nom:
                         check_modules(bundle, label, MODULES_PIP)
                         # R165 : aiohttp 3.14.5 remplace le 3.10.10 épinglé par

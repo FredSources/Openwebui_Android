@@ -106,7 +106,8 @@ assert 'Tester la recherche' not in html_service
 assert 'search?q=test' not in html_service
 assert 'href="/search?q=test' not in html_service
 # P157 — tout le reste (état, boutons, messages) est bien côté Service.
-for present in ('Redémarrer', 'svc(&quot;searxng&quot;,&quot;restart&quot;)',
+for present in ('Redémarrer',
+                'svc(&quot;searxng&quot;,&quot;restart&quot;,&quot;SearXNG&quot;)',
                 'svcmsg', 'État :'):
     assert present in html_service, f'élément Service absent : {present}'
 print('OK  /fm sans sub : Service actif, lien SearXNG corrigé, actions conservées')
@@ -120,7 +121,7 @@ assert html_engine.count('<iframe') == 1, 'une seule iframe autorisée'
 assert 'subtab on' in html_engine and 'sub=engine' in html_engine
 # P157 — aucune autre carte ni action dans la vue Moteur.
 for absent in ('SX_json', 'Paramètres &mdash; SearXNG', 'État :', 'Redémarrer',
-               'svc(', 'svcmsg', 'Ouvrir dans un nouvel onglet',
+               'svc(', 'id="svcmsg"', 'Ouvrir dans un nouvel onglet',
                'Tester la recherche'):
     assert absent not in html_engine, f'élément Service présent dans Moteur : {absent}'
 print('OK  /fm?sub=engine : uniquement l’iframe (les barres d’onglets restent)')

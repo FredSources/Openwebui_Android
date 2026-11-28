@@ -1,6 +1,6 @@
 --- a/open_terminal/main.py
 +++ b/open_terminal/main.py
-@@ -2205,12 +2205,74 @@
+@@ -2205,12 +2205,82 @@
                      pass
                  await asyncio.to_thread(process.wait)
  
@@ -56,12 +56,20 @@
 +                start_new_session=True,
 +            )
 +        except OSError as exc:
-+            # P167 — Android/data est monté en noexec : proot présent mais non
-+            # exécutable. Sans ce journal, le diagnostic remontait seulement
-+            # « Errno 13 » et le relais relançait le service 20 fois en vain.
-+            log.error("P167 proot non exécutable depuis %s : %s — le volume "
-+                      "mini-Debian doit être dans getFilesDir(), pas dans "
-+                      "Android/data (noexec)", cmd[0], exc)
++            # P167/P168 — le binaire est désormais dans getFilesDir() (volume
++            # interne, équivalent du $PREFIX Termux). Un « Errno 13 » ici ne
++            # vient donc PLUS du noexec externe : journaliser le mode, l'errno
++            # et le type de chemin pour distinguer bit exécutable perdu,
++            # SELinux ou montage /data verrouillé.
++            try:
++                _mode = oct(os.stat(cmd[0]).st_mode & 0o777)
++            except OSError:
++                _mode = "absent"
++            log.error("P168 exécution refusée : %s (errno=%s, mode=%s, X_OK=%s, "
++                      "racine=%s) — %s", cmd[0], getattr(exc, "errno", "?"),
++                      _mode, os.access(cmd[0], os.X_OK),
++                      "externe(noexec)" if "Android/data" in cmd[0] else "interne",
++                      exc)
 +            raise
 +        return {
 +            "id": session_id,

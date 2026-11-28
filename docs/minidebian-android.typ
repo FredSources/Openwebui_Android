@@ -192,26 +192,50 @@ réinitialisations conservent leur sémantique : `environment` reconstruit le
 conteneur interne en gardant `data/work`, `wipe-work` supprime aussi
 `data/work`.
 
+= Exécutabilité et retour d'action (P168)
+
+Sur l'appareil ayant installé la *release* P167, le relais a renvoyé
+`[Errno 13] Permission denied: '/data/data/org.openwebui.android/files/minidebian/proot'`.
+Ce chemin est déjà `getFilesDir()`, donc le volume interne voulu : le diagnostic
+P167, qui parlait encore de `Android/data` monté en `noexec`, était trompeur.
+Les assets Android ne conservent pas le bit exécutable. Si le premier
+`chmod` de l'extraction a échoué, le marqueur de version empêchait toute
+réparation ultérieure. Le chmod est désormais réappliqué au démarrage même sur
+le chemin rapide (Java), et `android_proot_prefix()` vérifie `os.access(X_OK)`
+avant chaque ouverture de shell.
+
+Le journal P168 enregistre l'errno, le mode effectif du fichier, le résultat de
+`os.access` et la racine (`interne` ou `externe(noexec)`). Si le refus
+persiste malgré le bit exécutable, ces éléments distingueront une politique
+SELinux d'un montage `/data` verrouillé, sans répéter le faux diagnostic. Les
+boutons Démarrer, Arrêter et Redémarrer affichent maintenant l'action en cours,
+désactivent la barre pendant l'action puis affichent le résultat réel renvoyé
+par `service_control`. « Redémarrer l'application » affiche une confirmation
+avant l'extinction.
+
 = Vérifications et limites
 
-Les tests `test_p160.py` à `test_p167.py` contrôlent les empreintes,
+Les tests `test_p160.py` à `test_p168.py` contrôlent les empreintes,
 l'absence de `-R`/`-S`, le rendu des onglets et de l'iframe, l'absence de clé
 dans le HTML, les deux modes de reset, la syntaxe JavaScript (`node --check`),
 la résolution UMD des addons, la libération du port au redémarrage, le
 démarrage du service à la demande (P165), le repli sans PTY sous proot (P166)
 et le volume exécutable interne avec l'absence de relance sur `Errno 13`
-(P167). `check_apk.py` exige les assets mini-Debian, les modules Python
+(P167), puis le retour visuel des boutons et la réparation automatique du bit exécutable
+(P168). `check_apk.py` exige les assets mini-Debian, les modules Python
 `open_terminal` et `proot_distro`, les fichiers xterm, les marqueurs
-P164/P165/P166/P167 dans `android_fm.pyc`, les marqueurs P166/P167 dans
-`open_terminal/main.pyc`, `OPENWEBUI_ANDROID_EXEC_HOME` dans
+P164/P165/P166/P167/P168 dans `android_fm.pyc`, les marqueurs P166/P167/P168
+dans `open_terminal/main.pyc`, `OPENWEBUI_ANDROID_EXEC_HOME` dans
 `android_main.pyc`, `getFilesDir` dans les `classes.dex` et la taille maximale
 du rootfs. Aucun
 serveur de test ne doit écouter sur `8080` : seule la fenêtre `8090` est
 autorisée pour les tests locaux.
 
-*Limite non levée* : la validation sur appareil d'une build release n'a pas
-encore été réalisée. P167 lève le blocage `noexec` en déplaçant `proot` vers
-`getFilesDir()` ; il reste à confirmer que `ptrace` est autorisé. Depuis P166, l'absence de `pty.openpty()`
+*Limite non levée* : l'utilisateur a confirmé installer la *release* P167 et
+le chemin `/data/data/.../files/minidebian/proot` observé prouve que le volume
+interne est bien utilisé ; le `noexec` externe est donc levé. Il reste à
+confirmer sur appareil que le chmod P168 suffit et que `ptrace` est autorisé.
+Depuis P166, l'absence de `pty.openpty()`
 n'est plus une impasse : le shell bascule en `backend=pipe`, conserve les
 commandes dans le mini-Debian et l'interface l'indique clairement. Le prompt
 interactif coloré reste indisponible dans ce mode ; les lignes `P166` de

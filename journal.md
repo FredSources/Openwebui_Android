@@ -6298,3 +6298,44 @@ immédiatement sans relance). `apply_patches.sh --check` indique 47 patchs déj�
 appliqués et 0 échec. Il reste à confirmer sur l'appareil que `proot` s'exécute
 depuis `getFilesDir()` et que `ptrace` est autorisé ; les lignes `P167` de
 `serveur.log` permettront de suivre le diagnostic.
+
+**P168 — 2026-11-28 10:46 UTC — `Errno 13` sur le volume interne et retour des boutons**
+
+L'utilisateur a confirmé avoir installé la *release* P167 et a fourni le détail
+du relais : `[Errno 13] Permission denied:
+'/data/data/org.openwebui.android/files/minidebian/proot'`. Ce chemin est
+précisément `getFilesDir()`, c'est-à-dire le volume interne équivalent au
+`$PREFIX` de Termux — et non le `Android/data` externe (`noexec`) corrigé en
+P167. Le diagnostic renvoyé par `/fm/ot/session` était donc **trompeur** : il
+invitait à installer P167 alors que P167 était installé et que le volume était
+au bon endroit. La confusion de l'utilisateur (« vous l'avez remis dans
+`/data/android` ») était légitime.
+
+Deux corrections :
+
+1. *exécutabilité* — les assets Android ne conservent pas le bit exécutable.
+   `prepareMiniDebian()` ne repositionnait ce bit que lors de l'extraction, puis
+   s'arrêtait sur le marqueur de version : si le premier `chmod` avait échoué,
+   aucun démarrage ultérieur ne le réparait. Le chmod est désormais réappliqué
+   sur le chemin rapide (Java) et `android_proot_prefix()` vérifie
+   `os.access(X_OK)` et relance `os.chmod(0o700)` avant chaque ouverture de
+   shell (patch `01-android-proot-runner.patch`). Le message d'erreur P168
+   journalise désormais l'errno, le mode, le résultat de `os.access` et la
+   racine (`interne` / `externe(noexec)`) : si le refus persiste malgré le bit
+   exécutable, la ligne `P168` de `serveur.log` dira s'il s'agit d'une politique
+   SELinux ou d'un montage `/data` verrouillé, au lieu de répéter le faux
+   diagnostic `noexec`.
+2. *retour d'interface* — à la demande explicite de l'utilisateur, les boutons
+   Démarrer / Arrêter / Redémarrer affichent immédiatement « ⏳ … en cours »
+   (avant l'appel au pont Java, bloquant, via `setTimeout`), désactivent la
+   barre de boutons pendant l'action, puis affichent le résultat
+   réel renvoyé par `service_control` (le pont Java ne renvoie plus un « ok »
+   muet). « Redémarrer l'application » affiche une confirmation avant
+   l'extinction. Nouveau patch `07-android_fm-service-feedback.patch`.
+
+`scripts/test_p168.py` (nouveau) valide les trois onglets, le JS par
+`node --check`, le résultat renvoyé par le pont Java, la réparation automatique du bit
+exécutable et le diagnostic distinguant les deux racines. Les 17 tests passent,
+`apply_patches.sh --check` indique 48 patchs déjà appliqués et 0 échec.
+`check_apk.py` exige désormais le marqueur P168 dans `android_fm.pyc` et
+`open_terminal/main.pyc`, sans assouplir les contrôles P164 à P167.

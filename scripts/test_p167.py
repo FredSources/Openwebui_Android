@@ -176,10 +176,23 @@ try:
     resultat = reponse.json()
     assert resultat.get('status') == 'error', resultat
     assert 'proot non exécutable' in resultat.get('detail', ''), resultat
-    assert 'getFilesDir()' in resultat['detail'], resultat
+    assert 'Android/data' in resultat['detail'], resultat
     assert etat['post'] == 1, 'relances inutiles : %d POST' % etat['post']
     assert etat['appels'] == [], 'service relancé pour une erreur applicative'
-    print('OK  Errno 13 : diagnostic explicite, 1 seul POST, aucun restart')
+    print('OK  Errno 13 externe : diagnostic explicite, 1 seul POST, aucun restart')
+
+    # P168 — même errno mais sur le volume INTERNE : le message ne doit plus
+    # laisser croire à un noexec externe (piège remonté sur l'appareil).
+    message_erreur = ("[Errno 13] Permission denied: "
+                      "'/data/data/org.openwebui.android/files/minidebian/proot'")
+    etat['post'] = 0
+    reponse = client.post('/fm/ot/session')
+    resultat = reponse.json()
+    assert resultat.get('status') == 'error', resultat
+    assert 'getFilesDir()' in resultat['detail'], resultat
+    assert 'P168' in resultat['detail'], resultat
+    assert etat['post'] == 1 and etat['appels'] == [], resultat
+    print('OK  Errno 13 interne : diagnostic P168 honnête, aucun restart')
 finally:
     httpd.shutdown()
     httpd.server_close()
@@ -188,7 +201,7 @@ finally:
 journal = (PROJ / 'journal.md').read_text(encoding='utf-8')
 assert 'P167' in journal, 'décision P167 non journalisée'
 main_ot = (PROJ / 'src/open_terminal/main.py').read_text(encoding='utf-8')
-assert 'P167 proot non exécutable depuis' in main_ot
+assert 'P167/P168 — le binaire' in main_ot and 'P168 exécution refusée' in main_ot
 print('OK  traçabilité : journal et diagnostic Open Terminal')
 
 print('\nTous les cas P167 sont valides.')

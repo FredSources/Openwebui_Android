@@ -1662,6 +1662,31 @@ est inchangée. L'APK release fait `313 162 371` octets (SHA-256
 `6a56166432895fc2eb6998b8f83b46cbfe2b6cced02edb59b65ad9c66b7192f6`) et porte
 l'empreinte stable `7fa25845d80017c8cd81669ec2955de6d21b2d7ac4a5a0d5f0fa981866dc34e4`.
 
+= Retour d'action et exécutabilité du volume (P168)
+
+Après la livraison P167, l'appareil a renvoyé un `Errno 13` sur
+`/data/data/org.openwebui.android/files/minidebian/proot`. Ce chemin est
+précisément `getFilesDir()`, donc le volume interne attendu : le diagnostic P167
+qui parlait encore de `Android/data` était trompeur. La cause la plus probable
+est la perte du bit exécutable : les assets Android ne le conservent pas et
+`prepareMiniDebian()` ne le repositionnait que lors de l'extraction, avant de
+s'arrêter sur le marqueur de version.
+
+Le chmod est désormais réappliqué au démarrage même quand le marqueur correspond
+(côté Java) et avant chaque ouverture de shell (`android_proot_prefix()`). Le
+journal P168 enregistre l'errno, le mode du fichier, `os.access(X_OK)` et la
+racine (`interne` ou `externe(noexec)`) : si le refus persiste, ces éléments
+permettront de distinguer une politique SELinux d'un montage `/data` verrouillé,
+sans répéter le faux diagnostic.
+
+À la demande explicite de l'utilisateur, les boutons Démarrer, Arrêter et
+Redémarrer affichent immédiatement l'action en cours : le pont Java est appelé
+dans un `setTimeout`, ce qui laisse le navigateur peindre le message ; la barre
+de boutons est désactivée le temps de l'action, puis le résultat réel renvoyé par
+`service_control` — le pont Java ne renvoie plus un « ok » muet. « Redémarrer
+l'application » affiche une confirmation avant l'extinction. Le patch
+`07-android_fm-service-feedback.patch` porte ces changements.
+
 = Pistes d'évolution
 
 - Mise à jour in-app de l'APK (GitHub Releases) ;

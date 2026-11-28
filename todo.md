@@ -386,3 +386,6 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait (testé) · `[!]` bloq
       supprimer les relances sur `Errno 13` — `test_p167.py` vert
 - [x] P167 : tag `v0.0.82_ot_beta` recréé sur `cb7b29c`, CI #46131420884 verte,
       prerelease republiée, APK release et debug vérifiées
+- [x] P168 : réappliquer le bit exécutable de `proot` (chemin rapide Java + runner),
+      diagnostic honnête errno/mode/racine, retour visuel des boutons de service
+      — `test_p168.py` vert, 17 tests verts

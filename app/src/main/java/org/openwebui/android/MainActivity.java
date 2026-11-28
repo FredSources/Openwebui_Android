@@ -311,6 +311,14 @@ public class MainActivity extends Activity {
                 String v = r.readLine();
                 r.close();
                 if (v != null && v.equals(String.valueOf(current))) {
+                    // P168 — les assets Android ne conservent pas le bit
+                    // exécutable. Une première extraction peut l'avoir manqué ;
+                    // le marqueur de version ne doit pas empêcher de le
+                    // réappliquer au démarrage suivant.
+                    java.io.File deja = new java.io.File(target, "proot");
+                    if (deja.exists() && !deja.setExecutable(true, false)) {
+                        writeStatus(100, "proot non exécutable : " + deja.getAbsolutePath());
+                    }
                     return;
                 }
             }
@@ -789,9 +797,11 @@ public class MainActivity extends Activity {
             @android.webkit.JavascriptInterface
             public String serverAction(final String name, final String action) {
                 try {
-                    Python.getInstance().getModule("android_main")
-                            .callAttr("service_control", name, action);
-                    return "ok";
+                    // P168 — renvoyer le résultat réel de service_control
+                    // (ex. « SearXNG (re)démarré ») au lieu d'un « ok » muet :
+                    // l'UI affiche ainsi ce qui s'est vraiment passé.
+                    return Python.getInstance().getModule("android_main")
+                            .callAttr("service_control", name, action).toString();
                 } catch (Exception e) {
                     return "erreur : " + e;
                 }

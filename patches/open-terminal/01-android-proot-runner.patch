@@ -1,6 +1,6 @@
 --- a/open_terminal/utils/runner.py
 +++ b/open_terminal/utils/runner.py
-@@ -9,6 +9,35 @@
+@@ -9,6 +9,43 @@
  
  from open_terminal.env import sanitized_environ
  
@@ -21,6 +21,14 @@
 +    """
 +    if not (_ANDROID_PROOT and _ANDROID_ROOTFS and _ANDROID_WORK):
 +        return []
++    # P168 — les assets Android ne conservent pas le bit exécutable. Si la
++    # première extraction ne l'a pas posé, le marqueur de version empêche une
++    # nouvelle copie : on le réapplique donc à chaque ouverture de session.
++    try:
++        if not os.access(_ANDROID_PROOT, os.X_OK):
++            os.chmod(_ANDROID_PROOT, 0o700)
++    except OSError:
++        pass
 +    prefix = [
 +        _ANDROID_PROOT, "-0", "-r", _ANDROID_ROOTFS,
 +        "-b", "/dev", "-b", "/proc", "-b", "/sys",

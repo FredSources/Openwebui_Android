@@ -1,0 +1,127 @@
+--- a/android_fm.py
++++ b/android_fm.py
+@@ -216,6 +216,11 @@
+       @media (max-width: 600px) { .sxframe { height: 68vh; min-height: 360px; } }
+       .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+       .svcbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
++      .svcmsg { min-height: 1.5em; margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); font-weight: 600; }
++      .svcmsg.pending { color: #f59e0b; border-color: #f59e0b; }
++      .svcmsg.ok { color: #22c55e; border-color: #22c55e; }
++      .svcmsg.err { color: #ef4444; border-color: #ef4444; }
++      .svcbar.busy { opacity: .5; pointer-events: none; }
+       .chk { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+       .twocol { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; }
+       .twocol > div { min-width: 0; }
+@@ -875,18 +880,36 @@
+                 _vert, _rouge = '#22c55e', '#ef4444'
+                 dot_ow = _vert if st.get('openwebui') == 'actif' else _rouge
+                 dot_sx = _vert if st.get('searxng') == 'actif' else _rouge
+-                _js = ('<script>function svc(n,a){try{document.getElementById("svcmsg")'
+-                       '.textContent=AndroidSystem.serverAction(n,a)}catch(e){document'
+-                       '.getElementById("svcmsg").textContent="pont système indisponible : "+e}}</script>')
++                _js = (
++                    '<script>'
++                    'function svcMsg(t,c){var e=document.getElementById("svcmsg");'
++                    'if(e){e.textContent=t;e.className="sub svcmsg "+(c||"");}}'
++                    'function svc(n,a,lib){lib=lib||n;'
++                    'var v={run:"Démarrage",stop:"Arrêt",restart:"Redémarrage"}[a]||a;'
++                    'svcMsg("⏳ "+v+" de "+lib+"…","pending");'
++                    'var g=document.querySelector(".svcbar");if(g)g.classList.add("busy");'
++                    'setTimeout(function(){'
++                    'try{var r=String(AndroidSystem.serverAction(n,a)||"");'
++                    'var ok=!/erreur/i.test(r)&&!/inconnu/i.test(r);'
++                    'svcMsg((ok?"✔ ":"✘ ")+lib+" : "+r,ok?"ok":"err");}'
++                    'catch(e){svcMsg("✘ pont système indisponible : "+e,"err");}'
++                    'finally{if(g)g.classList.remove("busy");}},80);}'
++                    'function svcRestart(){var g=document.querySelector(".svcbar");'
++                    'if(g)g.classList.add("busy");'
++                    'svcMsg("⏳ Redémarrage de l’application…","pending");'
++                    'setTimeout(function(){try{AndroidSystem.restartApp();}'
++                    'catch(e){svcMsg("✘ redémarrage impossible : "+e,"err");'
++                    'if(g)g.classList.remove("busy");}},80);}'
++                    '</script>')
+                 if tab == 'searxng':
+                     sous_onglets = _fm_sx_sous_onglets(
+                         sub, st.get('searxng', 'arrêt'))
+                     svcbar = (
+-                        '<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;run&quot;)">'
++                        '<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;run&quot;,&quot;SearXNG&quot;)">'
+                         + '&#9654; Démarrer</button>'
+-                        + '<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;stop&quot;)">'
++                        + '<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;stop&quot;,&quot;SearXNG&quot;)">'
+                         + '&#9208; Arrêter</button>'
+-                        + '<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;restart&quot;)">'
++                        + '<button type="button" class="ghost" onclick="svc(&quot;searxng&quot;,&quot;restart&quot;,&quot;SearXNG&quot;)">'
+                         + '&#8635; Redémarrer</button>'
+                     )
+                     if sub == 'engine':
+@@ -942,18 +965,18 @@
+                             + '</div>'
+                             + '<div class="bar" style="margin-top:18px">'
+                             + '<button class="primary">&#128190; Enregistrer les réglages</button></div>'
+-                            + '</form></div><p id="svcmsg" class="sub"></p>' + _js
++                            + '</form></div><p id="svcmsg" class="sub svcmsg" role="status" aria-live="polite"></p>' + _js
+                         )
+                 elif tab in ('ot_service', 'ot_shell'):
+                     sous_onglets = _fm_ot_sous_onglets(
+                         'shell' if tab == 'ot_shell' else 'service',
+                         st.get('open_terminal', 'arrêt'))
+                     svcbar = (
+-                        '<button type="button" class="ghost" onclick="svc(&quot;open_terminal&quot;,&quot;run&quot;)">'
++                        '<button type="button" class="ghost" onclick="svc(&quot;open_terminal&quot;,&quot;run&quot;,&quot;Open Terminal&quot;)">'
+                         '&#9654; Démarrer</button>'
+-                        '<button type="button" class="ghost" onclick="svc(&quot;open_terminal&quot;,&quot;stop&quot;)">'
++                        '<button type="button" class="ghost" onclick="svc(&quot;open_terminal&quot;,&quot;stop&quot;,&quot;Open Terminal&quot;)">'
+                         '&#9208; Arrêter</button>'
+-                        '<button type="button" class="ghost" onclick="svc(&quot;open_terminal&quot;,&quot;restart&quot;)">'
++                        '<button type="button" class="ghost" onclick="svc(&quot;open_terminal&quot;,&quot;restart&quot;,&quot;Open Terminal&quot;)">'
+                         '&#8635; Redémarrer</button>'
+                     )
+                     reset_js = (
+@@ -994,7 +1017,7 @@
+                             + 'onclick="if(confirm(&quot;Effacer TOUS les fichiers de '
+                             + '/root/work ?&quot;))otReset(&quot;wipe-work&quot;)">'
+                             + 'Tout effacer (work supprimé)</button>'
+-                            + '</div><p id="svcmsg" class="sub"></p></div>' + _js
++                            + '</div><p id="svcmsg" class="sub svcmsg" role="status" aria-live="polite"></p></div>' + _js
+                             + reset_js
+                         )
+                     else:
+@@ -1015,9 +1038,9 @@
+     <div class="card"><h2>&#128268; Service</h2>
+     <p class="sub"><span class="dot" style="background:@@DOT_OW@@"></span> État : <b>@@ST_OW@@</b></p>
+     <div class="svcbar">
+-    <button type="button" class="ghost" onclick="svc(&quot;openwebui&quot;,&quot;run&quot;)">&#9654; Démarrer</button>
+-    <button type="button" class="ghost" onclick="svc(&quot;openwebui&quot;,&quot;stop&quot;)">&#9208; Arrêter</button>
+-    <button type="button" class="ghost" onclick="AndroidSystem.restartApp()">&#8635; Redémarrer l'application</button>
++    <button type="button" class="ghost" onclick="svc(&quot;openwebui&quot;,&quot;run&quot;,&quot;Open WebUI&quot;)">&#9654; Démarrer</button>
++    <button type="button" class="ghost" onclick="svc(&quot;openwebui&quot;,&quot;stop&quot;,&quot;Open WebUI&quot;)">&#9208; Arrêter</button>
++    <button type="button" class="ghost" onclick="svcRestart()">&#8635; Redémarrer l'application</button>
+     </div></div>
+     <div class="card"><h2>&#129302; Modèles (LLM)</h2>
+     <p class="sub">Connexion à Ollama ou à une API OpenAI-compatible.</p>
+@@ -1045,8 +1068,22 @@
+     <button class="primary">&#128190; Enregistrer les réglages</button>
+     </div>
+     </div></form>
+-    <p id="svcmsg" class="sub"></p>
+-    <script>function svc(n,a){try{document.getElementById("svcmsg").textContent=AndroidSystem.serverAction(n,a)}catch(e){document.getElementById("svcmsg").textContent="pont système indisponible : "+e}}</script>"""
++    <p id="svcmsg" class="sub svcmsg" role="status" aria-live="polite"></p>
++    <script>
++    function svcMsg(t,c){var e=document.getElementById("svcmsg");if(e){e.textContent=t;e.className="sub svcmsg "+(c||"");}}
++    function svc(n,a,lib){lib=lib||n;var v={run:"Démarrage",stop:"Arrêt",restart:"Redémarrage"}[a]||a;
++      svcMsg("⏳ "+v+" de "+lib+"…","pending");
++      var g=document.querySelector(".svcbar");if(g)g.classList.add("busy");
++      setTimeout(function(){
++      try{var r=String(AndroidSystem.serverAction(n,a)||"");var ok=!/erreur/i.test(r)&&!/inconnu/i.test(r);
++        svcMsg((ok?"✔ ":"✘ ")+lib+" : "+r,ok?"ok":"err");}
++      catch(e){svcMsg("✘ pont système indisponible : "+e,"err");}
++      finally{if(g)g.classList.remove("busy");}},80);}
++    function svcRestart(){var g=document.querySelector(".svcbar");if(g)g.classList.add("busy");
++      svcMsg("⏳ Redémarrage de l’application…","pending");
++      setTimeout(function(){try{AndroidSystem.restartApp();}
++      catch(e){svcMsg("✘ redémarrage impossible : "+e,"err");if(g)g.classList.remove("busy");}},80);}
++    </script>"""
+                     for _nom in connus:
+                         page = page.replace('@@' + _nom + '@@', _champ(_nom))
+                     page = page.replace('@@RESTE@@', _html.escape(reste))
